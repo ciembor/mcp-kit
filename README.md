@@ -1,10 +1,18 @@
-# mcp-kit-js
+<div align="center">
+  <img src="mcp-kit-banner.webp" alt="The missing TypeScript/JavaScript framework for reliable MCP servers." />
+  <h1 align="center">MCP-KIT</h1>
 
-Universal TypeScript/JavaScript framework and tooling for production MCP
+  <p align="center">
+    The missing TypeScript/JavaScript framework and tooling for reliable production MCP
 servers.
+  </p>
 
-The project is in early development. See [SPECIFICATION.md](./SPECIFICATION.md)
-and [BACKLOG.md](./BACKLOG.md).
+  <p align="center">
+    <a href="#requirements">Requirements</a>
+    ·
+    <a href="#development">Development</a>
+  </p>
+</div>
 
 ## Requirements
 
