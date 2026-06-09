@@ -34,6 +34,7 @@ export type QualityConfig = {
   typecheck?: QualityCommand
   deadCode?: QualityCommand
   dependencyCruiser?: QualityCommand
+  mutation?: QualityCommand
   tests?: {
     unit?: QualityCommand
     integration?: QualityCommand
@@ -64,6 +65,7 @@ export type ResolvedQualityConfig = {
   typecheck: QualityCommand
   deadCode: QualityCommand
   dependencyCruiser: QualityCommand
+  mutation: QualityCommand
   tests: {
     unit: QualityCommand
     integration: QualityCommand
@@ -194,6 +196,7 @@ export function resolveQualityConfig(
       'dependency-cruiser src --config dependency-cruiser.config.cjs',
       true
     ),
+    mutation: command(config.mutation, 'stryker run', false),
     tests: {
       unit: command(config.tests?.unit, 'vitest run', true),
       integration: command(config.tests?.integration, '', false),
@@ -344,7 +347,8 @@ function fullSteps(
       command: config.coverage.command
     },
     external('build', config.build),
-    external('package-smoke', config.packageSmoke)
+    external('package-smoke', config.packageSmoke),
+    external('mutation', config.mutation)
   ]
 }
 

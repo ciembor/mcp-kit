@@ -91,8 +91,7 @@ function analyzeImports(files: readonly SourceFile[]): ProjectDiagnostic[] {
     const imports: string[] = []
     for (const statement of file.source.statements) {
       if (!ts.isImportDeclaration(statement)) continue
-      const specifier = stringLiteralValue(statement.moduleSpecifier)
-      if (specifier === undefined) continue
+      const specifier = (statement.moduleSpecifier as ts.StringLiteral).text
       const target = resolveImport(file.absolute, specifier, byAbsolute)
       if (target !== undefined) imports.push(target.absolute)
       diagnostics.push(
@@ -352,30 +351,20 @@ function analyzeTool(capability: Capability): ProjectDiagnostic[] {
   const annotations = propertyObject(definition, 'annotations')
   const effects =
     policy === undefined ? undefined : propertyString(policy, 'effects')
-  const requiredScopes = policy?.properties.some(
-    (property) => propertyName(property) === 'requiredScopes'
-  )
   const hasOutputSchema = findProperty(definition, 'outputSchema') !== undefined
   const handler = findProperty(definition, 'handler')
-  const handlerText = handler?.getText() ?? ''
 
-  if (requiredScopes && policy === undefined) {
-    diagnostics.push(
-      diagnostic(
-        'protected-capability-requires-policy',
-        capability.file,
-        'protected tool must declare a policy',
-        definition
-      )
-    )
-  }
-  if (handlerText.includes('structuredContent') && !hasOutputSchema) {
+  if (
+    handler !== undefined &&
+    handler.getText().includes('structuredContent') &&
+    !hasOutputSchema
+  ) {
     diagnostics.push(
       diagnostic(
         'structured-output-requires-output-schema',
         capability.file,
         'tool returning structuredContent must declare outputSchema',
-        handler ?? definition
+        handler
       )
     )
   }
@@ -546,31 +535,25 @@ function findCycles(
   const diagnostics: ProjectDiagnostic[] = []
   const visiting = new Set<string>()
   const visited = new Set<string>()
-  const reported = new Set<string>()
   const byAbsolute = new Map(files.map((file) => [file.absolute, file]))
 
   function visit(path: string, trail: readonly string[]): void {
     if (visiting.has(path)) {
       const start = trail.indexOf(path)
       const cycle = [...trail.slice(start), path]
-      const key = [...new Set(cycle)].sort(compareText).join('|')
-      if (reported.has(key)) return
-      reported.add(key)
-      const file = byAbsolute.get(path)
-      if (file !== undefined) {
-        diagnostics.push({
-          rule: 'no-circular-dependencies',
-          file: file.path,
-          message: `dependency cycle: ${cycle
-            .map((item) => byAbsolute.get(item)?.path ?? item)
-            .join(' -> ')}`
-        })
-      }
+      const file = byAbsolute.get(path)!
+      diagnostics.push({
+        rule: 'no-circular-dependencies',
+        file: file.path,
+        message: `dependency cycle: ${cycle
+          .map((item) => byAbsolute.get(item)!.path)
+          .join(' -> ')}`
+      })
       return
     }
     if (visited.has(path)) return
     visiting.add(path)
-    for (const dependency of graph.get(path) ?? []) {
+    for (const dependency of graph.get(path)!) {
       visit(dependency, [...trail, path])
     }
     visiting.delete(path)

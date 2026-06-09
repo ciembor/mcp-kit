@@ -1418,6 +1418,7 @@ export const internals = {
   agentFiles,
   findTemplateDirectory,
   renderMain,
+  renderJavaScriptTooling,
   renderPackageJson,
   toPackageName
 }

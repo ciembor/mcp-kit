@@ -10,9 +10,17 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
   Client: class MockClient {
     readonly info: unknown
     readonly options: unknown
+    transport?: {
+      send(message: unknown): Promise<void>
+      close(): Promise<void>
+    }
     connect = vi
       .fn<(transport: { start(): Promise<void> }) => Promise<void>>()
       .mockImplementation(async (transport) => {
+        this.transport = transport as unknown as {
+          send(message: unknown): Promise<void>
+          close(): Promise<void>
+        }
         await transport.start()
       })
     close = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
@@ -68,6 +76,7 @@ type MockStdioClientTransport = {
 type MockClient = {
   info: unknown
   options: unknown
+  transport?: { send(message: unknown): Promise<void>; close(): Promise<void> }
   connect: ReturnType<
     typeof vi.fn<(transport: { start(): Promise<void> }) => Promise<void>>
   >
@@ -207,7 +216,8 @@ describe('@mcp-kit/testing', () => {
     transport.onerror?.(error)
     transport.onclose?.()
 
-    await client.transport.send({ jsonrpc: '2.0', method: 'ping' })
+    await clients[0]?.transport?.send({ jsonrpc: '2.0', method: 'ping' })
+    await clients[0]?.transport?.close()
     await client.close()
 
     expect(client.stderr()).toBe('first second')
@@ -218,6 +228,7 @@ describe('@mcp-kit/testing', () => {
       stderr: 'pipe'
     })
     expect(transport.send).toHaveBeenCalled()
+    expect(transport.close).toHaveBeenCalled()
     expect(clients[0]?.close).toHaveBeenCalled()
   })
 })

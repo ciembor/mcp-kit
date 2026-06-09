@@ -304,6 +304,81 @@ describe('mcp-kit cli', () => {
     await expect(runCli(['quality'], { cwd })).resolves.toBe(exitCodes.usage)
   })
 
+  it('prints quality diagnostics and coverage exclusions in text mode', async () => {
+    const cwd = await makeTemp()
+    await writeFile(
+      resolve(cwd, 'quality.config.js'),
+      `export default {
+  preset: 'standard',
+  formatting: { command: 'node -e "setTimeout(() => {}, 1100)"' },
+  lint: { enabled: false, command: '' },
+  typecheck: { enabled: false, command: '' },
+  dependencyCruiser: { enabled: false, command: '' },
+  tests: { unit: { enabled: false, command: '' } },
+  coverage: {
+    exclude: [{ pattern: 'src/generated.ts', reason: 'generated' }]
+  },
+  build: { enabled: false, command: '' }
+}
+`
+    )
+    await mkdir(resolve(cwd, 'src/features/broken/domain'), {
+      recursive: true
+    })
+    await writeFile(
+      resolve(cwd, 'src/features/broken/domain/value.ts'),
+      "import '@modelcontextprotocol/sdk/types.js'\n"
+    )
+    const output = createOutput()
+
+    await expect(
+      runCli(['quality', '--fast', '--since', 'main'], {
+        cwd,
+        stdout: output.stdout,
+        stderr: output.stderr
+      })
+    ).resolves.toBe(exitCodes.validation)
+
+    expect(output.out).toContain('[failed] architecture')
+    expect(output.out).toContain(
+      'src/features/broken/domain/value.ts:1 no-mcp-sdk-in-policy'
+    )
+    expect(output.out).toContain(
+      '[coverage-exclusion] src/generated.ts: generated'
+    )
+    expect(output.out).toContain('quality failed in ')
+  })
+
+  it('aborts a running quality command on SIGINT', async () => {
+    const cwd = await makeTemp()
+    await writeFile(
+      resolve(cwd, 'quality.config.js'),
+      `export default {
+  preset: 'standard',
+  formatting: { command: 'node -e "setTimeout(() => {}, 10000)"' },
+  lint: { enabled: false, command: '' },
+  typecheck: { enabled: false, command: '' },
+  dependencyCruiser: { enabled: false, command: '' },
+  tests: { unit: { enabled: false, command: '' } },
+  build: { enabled: false, command: '' }
+}
+`
+    )
+    const output = createOutput()
+    const running = runCli(['quality', '--fast'], {
+      cwd,
+      stdout: output.stdout,
+      stderr: output.stderr
+    })
+
+    setTimeout(() => {
+      process.emit('SIGINT')
+    }, 50)
+
+    await expect(running).resolves.toBe(exitCodes.validation)
+    expect(output.out).toContain('[failed] format')
+  })
+
   it('refuses to create into a non-empty target without force', async () => {
     const cwd = await makeTemp()
     const target = resolve(cwd, 'existing')
@@ -814,6 +889,12 @@ describe('mcp-kit cli', () => {
     expect(internals.renderMain('stdio')).toContain('await startStdio()')
     expect(internals.renderMain('http')).toContain('HTTP transport')
     expect(internals.renderMain('both')).toContain('MCP_TRANSPORT')
+    expect(
+      internals.renderJavaScriptTooling(
+        'knip.json',
+        JSON.stringify({ entry: 'src/main.ts' })
+      )
+    ).toContain('"entry": []')
   })
 
   it('covers filesystem helper errors, manifests and remaining agent variants', async () => {

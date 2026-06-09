@@ -120,6 +120,63 @@ describe('project architecture analysis', () => {
       ])
     )
   })
+
+  it('reports same-feature outward imports and mixed capability name styles', async () => {
+    const root = await makeProject()
+    await files(root, {
+      'src/features/orders/index.ts':
+        "export { orderTool } from './mcp/order.tool.js'\n",
+      'src/features/orders/domain/entity.ts':
+        "import { registry } from '../../../mcp/registry.js'\nexport const entity = registry\n",
+      'src/features/orders/domain/local.ts':
+        "import { entity } from './entity.js'\nexport const local = entity\n",
+      'src/features/orders/application/use-case.ts':
+        "import { adapter } from '../infrastructure/adapter.js'\nimport { orderTool } from '../mcp/order.tool.js'\nexport const useCase = [adapter, orderTool]\n",
+      'src/features/orders/application/ports/order-store.ts':
+        'interface LocalStore {}\nexport type PortAlias = string\nexport interface OrderStore { save(): Promise<void> }\n',
+      'src/features/orders/mcp/order.tool.ts':
+        "import { defineTool } from '@mcp-kit/core'\nimport { adapter } from '../infrastructure/adapter.js'\nimport { z } from 'zod'\nconst dynamicName = 'dynamic'\nconst name = 'shorthand'\nconst base = {}\nexport const orderTool = defineTool({ name: 'order-tool', inputSchema: z.object({}), outputSchema: z.object({ ok: z.boolean() }), annotations: { readOnlyHint: 'yes', openWorldHint: false }, policy: { effects: 'read' }, handler: () => ({ structuredContent: { ok: true }, content: [] }) })\nexport const noAnnotationsTool = defineTool({ name: 'read-no-annotations', inputSchema: z.object({}), policy: { effects: 'read' }, handler: () => ({ content: [] }) })\nexport const mixedStyleTool = defineTool({ name: 'mixed_style', inputSchema: z.object({}), handler: () => ({ content: [] }) })\nexport const invalidNameTool = defineTool({ ...base, [dynamicName]: true, name: dynamicName, inputSchema: z.object({}), annotations: {}, policy: { effects: 'write' }, handler: () => ({ content: [] }) })\nexport const shorthandNameTool = defineTool({ name, inputSchema: z.object({}), handler: () => ({ content: [] }) })\nexport const safeWriteTool = defineTool({ name: 'safe-write', inputSchema: z.object({}), annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false }, policy: { effects: 'write' }, handler: () => ({ content: [] }) })\nexport const ignoredDefinition = defineTool('not-an-object')\nexport const adapterUse = adapter\n",
+      'src/features/orders/infrastructure/adapter.ts':
+        'export class BaseStore {}\nexport class IgnoredStore extends BaseStore {}\nexport class MemoryOrderStore implements OrderStore { async save(): Promise<void> {} }\nexport const adapter = true\n',
+      'src/mcp/registry.ts':
+        "import { defineRegistry } from '@mcp-kit/core'\nexport const registry = defineRegistry()\ndefineRegistry({})\n"
+    })
+
+    const analysis = await analyzeProject(root)
+    expect(rules(analysis.diagnostics)).toEqual(
+      expect.arrayContaining([
+        'application-dependencies',
+        'capability-name',
+        'capability-name-style',
+        'domain-dependencies',
+        'mcp-dependencies',
+        'policy-annotations'
+      ])
+    )
+    expect(rules(analysis.diagnostics)).not.toContain('deterministic-registry')
+  })
+
+  it('parses supported source extensions and propagates unreadable src roots', async () => {
+    const root = await makeProject()
+    await files(root, {
+      'src/features/views/index.tsx': 'export const view = <div />\n',
+      'src/features/views/mcp/view.jsx':
+        "import { defineResource } from '@mcp-kit/core'\nexport const view = defineResource({ name: 'view', uri: 'view://one', read: () => ({ contents: [] }) })\n",
+      'src/features/views/domain/text.txt': 'ignored\n'
+    })
+
+    const analysis = await analyzeProject(root)
+    expect(analysis.files).toEqual(
+      expect.arrayContaining([
+        'src/features/views/index.tsx',
+        'src/features/views/mcp/view.jsx'
+      ])
+    )
+
+    const brokenRoot = await makeProject()
+    await writeFile(resolve(brokenRoot, 'src'), 'not a directory')
+    await expect(analyzeProject(brokenRoot)).rejects.toThrow()
+  })
 })
 
 async function makeProject(): Promise<string> {

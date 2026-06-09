@@ -29,6 +29,10 @@ export default defineQualityConfig({
     command:
       'dependency-cruiser packages test --config dependency-cruiser.config.cjs'
   },
+  mutation: {
+    enabled: true,
+    command: 'corepack pnpm mutation'
+  },
   tests: {
     unit: { command: "vitest run --exclude 'test/e2e/**'" },
     integration: {
@@ -39,7 +43,7 @@ export default defineQualityConfig({
   },
   coverage: {
     command:
-      "vitest run --coverage --exclude 'test/e2e/**' --coverage.thresholds.lines=90 --coverage.thresholds.functions=90 --coverage.thresholds.statements=90 --coverage.thresholds.branches=85 --coverage.include='packages/*/src/**/*.ts' --coverage.exclude='packages/*/src/bin.ts' --coverage.exclude='packages/*/src/**/*.test.ts'",
+      "vitest run --coverage --exclude 'test/e2e/**' --coverage.thresholds.lines=100 --coverage.thresholds.functions=100 --coverage.thresholds.statements=100 --coverage.thresholds.branches=100 --coverage.include='packages/*/src/**/*.ts' --coverage.exclude='packages/*/src/bin.ts' --coverage.exclude='packages/*/src/**/*.test.ts'",
     include: ['packages/*/src/**/*.ts'],
     exclude: [
       {
