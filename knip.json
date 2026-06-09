@@ -1,0 +1,29 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["test/**/*.test.ts"],
+      "project": ["*.ts", "*.js", "test/**/*.ts"]
+    },
+    "packages/core": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/node": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/testing": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/cli": {
+      "entry": ["src/index.ts", "src/bin.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/create-mcp-kit": {
+      "entry": ["src/index.ts", "src/bin.ts"],
+      "project": ["src/**/*.ts"]
+    }
+  }
+}

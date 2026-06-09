@@ -1,0 +1,30 @@
+{
+  "name": "create-mcp-kit",
+  "version": "0.0.0",
+  "description": "Create a new mcp-kit server.",
+  "type": "module",
+  "bin": {
+    "create-mcp-kit": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts src/bin.ts --format esm --dts --sourcemap --clean && rm -rf dist/template && cp -R ../../templates/default dist/template",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

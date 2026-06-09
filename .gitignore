@@ -1,0 +1,10 @@
+REFACTOR.md
+node_modules/
+dist/
+coverage/
+.conformance-results/
+.DS_Store
+*.tsbuildinfo
+.pnpm-store/
+.stryker-tmp/
+.turbo/

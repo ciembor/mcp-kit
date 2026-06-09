@@ -1,0 +1,31 @@
+{
+  "name": "@mcp-kit/core",
+  "version": "0.0.0",
+  "description": "Transport-independent core APIs for mcp-kit.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --sourcemap --clean",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.4.3"
+  }
+}

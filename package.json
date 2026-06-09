@@ -1,0 +1,49 @@
+{
+  "name": "mcp-kit-js",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.5.2",
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0",
+    "pnpm": ">=11.5.2"
+  },
+  "scripts": {
+    "build": "corepack pnpm --recursive --if-present run build",
+    "clean": "corepack pnpm --recursive --if-present run clean",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "smells": "knip",
+    "lint": "eslint .",
+    "mutation": "stryker run",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc --project tsconfig.json && corepack pnpm --recursive --if-present run typecheck",
+    "test": "vitest run",
+    "test:conformance": "conformance --version >/dev/null && node test/conformance/run.mjs",
+    "test:smoke": "vitest run test/smoke",
+    "knip": "knip",
+    "quality": "corepack pnpm smells && corepack pnpm lint && corepack pnpm mutation && corepack pnpm coverage"
+  },
+  "devDependencies": {
+    "@mcp-kit/cli": "workspace:*",
+    "@mcp-kit/core": "workspace:*",
+    "@mcp-kit/node": "workspace:*",
+    "@mcp-kit/testing": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/conformance": "0.1.16",
+    "@eslint/js": "10.0.1",
+    "@stryker-mutator/core": "9.6.1",
+    "@stryker-mutator/vitest-runner": "9.6.1",
+    "@types/node": "25.9.2",
+    "@vitest/coverage-v8": "4.1.8",
+    "create-mcp-kit": "workspace:*",
+    "eslint": "10.4.1",
+    "knip": "6.16.1",
+    "prettier": "3.8.4",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.61.0",
+    "vitest": "4.1.8",
+    "zod": "4.4.3"
+  }
+}

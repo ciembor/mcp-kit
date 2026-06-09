@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@mcp-kit/cli": ["./packages/cli/src/index.ts"],
+      "@mcp-kit/core": ["./packages/core/src/index.ts"],
+      "@mcp-kit/node": ["./packages/node/src/index.ts"],
+      "@mcp-kit/testing": ["./packages/testing/src/index.ts"],
+      "create-mcp-kit": ["./packages/create-mcp-kit/src/index.ts"]
+    }
+  },
+  "include": ["vitest.config.ts", "test/**/*.ts"]
+}
