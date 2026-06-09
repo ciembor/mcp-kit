@@ -886,6 +886,21 @@ describe('mcp-kit cli', () => {
         dryRun: false
       })
     ).not.toContain('devDependencies')
+    expect(
+      internals.renderPackageJson('{}', {
+        transport: 'http',
+        quality: 'standard',
+        language: 'typescript',
+        packageManager: 'pnpm',
+        git: false,
+        hooks: false,
+        ci: false,
+        install: false,
+        agent: 'none',
+        force: false,
+        dryRun: false
+      })
+    ).toContain('"scripts"')
     expect(internals.renderMain('stdio')).toContain('await startStdio()')
     expect(internals.renderMain('http')).toContain('HTTP transport')
     expect(internals.renderMain('both')).toContain('MCP_TRANSPORT')

@@ -5,13 +5,13 @@ import { describe, expect, it } from 'vitest'
 const root = resolve(import.meta.dirname, '..')
 
 describe('code-smell quality gate', () => {
-  it('rejects production files longer than 1500 lines', async () => {
+  it('rejects production files longer than 300 lines', async () => {
     const eslint = new ESLint({
       cwd: root,
       overrideConfigFile: resolve(root, 'eslint.smells.config.js')
     })
     const source = Array.from(
-      { length: 1501 },
+      { length: 301 },
       (_, index) => `export const line${String(index)} = ${String(index)}`
     ).join('\n')
 

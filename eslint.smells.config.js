@@ -23,7 +23,7 @@ export default defineConfig(
     files: productionSources,
     ignores: ['**/*.test.ts'],
     rules: {
-      'max-lines': ['error', { max: 1500 }],
+      'max-lines': ['error', { max: 300 }],
       'sonarjs/cognitive-complexity': ['error', 25],
       // The quality runner intentionally executes commands from the trusted project config.
       'sonarjs/os-command': 'off'
