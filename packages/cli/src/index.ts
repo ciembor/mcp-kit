@@ -12,7 +12,9 @@ import { createHash } from 'node:crypto'
 import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { getBoolean, getEnum, getString, parseArgs } from './cli-args.js'
 import { runQuality, type QualityMode } from './quality.js'
+import { CliError } from './cli-error.js'
 import {
   exitCodes,
   packageInfo,
@@ -22,7 +24,6 @@ import {
   type CliIo,
   type CliResult,
   type DoctorDiagnostic,
-  type ExitCode,
   type FileOperation,
   type FilePlan,
   type GeneratorOptions,
@@ -72,16 +73,6 @@ export {
   type ProjectLanguage,
   type TransportPreset
 } from './cli-contracts.js'
-
-class CliError extends Error {
-  readonly exitCode: ExitCode
-
-  constructor(message: string, exitCode: ExitCode) {
-    super(message)
-    this.name = 'CliError'
-    this.exitCode = exitCode
-  }
-}
 
 export async function runCli(
   args: readonly string[] = process.argv.slice(2),
@@ -1306,67 +1297,6 @@ function formatDuration(durationMs: number): string {
   return durationMs < 1000
     ? `${durationMs}ms`
     : `${(durationMs / 1000).toFixed(1)}s`
-}
-
-function parseArgs(args: readonly string[]): ParsedArgs {
-  const positionals: string[] = []
-  const options: Record<string, string | boolean> = {}
-  let command: string | undefined
-
-  for (let index = 0; index < args.length; index += 1) {
-    const argument = args[index]
-    if (argument === undefined) continue
-    if (command === undefined && !argument.startsWith('-')) {
-      command = argument
-      continue
-    }
-    if (argument.startsWith('--')) {
-      const [key, inlineValue] = argument.slice(2).split('=', 2)
-      if (key === undefined || key === '') continue
-      if (inlineValue !== undefined) {
-        options[key] = inlineValue
-        continue
-      }
-      const next = args[index + 1]
-      if (next !== undefined && !next.startsWith('-')) {
-        options[key] = next
-        index += 1
-      } else {
-        options[key] = true
-      }
-      continue
-    }
-    positionals.push(argument)
-  }
-
-  const parsed: ParsedArgs = { positionals, options }
-  if (command !== undefined) parsed.command = command
-  return parsed
-}
-
-function getBoolean(parsed: ParsedArgs, name: string): boolean {
-  return parsed.options[name] === true
-}
-
-function getString(parsed: ParsedArgs, name: string): string | undefined {
-  const value = parsed.options[name]
-  return typeof value === 'string' ? value : undefined
-}
-
-function getEnum<const Value extends string>(
-  parsed: ParsedArgs,
-  name: string,
-  values: readonly Value[]
-): Value | undefined {
-  const value = parsed.options[name]
-  if (value === undefined || value === false) return undefined
-  if (value === true || !values.includes(value as Value)) {
-    throw new CliError(
-      `Invalid --${name}. Expected one of: ${values.join(', ')}`,
-      exitCodes.validation
-    )
-  }
-  return value as Value
 }
 
 async function safeReaddir(path: string): Promise<string[]> {
