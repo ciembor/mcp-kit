@@ -11,8 +11,18 @@ export function renderTemplateFile(
   file: { path: string; content: string },
   input: { projectName: string; options: GeneratorOptions }
 ): { path: string; content: string } | undefined {
-  let path = file.path
-  let content = file.content
+  const rendered = renderConfiguredFile(file, input)
+  if (!supportsTransport(rendered.path, input.options.transport)) {
+    return undefined
+  }
+  return renderLanguageFile(rendered, input.options.language)
+}
+
+function renderConfiguredFile(
+  file: { path: string; content: string },
+  input: { projectName: string; options: GeneratorOptions }
+): { path: string; content: string } {
+  const content = file.content
     .replaceAll('{{PROJECT_NAME}}', input.projectName)
     .replaceAll('{{MCP_KIT_CORE}}', '^0.0.0')
     .replaceAll('{{MCP_KIT_NODE}}', '^0.0.0')
@@ -24,38 +34,36 @@ export function renderTemplateFile(
         : ''
     )
 
-  if (path === 'package.json') {
-    content = renderPackageJson(content, input.options)
+  const renderers: Record<string, () => string> = {
+    'package.json': () => renderPackageJson(content, input.options),
+    'mcp-kit.config.ts': () => mcpKitConfigContent(input.options),
+    'quality.config.js': () => qualityConfigContent(input.options),
+    'src/main.ts': () => renderMain(input.options.transport)
   }
-  if (path === 'mcp-kit.config.ts') {
-    content = mcpKitConfigContent(input.options)
-  }
-  if (path === 'quality.config.js') {
-    content = qualityConfigContent(input.options)
-  }
-  if (path === 'src/main.ts') {
-    content = renderMain(input.options.transport)
-  }
-  if (
-    input.options.transport === 'http' &&
-    (/\/stdio\.[cm]?[jt]s$/.test(path) ||
-      /\/stdio\.test\.[cm]?[jt]s$/.test(path))
-  ) {
-    return undefined
-  }
-  if (input.options.language === 'javascript') {
-    if (path === 'tsconfig.json') return undefined
-    if (path === 'vitest.config.ts') {
-      path = 'vitest.config.js'
-    }
-    if (path.endsWith('.ts')) {
-      path = `${path.slice(0, -3)}.js`
-      content = toJavaScript(content)
-      if (content === '') return undefined
-    }
-    content = renderJavaScriptTooling(path, content)
-  }
-  return { path, content }
+  return { path: file.path, content: renderers[file.path]?.() ?? content }
+}
+
+function supportsTransport(path: string, transport: TransportPreset): boolean {
+  const stdioFile =
+    /\/stdio\.[cm]?[jt]s$/.test(path) || /\/stdio\.test\.[cm]?[jt]s$/.test(path)
+  return transport !== 'http' || !stdioFile
+}
+
+function renderLanguageFile(
+  file: { path: string; content: string },
+  language: GeneratorOptions['language']
+): { path: string; content: string } | undefined {
+  if (language === 'typescript') return file
+  if (file.path === 'tsconfig.json') return undefined
+  const path =
+    file.path === 'vitest.config.ts'
+      ? 'vitest.config.js'
+      : file.path.replace(/\.ts$/, '.js')
+  const content = file.path.endsWith('.ts')
+    ? toJavaScript(file.content)
+    : file.content
+  if (content === '') return undefined
+  return { path, content: renderJavaScriptTooling(path, content) }
 }
 
 export function renderPackageJson(

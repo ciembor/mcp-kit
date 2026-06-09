@@ -2,39 +2,45 @@ import { exitCodes, type ParsedArgs } from './cli-contracts.js'
 import { CliError } from './cli-error.js'
 
 export function parseArgs(args: readonly string[]): ParsedArgs {
-  const positionals: string[] = []
-  const options: Record<string, string | boolean> = {}
-  let command: string | undefined
-
+  const parsed: ParsedArgs = { positionals: [], options: {} }
   for (let index = 0; index < args.length; index += 1) {
-    const argument = args[index]
-    if (argument === undefined) continue
-    if (command === undefined && !argument.startsWith('-')) {
-      command = argument
-      continue
-    }
-    if (argument.startsWith('--')) {
-      const [key, inlineValue] = argument.slice(2).split('=', 2)
-      if (key === undefined || key === '') continue
-      if (inlineValue !== undefined) {
-        options[key] = inlineValue
-        continue
-      }
-      const next = args[index + 1]
-      if (next !== undefined && !next.startsWith('-')) {
-        options[key] = next
-        index += 1
-      } else {
-        options[key] = true
-      }
-      continue
-    }
-    positionals.push(argument)
+    index += consumeArgument(parsed, args, index)
   }
-
-  const parsed: ParsedArgs = { positionals, options }
-  if (command !== undefined) parsed.command = command
   return parsed
+}
+
+function consumeArgument(
+  parsed: ParsedArgs,
+  args: readonly string[],
+  index: number
+): number {
+  const argument = args[index]
+  if (argument === undefined) return 0
+  if (parsed.command === undefined && !argument.startsWith('-')) {
+    parsed.command = argument
+    return 0
+  }
+  if (!argument.startsWith('--')) {
+    parsed.positionals.push(argument)
+    return 0
+  }
+  return consumeOption(parsed.options, argument.slice(2), args[index + 1])
+}
+
+function consumeOption(
+  options: Record<string, string | boolean>,
+  option: string,
+  next: string | undefined
+): number {
+  const [key, inlineValue] = option.split('=', 2)
+  if (key === undefined || key === '') return 0
+  if (inlineValue !== undefined) {
+    options[key] = inlineValue
+    return 0
+  }
+  const consumesNext = next !== undefined && !next.startsWith('-')
+  options[key] = consumesNext ? next : true
+  return Number(consumesNext)
 }
 
 export function getBoolean(parsed: ParsedArgs, name: string): boolean {

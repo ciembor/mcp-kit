@@ -140,46 +140,15 @@ export async function runQuality(
       : fullSteps(config, options)
 
   for (const step of commands) {
-    if (steps.some((result) => result.status === 'failed')) {
-      steps.push({ name: step.name, status: 'skipped', durationMs: 0 })
-      continue
-    }
-    if (signal.aborted) {
-      steps.push({
-        name: step.name,
-        status: 'failed',
-        durationMs: 0,
-        exitCode: 130
+    const previousFailed = steps.some((result) => result.status === 'failed')
+    steps.push(
+      await executeStep(step, {
+        root: config.project.root,
+        signal,
+        execute,
+        previousFailed
       })
-      continue
-    }
-    if (step.kind === 'analysis') {
-      const stepStarted = performance.now()
-      const analysis = await analyzeProject(config.project.root)
-      steps.push({
-        name: step.name,
-        status: analysis.diagnostics.length === 0 ? 'passed' : 'failed',
-        durationMs: elapsed(stepStarted),
-        diagnostics: analysis.diagnostics
-      })
-      continue
-    }
-    if (!step.enabled || step.command.trim() === '') {
-      steps.push({ name: step.name, status: 'skipped', durationMs: 0 })
-      continue
-    }
-    const stepStarted = performance.now()
-    const exitCode = await execute(step.command, {
-      cwd: config.project.root,
-      signal
-    })
-    steps.push({
-      name: step.name,
-      command: step.command,
-      status: exitCode === 0 ? 'passed' : 'failed',
-      durationMs: elapsed(stepStarted),
-      exitCode
-    })
+    )
   }
 
   return {
@@ -196,6 +165,64 @@ export async function runQuality(
     },
     steps
   }
+}
+
+async function executeStep(
+  step: Step,
+  context: {
+    root: string
+    signal: AbortSignal
+    execute: QualityExecutor
+    previousFailed: boolean
+  }
+): Promise<QualityStepResult> {
+  if (context.previousFailed) return skippedStep(step.name)
+  if (context.signal.aborted) {
+    return { name: step.name, status: 'failed', durationMs: 0, exitCode: 130 }
+  }
+  if (step.kind === 'analysis') return executeAnalysis(step.name, context.root)
+  if (!step.enabled || step.command.trim() === '') return skippedStep(step.name)
+  return executeExternal(step, context)
+}
+
+async function executeAnalysis(
+  name: string,
+  root: string
+): Promise<QualityStepResult> {
+  const started = performance.now()
+  const analysis = await analyzeProject(root)
+  return {
+    name,
+    status: analysis.diagnostics.length === 0 ? 'passed' : 'failed',
+    durationMs: elapsed(started),
+    diagnostics: analysis.diagnostics
+  }
+}
+
+async function executeExternal(
+  step: Extract<Step, { kind: 'external' }>,
+  context: {
+    root: string
+    signal: AbortSignal
+    execute: QualityExecutor
+  }
+): Promise<QualityStepResult> {
+  const started = performance.now()
+  const exitCode = await context.execute(step.command, {
+    cwd: context.root,
+    signal: context.signal
+  })
+  return {
+    name: step.name,
+    command: step.command,
+    status: exitCode === 0 ? 'passed' : 'failed',
+    durationMs: elapsed(started),
+    exitCode
+  }
+}
+
+function skippedStep(name: string): QualityStepResult {
+  return { name, status: 'skipped', durationMs: 0 }
 }
 
 function fastSteps(

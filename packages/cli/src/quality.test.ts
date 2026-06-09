@@ -10,6 +10,7 @@ import {
   runQuality,
   type QualityConfig
 } from './quality.js'
+import { executeCommand } from './quality-execute.js'
 
 const temporaryDirectories: string[] = []
 
@@ -354,6 +355,18 @@ describe('quality runner', () => {
     })
     setTimeout(() => controller.abort(), 50)
     await expect(aborted).resolves.toMatchObject({ status: 'failed' })
+
+    const signal = new AbortController().signal
+    await expect(
+      executeCommand("node -e 'process.exit(0)'", { cwd: root, signal })
+    ).resolves.toBe(0)
+    await expect(executeCommand('', { cwd: root, signal })).resolves.toBe(70)
+    await expect(
+      executeCommand(`node -e "process.kill(process.pid, 'SIGINT')"`, {
+        cwd: root,
+        signal
+      })
+    ).resolves.toBe(130)
   })
 
   it('renders coverage commands with strict includes and exclusions', () => {

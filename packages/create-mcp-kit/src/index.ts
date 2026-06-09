@@ -37,28 +37,51 @@ export async function createMcpKitProject(
   await cp(template, target, { recursive: true })
 
   const projectName = toPackageName(basename(target))
-  await replaceTemplateTokens(target, {
-    '{{PROJECT_NAME}}': projectName,
-    '{{MCP_KIT_CORE}}':
-      options.corePackage ??
-      process.env['MCP_KIT_CORE_SPEC'] ??
-      `^${packageInfo.version}`,
-    '{{MCP_KIT_NODE}}':
-      options.nodePackage ??
-      process.env['MCP_KIT_NODE_SPEC'] ??
-      `^${packageInfo.version}`,
-    '{{MCP_KIT_CLI}}':
-      options.cliPackage ??
-      process.env['MCP_KIT_CLI_SPEC'] ??
-      `^${packageInfo.version}`,
-    '{{MCP_KIT_TESTING}}':
-      options.testingPackage ??
-      process.env['MCP_KIT_TESTING_SPEC'] ??
-      `^${packageInfo.version}`,
-    ' /* {{STRICT_DEPENDENCY_RULES}} */': ''
-  })
+  await replaceTemplateTokens(
+    target,
+    templateReplacements(projectName, options)
+  )
 
   return target
+}
+
+function templateReplacements(
+  projectName: string,
+  options: CreateMcpKitOptions
+): Readonly<Record<string, string>> {
+  const fallback = `^${packageInfo.version}`
+  return {
+    '{{PROJECT_NAME}}': projectName,
+    '{{MCP_KIT_CORE}}': packageSpec(
+      options.corePackage,
+      'MCP_KIT_CORE_SPEC',
+      fallback
+    ),
+    '{{MCP_KIT_NODE}}': packageSpec(
+      options.nodePackage,
+      'MCP_KIT_NODE_SPEC',
+      fallback
+    ),
+    '{{MCP_KIT_CLI}}': packageSpec(
+      options.cliPackage,
+      'MCP_KIT_CLI_SPEC',
+      fallback
+    ),
+    '{{MCP_KIT_TESTING}}': packageSpec(
+      options.testingPackage,
+      'MCP_KIT_TESTING_SPEC',
+      fallback
+    ),
+    ' /* {{STRICT_DEPENDENCY_RULES}} */': ''
+  }
+}
+
+function packageSpec(
+  explicit: string | undefined,
+  environmentName: string,
+  fallback: string
+): string {
+  return explicit ?? process.env[environmentName] ?? fallback
 }
 
 async function findTemplateDirectory(

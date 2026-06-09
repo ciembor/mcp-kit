@@ -34,54 +34,64 @@ export function installToolCallHandler<Services>(runtime: {
 }): void {
   runtime.sdk.server.setRequestHandler(
     CallToolRequestSchema,
-    async (request, extra) => {
-      const tool = runtime.tools.get(request.params.name)
-      if (tool === undefined) {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `Tool ${request.params.name} not found`
-        )
-      }
+    (request, extra) => executeTool(runtime, request.params, extra)
+  )
+}
 
-      const parsed = await safeParseAsync(
-        tool.inputSchema,
-        request.params.arguments ?? {}
-      )
-      if (!parsed.success) {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `Invalid arguments for tool ${tool.name}: ${getParseErrorMessage(parsed.error)}`
-        )
-      }
+async function executeTool<Services>(
+  runtime: {
+    tools: ReadonlyMap<string, ToolDefinition<Schema, Services>>
+    createRequestContext(extra: ServerRequestContext): RequestContext<Services>
+    middleware: readonly ToolMiddleware<Services>[]
+    logger(): Logger
+  },
+  params: { name: string; arguments?: Record<string, unknown> | undefined },
+  extra: ServerRequestContext
+) {
+  const tool = runtime.tools.get(params.name)
+  if (tool === undefined) {
+    throw new McpError(ErrorCode.InvalidParams, `Tool ${params.name} not found`)
+  }
+  const parsed = await safeParseAsync(tool.inputSchema, params.arguments ?? {})
+  if (!parsed.success) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      `Invalid arguments for tool ${tool.name}: ${getParseErrorMessage(parsed.error)}`
+    )
+  }
+  const context = runtime.createRequestContext(extra)
+  const result = await runToolPipeline(
+    tool,
+    parsed.data,
+    context,
+    runtime.middleware
+  )
+  return validateToolOutput(runtime, tool, result, context)
+}
 
-      const context = runtime.createRequestContext(extra)
-      const result = await runToolPipeline(
-        tool,
-        parsed.data,
-        context,
-        runtime.middleware
-      )
-
-      if (tool.outputSchema === undefined) return result
-      if (result.structuredContent === undefined) {
-        return toolExecutionError(
-          'Tool returned no structuredContent required by outputSchema.'
-        )
-      }
-      const output = await safeParseAsync(
-        tool.outputSchema,
-        result.structuredContent
-      )
-      if (output.success) return result
-
-      runtime.logger().error('Tool output validation failed', {
-        correlationId: context.requestId,
-        tool: tool.name
-      })
-      return toolExecutionError(
-        `Tool output validation failed. Correlation id: ${context.requestId}`
-      )
-    }
+async function validateToolOutput<Services>(
+  runtime: { logger(): Logger },
+  tool: ToolDefinition<Schema, Services>,
+  result: Awaited<ReturnType<typeof runToolPipeline<Services>>>,
+  context: RequestContext<Services>
+) {
+  if (tool.outputSchema === undefined) return result
+  if (result.structuredContent === undefined) {
+    return toolExecutionError(
+      'Tool returned no structuredContent required by outputSchema.'
+    )
+  }
+  const output = await safeParseAsync(
+    tool.outputSchema,
+    result.structuredContent
+  )
+  if (output.success) return result
+  runtime.logger().error('Tool output validation failed', {
+    correlationId: context.requestId,
+    tool: tool.name
+  })
+  return toolExecutionError(
+    `Tool output validation failed. Correlation id: ${context.requestId}`
   )
 }
 

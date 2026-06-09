@@ -631,6 +631,7 @@ describe('mcp-kit cli', () => {
         files: [
           { path: 'missing.txt', checksum: 'x' },
           { path: 'src/mcp/registry.ts', checksum: 'wrong' },
+          { path: 'package.json' },
           'ignored'
         ]
       })

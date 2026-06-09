@@ -4,10 +4,11 @@ export async function executeCommand(
   command: string,
   options: { cwd: string; signal: AbortSignal }
 ): Promise<number> {
+  const [program, ...args] = commandArguments(command)
+  if (program === undefined) return 70
   return new Promise((resolvePromise) => {
-    const child = spawn(command, {
+    const child = spawn(program, args, {
       cwd: options.cwd,
-      shell: true,
       stdio: 'inherit'
     })
     const abort = () => child.kill('SIGTERM')
@@ -26,5 +27,15 @@ export async function executeCommand(
           : 70
       )
     })
+  })
+}
+
+function commandArguments(command: string): string[] {
+  const tokens = command.match(/(?:[^\s'"]+|'[^']*'|"[^"]*")+/g) ?? []
+  return tokens.map((token) => {
+    const quoted =
+      (token.startsWith("'") && token.endsWith("'")) ||
+      (token.startsWith('"') && token.endsWith('"'))
+    return quoted ? token.slice(1, -1) : token
   })
 }

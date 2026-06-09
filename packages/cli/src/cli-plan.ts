@@ -49,50 +49,60 @@ export async function planGeneratedProject(
   operations.push(
     await createOrMergeOperation(root, 'docs/tools.md', '# Tools\n\n- health\n')
   )
+  operations.push(...(await projectSupportOperations(root, options)))
+  operations.push(await projectManifestOperation(root, operations, options))
 
-  if (options.ci) {
-    operations.push(
-      await createOrMergeOperation(
-        root,
-        '.github/workflows/ci.yml',
-        ciWorkflowContent(options.packageManager)
-      )
-    )
-  }
-  if (options.hooks) {
-    operations.push(
-      await createOrMergeOperation(
-        root,
-        '.githooks/pre-commit',
-        '#!/usr/bin/env sh\nset -eu\nnpm run quality:fast\n'
-      )
-    )
-    if (options.quality === 'strict') {
-      operations.push(
-        await createOrMergeOperation(
-          root,
-          '.githooks/pre-push',
-          '#!/usr/bin/env sh\nset -eu\nnpm run quality:full\n'
-        )
-      )
-    }
-  }
-  for (const agentFile of agentFiles(options.agent)) {
-    operations.push(
-      await createOrMergeOperation(root, agentFile.path, agentFile.content)
-    )
-  }
+  return { root, operations }
+}
 
-  const manifest = buildManifest(operations, options)
-  operations.push({
+async function projectSupportOperations(
+  root: string,
+  options: GeneratorOptions
+): Promise<FileOperation[]> {
+  const files = [
+    ...(options.ci
+      ? [
+          {
+            path: '.github/workflows/ci.yml',
+            content: ciWorkflowContent(options.packageManager)
+          }
+        ]
+      : []),
+    ...(options.hooks
+      ? [
+          {
+            path: '.githooks/pre-commit',
+            content: '#!/usr/bin/env sh\nset -eu\nnpm run quality:fast\n'
+          }
+        ]
+      : []),
+    ...(options.hooks && options.quality === 'strict'
+      ? [
+          {
+            path: '.githooks/pre-push',
+            content: '#!/usr/bin/env sh\nset -eu\nnpm run quality:full\n'
+          }
+        ]
+      : []),
+    ...agentFiles(options.agent)
+  ]
+  return Promise.all(
+    files.map((file) => createOrMergeOperation(root, file.path, file.content))
+  )
+}
+
+async function projectManifestOperation(
+  root: string,
+  operations: readonly FileOperation[],
+  options: GeneratorOptions
+): Promise<FileOperation> {
+  return {
     kind: (await exists(resolve(root, '.mcp-kit/manifest.json')))
       ? 'overwrite'
       : 'create',
     path: '.mcp-kit/manifest.json',
-    content: `${JSON.stringify(manifest, null, 2)}\n`
-  })
-
-  return { root, operations }
+    content: `${JSON.stringify(buildManifest(operations, options), null, 2)}\n`
+  }
 }
 
 export async function planAddCapability(

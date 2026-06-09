@@ -63,22 +63,9 @@ export function resolveQualityConfig(
   const thresholds = preset === 'strict' ? strictThresholds : standardThresholds
   return {
     preset,
-    project: {
-      root: resolve(root, config.project?.root ?? '.'),
-      source: config.project?.source ?? ['src/**/*.ts', 'src/**/*.js'],
-      tests: config.project?.tests ?? [
-        'test/**/*.test.ts',
-        'src/**/*.test.ts',
-        'test/**/*.test.js'
-      ]
-    },
-    formatting: command(config.formatting, 'prettier --check .', toolsEnabled, {
-      fixCommand: config.formatting?.fixCommand ?? 'prettier --write .'
-    }),
-    lint: command(config.lint, 'eslint .', toolsEnabled, {
-      typed: config.lint?.typed ?? true,
-      fixCommand: config.lint?.fixCommand ?? 'eslint . --fix'
-    }),
+    project: resolveProject(config, root),
+    formatting: resolveFormatting(config, toolsEnabled),
+    lint: resolveLint(config, toolsEnabled),
     smells: command(config.smells, 'knip', toolsEnabled),
     typecheck: command(config.typecheck, 'tsc --noEmit', toolsEnabled),
     deadCode: command(config.deadCode, 'knip', toolsEnabled),
@@ -88,22 +75,63 @@ export function resolveQualityConfig(
       true
     ),
     mutation: command(config.mutation, 'stryker run', false),
-    tests: {
-      unit: command(config.tests?.unit, 'vitest run', true),
-      integration: command(config.tests?.integration, '', false),
-      contract: command(config.tests?.contract, '', false),
-      architecture: command(config.tests?.architecture, '', false)
-    },
-    coverage: {
-      enabled: coverageEnabled,
-      command: config.coverage?.command ?? coverageCommand(config, thresholds),
-      thresholds: { ...thresholds, ...config.coverage?.thresholds },
-      include: config.coverage?.include ?? ['src/**/*.{ts,js}'],
-      exclude: config.coverage?.exclude ?? [],
-      strictInclude: config.coverage?.strictInclude ?? []
-    },
+    tests: resolveTests(config),
+    coverage: resolveCoverage(config, thresholds, coverageEnabled),
     build: command(config.build, 'npm run build --if-present', true),
     packageSmoke: command(config.packageSmoke, '', false)
+  }
+}
+
+function resolveProject(config: QualityConfig, root: string) {
+  return {
+    root: resolve(root, config.project?.root ?? '.'),
+    source: config.project?.source ?? ['src/**/*.ts', 'src/**/*.js'],
+    tests: config.project?.tests ?? [
+      'test/**/*.test.ts',
+      'src/**/*.test.ts',
+      'test/**/*.test.js'
+    ]
+  }
+}
+
+function resolveFormatting(config: QualityConfig, enabled: boolean) {
+  return command(config.formatting, 'prettier --check .', enabled, {
+    fixCommand: config.formatting?.fixCommand ?? 'prettier --write .'
+  })
+}
+
+function resolveLint(config: QualityConfig, enabled: boolean) {
+  return command(config.lint, 'eslint .', enabled, {
+    typed: config.lint?.typed ?? true,
+    fixCommand: config.lint?.fixCommand ?? 'eslint . --fix'
+  })
+}
+
+function resolveTests(config: QualityConfig) {
+  return {
+    unit: command(config.tests?.unit, 'vitest run', true),
+    integration: command(config.tests?.integration, '', false),
+    contract: command(config.tests?.contract, '', false),
+    architecture: command(config.tests?.architecture, '', false)
+  }
+}
+
+function resolveCoverage(
+  config: QualityConfig,
+  thresholds: CoverageThresholds,
+  enabled: boolean
+) {
+  const coverage = config.coverage ?? {}
+  const include = coverage.include ?? ['src/**/*.{ts,js}']
+  const exclude = coverage.exclude ?? []
+  const strictInclude = coverage.strictInclude ?? []
+  return {
+    enabled,
+    command: coverage.command ?? coverageCommand(config, thresholds),
+    thresholds: { ...thresholds, ...coverage.thresholds },
+    include,
+    exclude,
+    strictInclude
   }
 }
 
@@ -129,10 +157,7 @@ function coverageCommand(
   thresholds: CoverageThresholds
 ): string {
   const resolved = { ...thresholds, ...config.coverage?.thresholds }
-  const include =
-    config.preset === 'strict'
-      ? (config.coverage?.strictInclude ?? [])
-      : (config.coverage?.include ?? ['src/**/*.{ts,js}'])
+  const include = coverageIncludes(config)
   const exclusions = config.coverage?.exclude ?? []
   return [
     'vitest run --coverage',
@@ -147,23 +172,41 @@ function coverageCommand(
   ].join(' ')
 }
 
+function coverageIncludes(config: QualityConfig): readonly string[] {
+  if (config.preset === 'strict') {
+    return config.coverage?.strictInclude ?? []
+  }
+  return config.coverage?.include ?? ['src/**/*.{ts,js}']
+}
+
 function validateQualityConfig(config: QualityConfig): void {
   if (!['off', 'standard', 'strict'].includes(config.preset)) {
     throw new Error(`Unknown quality preset: ${String(config.preset)}`)
   }
+  validateCoverageExclusions(config)
+  validateCoverageThresholds(config)
+  validateStrictCoverage(config)
+}
+
+function validateCoverageExclusions(config: QualityConfig): void {
   for (const exclusion of config.coverage?.exclude ?? []) {
     if (exclusion.pattern.trim() === '' || exclusion.reason.trim() === '') {
       throw new Error('Coverage exclusions require a pattern and a reason')
     }
   }
+}
+
+function validateCoverageThresholds(config: QualityConfig): void {
   const thresholds = config.coverage?.thresholds
-  if (thresholds !== undefined) {
-    for (const [name, value] of Object.entries(thresholds)) {
-      if (value < 0 || value > 100) {
-        throw new Error(`Coverage threshold ${name} must be between 0 and 100`)
-      }
+  if (thresholds === undefined) return
+  for (const [name, value] of Object.entries(thresholds)) {
+    if (value < 0 || value > 100) {
+      throw new Error(`Coverage threshold ${name} must be between 0 and 100`)
     }
   }
+}
+
+function validateStrictCoverage(config: QualityConfig): void {
   if (
     config.preset === 'strict' &&
     config.coverage?.enabled !== false &&

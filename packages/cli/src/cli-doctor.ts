@@ -110,22 +110,11 @@ async function manifestDiagnostic(root: string): Promise<DoctorDiagnostic> {
       message: 'manifest is missing or has no files list'
     }
   }
-  const missing: string[] = []
-  const modified: string[] = []
-  for (const file of manifest['files']) {
-    if (!isJsonObject(file) || typeof file['path'] !== 'string') continue
-    const absolute = resolve(root, file['path'])
-    if (!(await exists(absolute))) {
-      missing.push(file['path'])
-      continue
-    }
-    if (
-      typeof file['checksum'] === 'string' &&
-      sha256(await readFile(absolute, 'utf8')) !== file['checksum']
-    ) {
-      modified.push(file['path'])
-    }
-  }
+  const entries = await Promise.all(
+    manifest['files'].map((file) => inspectManifestEntry(root, file))
+  )
+  const missing = entries.filter((status) => status === 'missing')
+  const modified = entries.filter((status) => status === 'modified')
   if (missing.length > 0 || modified.length > 0) {
     return {
       level: 'warning',
@@ -138,6 +127,20 @@ async function manifestDiagnostic(root: string): Promise<DoctorDiagnostic> {
     code: 'manifest-integrity',
     message: 'manifest entries are present and unchanged'
   }
+}
+
+async function inspectManifestEntry(
+  root: string,
+  value: unknown
+): Promise<'ok' | 'missing' | 'modified' | 'ignored'> {
+  if (!isJsonObject(value) || typeof value['path'] !== 'string') {
+    return 'ignored'
+  }
+  const absolute = resolve(root, value['path'])
+  if (!(await exists(absolute))) return 'missing'
+  if (typeof value['checksum'] !== 'string') return 'ok'
+  const checksum = sha256(await readFile(absolute, 'utf8'))
+  return checksum === value['checksum'] ? 'ok' : 'modified'
 }
 
 async function stdoutDiagnostic(root: string): Promise<DoctorDiagnostic> {

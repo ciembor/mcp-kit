@@ -42,125 +42,146 @@ function validateImport(
   specifier: string,
   node: ts.Node
 ): ProjectDiagnostic[] {
-  const diagnostics: ProjectDiagnostic[] = []
-  const fromLayer = featureLayer(from.path)
-  const targetLayer =
-    target === undefined ? undefined : featureLayer(target.path)
-  const sdkImport = specifier.startsWith('@modelcontextprotocol/')
-
-  if (
-    (fromLayer?.layer === 'domain' || fromLayer?.layer === 'application') &&
-    sdkImport
-  ) {
-    diagnostics.push(
-      diagnostic(
-        'no-mcp-sdk-in-policy',
-        from,
-        `${fromLayer.layer} must not import the MCP SDK`,
-        node
-      )
-    )
+  const context: ImportContext = {
+    from,
+    target,
+    specifier,
+    node,
+    fromLayer: featureLayer(from.path),
+    targetLayer: target === undefined ? undefined : featureLayer(target.path)
   }
+  return importRules.flatMap((rule) => rule(context) ?? [])
+}
 
-  if (fromLayer?.layer === 'domain' && target !== undefined) {
+type ImportContext = {
+  from: SourceFile
+  target: SourceFile | undefined
+  specifier: string
+  node: ts.Node
+  fromLayer: ReturnType<typeof featureLayer>
+  targetLayer: ReturnType<typeof featureLayer>
+}
+
+type ImportRule = (context: ImportContext) => ProjectDiagnostic | undefined
+
+function importDiagnostic(
+  context: ImportContext,
+  rule: string,
+  message: string
+): ProjectDiagnostic {
+  return diagnostic(rule, context.from, message, context.node)
+}
+
+const importRules: readonly ImportRule[] = [
+  (context) => {
+    const policyLayer =
+      context.fromLayer?.layer === 'domain' ||
+      context.fromLayer?.layer === 'application'
     if (
-      targetLayer?.feature === fromLayer.feature &&
-      targetLayer.layer !== 'domain'
+      !policyLayer ||
+      !context.specifier.startsWith('@modelcontextprotocol/')
     ) {
-      diagnostics.push(
-        diagnostic(
-          'domain-dependencies',
-          from,
-          'domain may only depend on its own domain layer',
-          node
-        )
-      )
+      return undefined
     }
-    if (/^src\/(?:mcp|server)\//.test(target.path)) {
-      diagnostics.push(
-        diagnostic(
+    return importDiagnostic(
+      context,
+      'no-mcp-sdk-in-policy',
+      `${context.fromLayer!.layer} must not import the MCP SDK`
+    )
+  },
+  (context) => {
+    const invalid =
+      context.fromLayer?.layer === 'domain' &&
+      context.targetLayer?.feature === context.fromLayer.feature &&
+      context.targetLayer.layer !== 'domain'
+    return invalid
+      ? importDiagnostic(
+          context,
           'domain-dependencies',
-          from,
-          'domain must not depend on MCP or server adapters',
-          node
+          'domain may only depend on its own domain layer'
         )
-      )
-    }
+      : undefined
+  },
+  (context) => {
+    const invalid =
+      context.fromLayer?.layer === 'domain' &&
+      context.target !== undefined &&
+      /^src\/(?:mcp|server)\//.test(context.target.path)
+    return invalid
+      ? importDiagnostic(
+          context,
+          'domain-dependencies',
+          'domain must not depend on MCP or server adapters'
+        )
+      : undefined
+  },
+  (context) => {
+    const invalid =
+      context.fromLayer?.layer === 'application' &&
+      context.targetLayer?.feature === context.fromLayer.feature &&
+      ['mcp', 'infrastructure'].includes(context.targetLayer.layer)
+    return invalid
+      ? importDiagnostic(
+          context,
+          'application-dependencies',
+          'application must not depend on MCP or infrastructure'
+        )
+      : undefined
+  },
+  (context) => {
+    const invalid =
+      context.fromLayer?.layer === 'mcp' &&
+      context.targetLayer?.feature === context.fromLayer.feature &&
+      context.targetLayer.layer === 'infrastructure'
+    return invalid
+      ? importDiagnostic(
+          context,
+          'mcp-dependencies',
+          'MCP adapters must not depend on infrastructure'
+        )
+      : undefined
+  },
+  featureBoundaryDiagnostic,
+  (context) =>
+    /^src\/server\//.test(context.from.path) &&
+    context.targetLayer?.layer === 'domain'
+      ? importDiagnostic(
+          context,
+          'server-dependencies',
+          'server adapters must not import feature domain directly'
+        )
+      : undefined,
+  (context) => {
+    const invalid =
+      context.targetLayer?.layer === 'infrastructure' &&
+      !isCompositionRoot(context.from.path) &&
+      context.fromLayer?.layer !== 'infrastructure'
+    return invalid
+      ? importDiagnostic(
+          context,
+          'infrastructure-wiring',
+          'only infrastructure or the composition root may import infrastructure'
+        )
+      : undefined
   }
+]
 
-  if (
-    fromLayer?.layer === 'application' &&
-    targetLayer?.feature === fromLayer.feature &&
-    (targetLayer.layer === 'mcp' || targetLayer.layer === 'infrastructure')
-  ) {
-    diagnostics.push(
-      diagnostic(
-        'application-dependencies',
-        from,
-        'application must not depend on MCP or infrastructure',
-        node
-      )
-    )
-  }
-
-  if (
-    fromLayer?.layer === 'mcp' &&
-    targetLayer?.feature === fromLayer.feature &&
-    targetLayer.layer === 'infrastructure'
-  ) {
-    diagnostics.push(
-      diagnostic(
-        'mcp-dependencies',
-        from,
-        'MCP adapters must not depend on infrastructure',
-        node
-      )
-    )
-  }
-
-  if (
+function featureBoundaryDiagnostic(
+  context: ImportContext
+): ProjectDiagnostic | undefined {
+  const { fromLayer, targetLayer, target } = context
+  const crossesPrivateBoundary =
     fromLayer !== undefined &&
     targetLayer !== undefined &&
     target !== undefined &&
     fromLayer.feature !== targetLayer.feature &&
     !isFeatureIndex(target.path, targetLayer.feature)
-  ) {
-    diagnostics.push(
-      diagnostic(
-        'feature-public-boundary',
-        from,
-        `feature "${fromLayer.feature}" must import feature "${targetLayer.feature}" through its index`,
-        node
-      )
-    )
-  }
-
-  if (/^src\/server\//.test(from.path) && targetLayer?.layer === 'domain') {
-    diagnostics.push(
-      diagnostic(
-        'server-dependencies',
-        from,
-        'server adapters must not import feature domain directly',
-        node
-      )
-    )
-  }
-
-  if (
-    targetLayer?.layer === 'infrastructure' &&
-    !isCompositionRoot(from.path) &&
-    fromLayer?.layer !== 'infrastructure'
-  ) {
-    diagnostics.push(
-      diagnostic(
-        'infrastructure-wiring',
-        from,
-        'only infrastructure or the composition root may import infrastructure',
-        node
-      )
-    )
-  }
-  return diagnostics
+  if (!crossesPrivateBoundary) return undefined
+  return importDiagnostic(
+    context,
+    'feature-public-boundary',
+    `feature "${fromLayer.feature}" must import feature "${targetLayer.feature}" through its index`
+  )
 }
 
 function findCycles(

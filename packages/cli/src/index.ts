@@ -93,51 +93,30 @@ export async function runCli(
     writeResult(result, { json, stdout, stderr })
     return result.exitCode ?? exitCodes.ok
   } catch (error) {
-    const cliError =
-      error instanceof CliError
-        ? error
-        : new CliError(errorMessage(error), exitCodes.internal)
-
-    if (json) {
-      stdout.write(
-        `${JSON.stringify({
-          ok: false,
-          error: {
-            message: cliError.message,
-            exitCode: cliError.exitCode
-          }
-        })}\n`
-      )
-    } else {
-      stderr.write(`mcp-kit: ${cliError.message}\n`)
-    }
+    const cliError = normalizeCliError(error)
+    writeError(cliError, { json, stdout, stderr })
     return cliError.exitCode
   }
 }
 
 async function dispatch(parsed: ParsedArgs, cwd: string): Promise<CliResult> {
-  switch (parsed.command) {
-    case 'new':
-      return createNewProject(parsed, cwd)
-    case 'init':
-      return initProject(parsed, cwd)
-    case 'add':
-      return addCapability(parsed, cwd)
-    case 'doctor':
-      return doctorProject(parsed, cwd)
-    case 'quality':
-      return qualityProject(parsed, cwd)
-    case undefined:
-    case 'help':
-    case '--help':
-    case '-h':
-      return { command: 'help' }
-    default:
-      throw new CliError(
-        `Unknown command "${parsed.command}". Expected new, init, add, doctor or quality.`,
-        exitCodes.usage
-      )
+  const command = parsed.command
+  const handlers: Record<string, () => Promise<CliResult>> = {
+    new: () => createNewProject(parsed, cwd),
+    init: () => initProject(parsed, cwd),
+    add: () => addCapability(parsed, cwd),
+    doctor: () => doctorProject(parsed, cwd),
+    quality: () => qualityProject(parsed, cwd)
   }
+  if (command === undefined || ['help', '--help', '-h'].includes(command)) {
+    return { command: 'help' }
+  }
+  const handler = handlers[command]
+  if (handler !== undefined) return handler()
+  throw new CliError(
+    `Unknown command "${command}". Expected new, init, add, doctor or quality.`,
+    exitCodes.usage
+  )
 }
 
 function writeResult(
@@ -149,54 +128,93 @@ function writeResult(
   }
 ): void {
   if (io.json) {
-    io.stdout.write(
-      `${JSON.stringify({
-        ok: result.quality?.status !== 'failed',
-        ...result
-      })}\n`
-    )
+    writeJsonResult(result, io.stdout)
     return
   }
-  if (result.command === 'help') {
-    io.stdout.write(helpText())
-    return
-  }
-  if (result.command === 'doctor') {
-    for (const diagnostic of result.diagnostics!) {
-      io.stdout.write(
-        `[${diagnostic.level}] ${diagnostic.code}: ${diagnostic.message}\n`
-      )
-    }
-    return
-  }
-  if (result.command === 'quality') {
-    for (const step of result.quality!.steps) {
-      io.stdout.write(
-        `[${step.status}] ${step.name} ${formatDuration(step.durationMs)}\n`
-      )
-      for (const diagnostic of step.diagnostics ?? []) {
-        const location =
-          diagnostic.line === undefined
-            ? diagnostic.file
-            : `${diagnostic.file}:${diagnostic.line}`
-        io.stdout.write(
-          `  ${location} ${diagnostic.rule}: ${diagnostic.message}\n`
-        )
-      }
-    }
-    for (const exclusion of result.quality!.coverage.exclusions) {
-      io.stdout.write(
-        `[coverage-exclusion] ${exclusion.pattern}: ${exclusion.reason}\n`
-      )
-    }
-    io.stdout.write(
-      `quality ${result.quality!.status} in ${formatDuration(result.quality!.durationMs)}\n`
-    )
-    return
-  }
+  if (writeInformationalResult(result, io.stdout)) return
   const count = result.plan!.operations.length
   io.stderr.write(
     `${result.command}: planned ${count} file operations in ${result.root}\n`
+  )
+}
+
+function normalizeCliError(error: unknown): CliError {
+  return error instanceof CliError
+    ? error
+    : new CliError(errorMessage(error), exitCodes.internal)
+}
+
+function writeError(
+  error: CliError,
+  io: {
+    json: boolean
+    stdout: Pick<NodeJS.WriteStream, 'write'>
+    stderr: Pick<NodeJS.WriteStream, 'write'>
+  }
+): void {
+  const output = io.json ? io.stdout : io.stderr
+  const message = io.json
+    ? JSON.stringify({
+        ok: false,
+        error: { message: error.message, exitCode: error.exitCode }
+      })
+    : `mcp-kit: ${error.message}`
+  output.write(`${message}\n`)
+}
+
+function writeJsonResult(
+  result: CliResult,
+  stdout: Pick<NodeJS.WriteStream, 'write'>
+): void {
+  stdout.write(
+    `${JSON.stringify({ ok: result.quality?.status !== 'failed', ...result })}\n`
+  )
+}
+
+function writeInformationalResult(
+  result: CliResult,
+  stdout: Pick<NodeJS.WriteStream, 'write'>
+): boolean {
+  if (result.command === 'help') {
+    stdout.write(helpText())
+    return true
+  }
+  if (result.command === 'doctor') {
+    for (const diagnostic of result.diagnostics!) {
+      stdout.write(
+        `[${diagnostic.level}] ${diagnostic.code}: ${diagnostic.message}\n`
+      )
+    }
+    return true
+  }
+  if (result.command !== 'quality') return false
+  writeQualityResult(result, stdout)
+  return true
+}
+
+function writeQualityResult(
+  result: CliResult,
+  stdout: Pick<NodeJS.WriteStream, 'write'>
+): void {
+  for (const step of result.quality!.steps) {
+    stdout.write(
+      `[${step.status}] ${step.name} ${formatDuration(step.durationMs)}\n`
+    )
+    for (const diagnostic of step.diagnostics ?? []) {
+      const location =
+        diagnostic.line === undefined
+          ? diagnostic.file
+          : `${diagnostic.file}:${diagnostic.line}`
+      stdout.write(`  ${location} ${diagnostic.rule}: ${diagnostic.message}\n`)
+    }
+  }
+  for (const exclusion of result.quality!.coverage.exclusions) {
+    stdout.write(
+      `[coverage-exclusion] ${exclusion.pattern}: ${exclusion.reason}\n`
+    )
+  }
+  stdout.write(
+    `quality ${result.quality!.status} in ${formatDuration(result.quality!.durationMs)}\n`
   )
 }
 

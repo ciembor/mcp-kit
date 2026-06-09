@@ -267,20 +267,14 @@ function validateToolPolicy(definition: {
   annotations?: ToolAnnotations
   policy?: ToolPolicy
 }): void {
-  if (
-    definition.policy?.effects === 'read' &&
-    definition.annotations?.readOnlyHint === false
-  ) {
+  const invalidHint =
+    definition.policy?.effects === 'read'
+      ? definition.annotations?.readOnlyHint === false
+      : definition.policy?.effects === 'write' &&
+        definition.annotations?.readOnlyHint === true
+  if (invalidHint) {
     throw new Error(
-      `Tool "${definition.name}" has read effects but readOnlyHint is false`
-    )
-  }
-  if (
-    definition.policy?.effects === 'write' &&
-    definition.annotations?.readOnlyHint === true
-  ) {
-    throw new Error(
-      `Tool "${definition.name}" has write effects but readOnlyHint is true`
+      `Tool "${definition.name}" has ${definition.policy!.effects} effects but readOnlyHint is ${String(definition.annotations!.readOnlyHint)}`
     )
   }
 }

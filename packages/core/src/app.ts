@@ -60,125 +60,228 @@ export type McpApp<Services> = {
 export function createMcpApp<Services>(
   options: McpAppOptions<Services>
 ): McpApp<Services> {
+  const state = createAppState(options)
+  const { sdk, tools, prompts, resources, subscriptions } = state
+  let connected = false
+  let logger = options.logger ?? silentLogger
+  let protocolVersion = LATEST_PROTOCOL_VERSION
+
+  const createRequestContext = contextFactory(() => ({
+    services: options.services,
+    logger,
+    sdk,
+    protocolVersion
+  }))
+  const capabilities = capabilityMethods({
+    sdk,
+    tools,
+    prompts,
+    resources,
+    subscriptions,
+    createRequestContext,
+    middleware: options.middleware ?? [],
+    connected: () => connected,
+    logger: () => logger
+  })
+
+  const lifecycle = lifecycleMethods({
+    sdk,
+    subscriptions,
+    connected: () => connected,
+    setConnected: (value) => {
+      connected = value
+    },
+    setProtocolVersion: (value) => {
+      protocolVersion = value
+    }
+  })
+  return {
+    sdk,
+    get connected() {
+      return connected
+    },
+    ...capabilities,
+    ...lifecycle,
+    setLogger(nextLogger) {
+      assertNotConnected(connected)
+      logger = nextLogger
+    }
+  }
+}
+
+function contextFactory<Services>(
+  runtime: () => {
+    services: Services
+    logger: Logger
+    sdk: McpServer
+    protocolVersion: string
+  }
+): (
+  extra: ServerRequestContext,
+  signal?: AbortSignal
+) => RequestContext<Services> {
+  return (extra, signal = extra.signal) =>
+    requestContext(extra, signal, runtime())
+}
+
+function createAppState<Services>(options: McpAppOptions<Services>) {
   const sdk = new McpServer(
     { name: options.name, version: options.version },
     options.instructions === undefined
       ? undefined
       : { instructions: options.instructions }
   )
-  const tools = new Map<string, ToolDefinition<Schema, Services>>()
-  const prompts = new Map<string, PromptDefinition<Schema, Services>>()
-  const resources: AnyResourceDefinition<Services>[] = []
-  const subscriptions = new Set<string>()
-  let connected = false
-  let logger = options.logger ?? silentLogger
-  let protocolVersion = LATEST_PROTOCOL_VERSION
-
-  const createRequestContext = (
-    extra: ServerRequestContext,
-    signal: AbortSignal = extra.signal
-  ): RequestContext<Services> => {
-    const progressToken = extra._meta?.progressToken
-    return {
-      requestId: String(extra.requestId),
-      signal,
-      services: options.services,
-      logger,
-      client: clientContext(sdk, protocolVersion),
-      ...(progressToken === undefined
-        ? {}
-        : { progress: { report: progressReporter(extra, progressToken) } }),
-      sdk: extra
-    }
-  }
-
-  const app: McpApp<Services> = {
+  return {
     sdk,
-    get connected() {
-      return connected
-    },
-    tools(definitions) {
-      assertNotConnected(connected)
-      for (const tool of definitions) {
-        tools.set(tool.name, tool)
-        /* v8 ignore next 2 -- SDK registration placeholder; calls are handled by installToolCallHandler. */
-        sdk.registerTool(tool.name, toolConfig(tool), () =>
-          Promise.resolve({ content: [] })
-        )
-      }
-      installToolCallHandler({
-        sdk,
-        tools,
-        createRequestContext,
-        middleware: options.middleware ?? [],
-        logger: () => logger
-      })
-    },
-    resources(definitions) {
-      assertNotConnected(connected)
-      const typedDefinitions =
-        definitions as unknown as readonly AnyResourceDefinition<Services>[]
-      resources.push(...typedDefinitions)
-      registerResources(sdk, typedDefinitions, createRequestContext)
-      installResourceHandlers(
-        sdk,
-        resources,
-        subscriptions,
-        createRequestContext
-      )
-    },
-    prompts(definitions) {
-      assertNotConnected(connected)
-      for (const prompt of definitions) {
-        prompts.set(prompt.name, prompt)
-        sdk.registerPrompt(
-          prompt.name,
-          {
-            ...(prompt.title === undefined ? {} : { title: prompt.title }),
-            ...(prompt.description === undefined
-              ? {}
-              : { description: prompt.description }),
-            argsSchema: getObjectShape(prompt.argsSchema)!
-          },
-          /* v8 ignore next -- SDK registration placeholder; calls are handled by installPromptGetHandler. */
-          () => Promise.resolve({ messages: [] })
-        )
-      }
-      installPromptGetHandler(sdk, prompts, createRequestContext, () => logger)
-    },
+    tools: new Map<string, ToolDefinition<Schema, Services>>(),
+    prompts: new Map<string, PromptDefinition<Schema, Services>>(),
+    resources: [] as AnyResourceDefinition<Services>[],
+    subscriptions: new Set<string>()
+  }
+}
+
+function requestContext<Services>(
+  extra: ServerRequestContext,
+  signal: AbortSignal,
+  runtime: {
+    services: Services
+    logger: Logger
+    sdk: McpServer
+    protocolVersion: string
+  }
+): RequestContext<Services> {
+  const progressToken = extra._meta?.progressToken
+  return {
+    requestId: String(extra.requestId),
+    signal,
+    services: runtime.services,
+    logger: runtime.logger,
+    client: clientContext(runtime.sdk, runtime.protocolVersion),
+    ...(progressToken === undefined
+      ? {}
+      : { progress: { report: progressReporter(extra, progressToken) } }),
+    sdk: extra
+  }
+}
+
+function lifecycleMethods(runtime: {
+  sdk: McpServer
+  subscriptions: ReadonlySet<string>
+  connected(): boolean
+  setConnected(value: boolean): void
+  setProtocolVersion(value: string): void
+}): Pick<
+  McpApp<unknown>,
+  'connect' | 'close' | 'notifyResourceListChanged' | 'notifyResourceUpdated'
+> {
+  return {
     async connect(transport) {
-      assertNotConnected(connected)
-      connected = true
+      assertNotConnected(runtime.connected())
+      runtime.setConnected(true)
       try {
-        await sdk.connect(
-          trackProtocolVersion(transport, (version) => {
-            protocolVersion = version
-          })
+        await runtime.sdk.connect(
+          trackProtocolVersion(transport, (version) =>
+            runtime.setProtocolVersion(version)
+          )
         )
       } catch (error) {
-        connected = false
+        runtime.setConnected(false)
         throw error
       }
     },
     async close() {
-      await sdk.close()
-      connected = false
-    },
-    setLogger(nextLogger) {
-      assertNotConnected(connected)
-      logger = nextLogger
+      await runtime.sdk.close()
+      runtime.setConnected(false)
     },
     async notifyResourceListChanged() {
-      await sdk.server.sendResourceListChanged()
+      await runtime.sdk.server.sendResourceListChanged()
     },
     async notifyResourceUpdated(uri) {
-      if (subscriptions.has(uri)) {
-        await sdk.server.sendResourceUpdated({ uri })
+      if (runtime.subscriptions.has(uri)) {
+        await runtime.sdk.server.sendResourceUpdated({ uri })
       }
     }
   }
+}
 
-  return app
+function capabilityMethods<Services>(runtime: {
+  sdk: McpServer
+  tools: Map<string, ToolDefinition<Schema, Services>>
+  prompts: Map<string, PromptDefinition<Schema, Services>>
+  resources: AnyResourceDefinition<Services>[]
+  subscriptions: Set<string>
+  createRequestContext(extra: ServerRequestContext): RequestContext<Services>
+  middleware: readonly ToolMiddleware<Services>[]
+  connected(): boolean
+  logger(): Logger
+}): Pick<McpApp<Services>, 'tools' | 'resources' | 'prompts'> {
+  return {
+    tools: (definitions) => registerTools(runtime, definitions),
+    resources: (definitions) => registerAppResources(runtime, definitions),
+    prompts: (definitions) => registerPrompts(runtime, definitions)
+  }
+}
+
+function registerTools<Services>(
+  runtime: Parameters<typeof capabilityMethods<Services>>[0],
+  definitions: readonly ToolDefinition<Schema, Services>[]
+): void {
+  assertNotConnected(runtime.connected())
+  for (const tool of definitions) {
+    runtime.tools.set(tool.name, tool)
+    /* v8 ignore next 2 -- SDK registration placeholder; calls are handled by installToolCallHandler. */
+    runtime.sdk.registerTool(tool.name, toolConfig(tool), () =>
+      Promise.resolve({ content: [] })
+    )
+  }
+  installToolCallHandler(runtime)
+}
+
+function registerAppResources<Services>(
+  runtime: Parameters<typeof capabilityMethods<Services>>[0],
+  definitions: readonly RegistryItem[]
+): void {
+  assertNotConnected(runtime.connected())
+  const resources =
+    definitions as unknown as readonly AnyResourceDefinition<Services>[]
+  runtime.resources.push(...resources)
+  const createContext = (extra: ServerRequestContext) =>
+    runtime.createRequestContext(extra)
+  registerResources(runtime.sdk, resources, createContext)
+  installResourceHandlers(
+    runtime.sdk,
+    runtime.resources,
+    runtime.subscriptions,
+    createContext
+  )
+}
+
+function registerPrompts<Services>(
+  runtime: Parameters<typeof capabilityMethods<Services>>[0],
+  definitions: readonly PromptDefinition<Schema, Services>[]
+): void {
+  assertNotConnected(runtime.connected())
+  for (const prompt of definitions) {
+    runtime.prompts.set(prompt.name, prompt)
+    runtime.sdk.registerPrompt(
+      prompt.name,
+      {
+        ...(prompt.title === undefined ? {} : { title: prompt.title }),
+        ...(prompt.description === undefined
+          ? {}
+          : { description: prompt.description }),
+        argsSchema: getObjectShape(prompt.argsSchema)!
+      },
+      /* v8 ignore next -- SDK registration placeholder; calls are handled by installPromptGetHandler. */
+      () => Promise.resolve({ messages: [] })
+    )
+  }
+  installPromptGetHandler(
+    runtime.sdk,
+    runtime.prompts,
+    (extra) => runtime.createRequestContext(extra),
+    () => runtime.logger()
+  )
 }
 
 function progressReporter(
