@@ -9,7 +9,16 @@
   "scripts": {
     "build": "tsc --project tsconfig.json",
     "start": "node dist/main.js",
-    "typecheck": "tsc --project tsconfig.json --noEmit"
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "quality": "mcp-kit quality --full",
+    "quality:fast": "mcp-kit quality --fast",
+    "quality:full": "mcp-kit quality --full",
+    "doctor": "mcp-kit doctor"
   },
   "dependencies": {
     "@mcp-kit/core": "{{MCP_KIT_CORE}}",
@@ -17,7 +26,17 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@mcp-kit/cli": "{{MCP_KIT_CLI}}",
+    "@mcp-kit/testing": "{{MCP_KIT_TESTING}}",
+    "@eslint/js": "10.0.1",
+    "@vitest/coverage-v8": "4.1.8",
     "@types/node": "25.9.2",
-    "typescript": "5.9.3"
+    "dependency-cruiser": "17.4.3",
+    "eslint": "10.4.1",
+    "knip": "6.16.1",
+    "prettier": "3.8.4",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.61.0",
+    "vitest": "4.1.8"
   }
 }

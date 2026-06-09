@@ -1,9 +1,10 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { exitCodes, internals, runCli } from './index.js'
+import { analyzeProject, exitCodes, internals, runCli } from './index.js'
 
 const temporaryDirectories: string[] = []
 
@@ -117,11 +118,14 @@ describe('mcp-kit cli', () => {
     await expect(
       readFile(resolve(target, 'src/main.js'), 'utf8')
     ).resolves.toContain('startStdio')
+    const generatedDomain = await readFile(
+      resolve(target, 'src/features/health/domain/health-status.js'),
+      'utf8'
+    ).catch(() => '')
+    expect(generatedDomain).not.toContain('export type')
+    expect(generatedDomain).not.toContain("status: 'ok'")
     await expect(
-      readFile(
-        resolve(target, 'src/features/health/domain/health-status.js'),
-        'utf8'
-      )
+      readFile(resolve(target, 'src/features/health/index.js'), 'utf8')
     ).resolves.not.toContain('export type')
     await expect(
       readFile(resolve(target, 'tsconfig.json'), 'utf8')
@@ -156,10 +160,28 @@ describe('mcp-kit cli', () => {
     ).resolves.toContain('MCP_TRANSPORT')
     await expect(
       readFile(resolve(both, 'package.json'), 'utf8')
-    ).resolves.toContain('"packageManager": "npm@0.0.0"')
+    ).resolves.toContain('"packageManager": "npm@11.4.2"')
     await expect(
       readFile(resolve(both, '.cursor/rules/mcp-kit.md'), 'utf8')
     ).resolves.toContain('mcp-kit')
+    await expect(
+      readFile(resolve(both, '.githooks/pre-commit'), 'utf8')
+    ).resolves.toContain('quality:fast')
+    await expect(
+      readFile(resolve(both, '.githooks/pre-push'), 'utf8')
+    ).resolves.toContain('quality:full')
+    await expect(
+      readFile(resolve(both, 'dependency-cruiser.config.cjs'), 'utf8')
+    ).resolves.toContain('no-orphan-modules')
+    const strictDependencies = (await import(
+      pathToFileURL(resolve(both, 'dependency-cruiser.config.cjs')).href
+    )) as { default: { forbidden: readonly { name: string }[] } }
+    expect(
+      strictDependencies.default.forbidden.map(({ name }) => name)
+    ).toContain('no-orphan-modules')
+    await expect(
+      readFile(resolve(both, '.github/workflows/ci.yml'), 'utf8')
+    ).resolves.toContain('quality:full')
 
     await expect(
       runCli(
@@ -186,6 +208,9 @@ describe('mcp-kit cli', () => {
     await expect(
       readFile(resolve(http, 'CLAUDE.md'), 'utf8')
     ).resolves.toContain('Claude')
+    await expect(
+      readFile(resolve(http, 'dependency-cruiser.config.cjs'), 'utf8')
+    ).resolves.not.toContain('no-orphan-modules')
 
     await expect(
       runCli(
@@ -208,6 +233,66 @@ describe('mcp-kit cli', () => {
     await expect(
       readFile(resolve(cwd, 'dry/package.json'), 'utf8')
     ).rejects.toThrow()
+  })
+
+  it('keeps every official template variant architecture-valid', async () => {
+    const cwd = await makeTemp()
+    const transports = ['stdio', 'http', 'both'] as const
+    const qualities = ['off', 'standard', 'strict'] as const
+    const languages = ['typescript', 'javascript'] as const
+
+    for (const transport of transports) {
+      for (const quality of qualities) {
+        for (const language of languages) {
+          const name = `${transport}-${quality}-${language}`
+          await expect(
+            runCli(
+              [
+                'new',
+                name,
+                '--transport',
+                transport,
+                '--quality',
+                quality,
+                '--language',
+                language,
+                '--no-install',
+                '--no-ci',
+                '--no-hooks'
+              ],
+              { cwd }
+            )
+          ).resolves.toBe(exitCodes.ok)
+          await expect(
+            analyzeProject(resolve(cwd, name))
+          ).resolves.toMatchObject({ diagnostics: [] })
+        }
+      }
+    }
+  })
+
+  it('runs quality with JSON reporting and propagates its status', async () => {
+    const cwd = await makeTemp()
+    const output = createOutput()
+    await writeFile(resolve(cwd, 'package.json'), '{"type":"module"}')
+    await writeFile(
+      resolve(cwd, 'quality.config.js'),
+      "export default { preset: 'off', dependencyCruiser: { enabled: false, command: '' }, tests: { unit: { enabled: false, command: '' } }, build: { enabled: false, command: '' } }\n"
+    )
+
+    await expect(
+      runCli(['quality', '--full', '--json'], {
+        cwd,
+        stdout: output.stdout,
+        stderr: output.stderr
+      })
+    ).resolves.toBe(exitCodes.ok)
+    expect(JSON.parse(output.out)).toMatchObject({
+      ok: true,
+      command: 'quality',
+      quality: { mode: 'full', preset: 'off', status: 'passed' }
+    })
+    await expect(runCli(['quality'], { cwd })).resolves.toBe(exitCodes.usage)
   })
 
   it('refuses to create into a non-empty target without force', async () => {

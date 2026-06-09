@@ -40,6 +40,30 @@ beforeAll(async () => {
     [
       'pnpm',
       '--filter',
+      '@mcp-kit/testing',
+      'pack',
+      '--pack-destination',
+      temporaryDirectory
+    ],
+    repositoryRoot
+  )
+  await run(
+    'corepack',
+    [
+      'pnpm',
+      '--filter',
+      '@mcp-kit/cli',
+      'pack',
+      '--pack-destination',
+      temporaryDirectory
+    ],
+    repositoryRoot
+  )
+  await run(
+    'corepack',
+    [
+      'pnpm',
+      '--filter',
       '@mcp-kit/node',
       'pack',
       '--pack-destination',
@@ -56,29 +80,29 @@ beforeAll(async () => {
     temporaryDirectory,
     'mcp-kit-node-0.0.0.tgz'
   )}`
+  const testingPackage = `file:${resolve(
+    temporaryDirectory,
+    'mcp-kit-testing-0.0.0.tgz'
+  )}`
+  const cliPackage = `file:${resolve(
+    temporaryDirectory,
+    'mcp-kit-cli-0.0.0.tgz'
+  )}`
   serverDirectory = await createMcpKitProject('generated-server', {
     cwd: temporaryDirectory,
     corePackage,
-    nodePackage
+    nodePackage,
+    testingPackage,
+    cliPackage
   })
   await writeFile(
     resolve(serverDirectory, 'pnpm-workspace.yaml'),
-    `overrides:\n  "@mcp-kit/core": "${corePackage}"\n`
+    `overrides:\n  '@mcp-kit/core': ${corePackage}\n`
   )
 
-  await run(
-    'corepack',
-    [
-      'pnpm',
-      'install',
-      '--offline',
-      '--store-dir',
-      resolve(repositoryRoot, '.pnpm-store')
-    ],
-    serverDirectory
-  )
-  await run('corepack', ['pnpm', 'build'], serverDirectory)
-}, 60_000)
+  await run('corepack', ['pnpm', 'install'], serverDirectory)
+  await run('corepack', ['pnpm', 'quality:full'], serverDirectory)
+}, 180_000)
 
 afterAll(async () => {
   await rm(temporaryDirectory, { recursive: true, force: true })
@@ -162,11 +186,19 @@ async function run(
   args: readonly string[],
   cwd: string
 ): Promise<void> {
-  await execFileAsync(command, args, {
-    cwd,
-    env: environment,
-    maxBuffer: 10 * 1024 * 1024
-  })
+  try {
+    await execFileAsync(command, args, {
+      cwd,
+      env: environment,
+      maxBuffer: 10 * 1024 * 1024
+    })
+  } catch (error) {
+    const result = error as Error & { stdout?: string; stderr?: string }
+    throw new Error(
+      [result.message, result.stdout, result.stderr].filter(Boolean).join('\n'),
+      { cause: error }
+    )
+  }
 }
 
 async function expectProcessToExit(pid: number): Promise<void> {

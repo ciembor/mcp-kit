@@ -13,6 +13,14 @@ npm start
 The server communicates over stdio. Application logs are written to stderr so
 stdout remains reserved for MCP messages.
 
+## Quality
+
+- `npm run quality:fast` checks formatting, lint, types, architecture and changed tests.
+- `npm run quality:full` is the authoritative local and CI quality gate.
+- `npm run quality:full -- --fix` applies supported formatter and lint fixes.
+
+Architecture and MCP contract checks stay enabled for every quality preset.
+
 ## Architecture
 
 - `src/features/health/domain` contains the health model.

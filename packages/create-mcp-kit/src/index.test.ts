@@ -86,7 +86,9 @@ describe('create-mcp-kit', () => {
     const target = await createMcpKitProject('server', {
       cwd,
       corePackage: 'workspace:core',
-      nodePackage: 'workspace:node'
+      nodePackage: 'workspace:node',
+      cliPackage: 'workspace:cli',
+      testingPackage: 'workspace:testing'
     })
 
     await expect(
@@ -95,6 +97,12 @@ describe('create-mcp-kit', () => {
     await expect(
       readFile(resolve(target, 'package.json'), 'utf8')
     ).resolves.toContain('"@mcp-kit/node": "workspace:node"')
+    await expect(
+      readFile(resolve(target, 'package.json'), 'utf8')
+    ).resolves.toContain('"@mcp-kit/cli": "workspace:cli"')
+    await expect(
+      readFile(resolve(target, 'package.json'), 'utf8')
+    ).resolves.toContain('"@mcp-kit/testing": "workspace:testing"')
     await expect(
       readFile(resolve(target, 'src/app.ts'), 'utf8')
     ).resolves.toContain("name: 'server'")

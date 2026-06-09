@@ -11,6 +11,8 @@ export type CreateMcpKitOptions = {
   cwd?: string
   corePackage?: string
   nodePackage?: string
+  cliPackage?: string
+  testingPackage?: string
   templateDirectory?: string
 }
 
@@ -44,7 +46,16 @@ export async function createMcpKitProject(
     '{{MCP_KIT_NODE}}':
       options.nodePackage ??
       process.env['MCP_KIT_NODE_SPEC'] ??
-      `^${packageInfo.version}`
+      `^${packageInfo.version}`,
+    '{{MCP_KIT_CLI}}':
+      options.cliPackage ??
+      process.env['MCP_KIT_CLI_SPEC'] ??
+      `^${packageInfo.version}`,
+    '{{MCP_KIT_TESTING}}':
+      options.testingPackage ??
+      process.env['MCP_KIT_TESTING_SPEC'] ??
+      `^${packageInfo.version}`,
+    ' /* {{STRICT_DEPENDENCY_RULES}} */': ''
   })
 
   return target

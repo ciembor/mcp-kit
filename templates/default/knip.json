@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["src/main.ts", "src/features/*/index.ts", "test/**/*.test.ts"],
+  "project": ["src/**/*.ts", "test/**/*.ts"],
+  "ignoreDependencies": ["dependency-cruiser"]
+}

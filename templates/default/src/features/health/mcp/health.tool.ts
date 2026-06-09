@@ -19,7 +19,7 @@ export const healthTool = defineTool({
   policy: {
     effects: 'read'
   },
-  handler: async () => {
+  handler: () => {
     const health = getHealth()
     return {
       structuredContent: health,

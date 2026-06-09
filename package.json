@@ -22,7 +22,9 @@
     "test:conformance": "conformance --version >/dev/null && node test/conformance/run.mjs",
     "test:smoke": "vitest run test/smoke",
     "knip": "knip",
-    "quality": "corepack pnpm smells && corepack pnpm lint && corepack pnpm mutation && corepack pnpm coverage"
+    "quality": "corepack pnpm quality:full",
+    "quality:fast": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --fast",
+    "quality:full": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --full"
   },
   "devDependencies": {
     "@mcp-kit/cli": "workspace:*",
@@ -37,6 +39,7 @@
     "@types/node": "25.9.2",
     "@vitest/coverage-v8": "4.1.8",
     "create-mcp-kit": "workspace:*",
+    "dependency-cruiser": "17.4.3",
     "eslint": "10.4.1",
     "knip": "6.16.1",
     "prettier": "3.8.4",

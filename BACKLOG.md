@@ -227,65 +227,65 @@ Cel: egzekwowac jedna architekture we wszystkich projektach i dostarczyc skalowa
 
 ### Quality runner
 
-- [ ] Zaimplementowac `defineQualityConfig()`.
-- [ ] Zaimplementowac `mcp-kit quality --fast`.
-- [ ] Zaimplementowac `mcp-kit quality --full`.
-- [ ] Dodac `--fix`, `--json` i lokalna optymalizacje `--since`.
-- [ ] Orkiestrowac Prettier, ESLint, typed lint, TypeScript, Vitest i Knip.
-- [ ] Zapewnic poprawne przerwanie procesu i propagacje exit code.
-- [ ] Dodac czytelny raport czasu i wyniku kazdego kroku.
+- [x] Zaimplementowac `defineQualityConfig()`.
+- [x] Zaimplementowac `mcp-kit quality --fast`.
+- [x] Zaimplementowac `mcp-kit quality --full`.
+- [x] Dodac `--fix`, `--json` i lokalna optymalizacje `--since`.
+- [x] Orkiestrowac Prettier, ESLint, typed lint, TypeScript, Vitest i Knip.
+- [x] Zapewnic poprawne przerwanie procesu i propagacje exit code.
+- [x] Dodac czytelny raport czasu i wyniku kazdego kroku.
 
 ### Presety coverage
 
-- [ ] Preset `off`: brak globalnego coverage gate, ale podstawowe testy architektury pozostaja aktywne.
-- [ ] Preset `standard`: 90% lines/functions/statements i 85% branches.
-- [ ] Preset `strict`: konfigurowalne 100% dla jawnie wskazanego kodu.
-- [ ] Walidowac i raportowac wykluczenia z coverage.
-- [ ] Pokrywac entrypointy testami integration/smoke.
+- [x] Preset `off`: brak globalnego coverage gate, ale podstawowe testy architektury pozostaja aktywne.
+- [x] Preset `standard`: 90% lines/functions/statements i 85% branches.
+- [x] Preset `strict`: konfigurowalne 100% dla jawnie wskazanego kodu.
+- [x] Walidowac i raportowac wykluczenia z coverage.
+- [x] Pokrywac entrypointy testami integration/smoke.
 
 ### Jedna architektura feature-first
 
-- [ ] Zaimplementowac reguly dla `features/<feature>/domain`.
-- [ ] Zaimplementowac reguly dla `features/<feature>/application`.
-- [ ] Zaimplementowac reguly dla `features/<feature>/mcp`.
-- [ ] Zaimplementowac reguly dla `features/<feature>/infrastructure`.
-- [ ] Zakazac importu MCP SDK w domain i application we wszystkich presetach.
-- [ ] Zakazac importu infrastructure przez application i MCP we wszystkich presetach.
-- [ ] Wymusic implementowanie application ports przez infrastructure.
-- [ ] Zezwolic composition root na laczenie wszystkich warstw.
-- [ ] Zdefiniowac `features/<feature>/index.ts` jako jedyna publiczna granice feature.
-- [ ] Zakazac importowania prywatnych plikow pomiedzy features.
-- [ ] Dodac test dozwolonego importu przez publiczny kontrakt feature.
-- [ ] Wykrywac cykle zaleznosci.
-- [ ] Dodac podstawowy dependency-cruiser preset dla wszystkich projektow.
-- [ ] Dodac rozszerzone i bardziej kosztowne kontrole dla presetu strict.
-- [ ] Dodac testy pozytywne i negatywne kazdej reguly.
+- [x] Zaimplementowac reguly dla `features/<feature>/domain`.
+- [x] Zaimplementowac reguly dla `features/<feature>/application`.
+- [x] Zaimplementowac reguly dla `features/<feature>/mcp`.
+- [x] Zaimplementowac reguly dla `features/<feature>/infrastructure`.
+- [x] Zakazac importu MCP SDK w domain i application we wszystkich presetach.
+- [x] Zakazac importu infrastructure przez application i MCP we wszystkich presetach.
+- [x] Wymusic implementowanie application ports przez infrastructure.
+- [x] Zezwolic composition root na laczenie wszystkich warstw.
+- [x] Zdefiniowac `features/<feature>/index.ts` jako jedyna publiczna granice feature.
+- [x] Zakazac importowania prywatnych plikow pomiedzy features.
+- [x] Dodac test dozwolonego importu przez publiczny kontrakt feature.
+- [x] Wykrywac cykle zaleznosci.
+- [x] Dodac podstawowy dependency-cruiser preset dla wszystkich projektow.
+- [x] Dodac rozszerzone i bardziej kosztowne kontrole dla presetu strict.
+- [x] Dodac testy pozytywne i negatywne kazdej reguly.
 
 ### MCP-specific quality rules
 
-- [ ] Dodac `no-console-log-in-stdio`.
-- [ ] Dodac walidacje nazw capability i spojnosci stylu.
-- [ ] Dodac unikalnosc nazw i deterministyczny registry.
-- [ ] Dodac spojnosc `policy.effects` z annotations.
-- [ ] Dodac `protected-capability-requires-policy`.
-- [ ] Dodac `structured-output-requires-output-schema`.
-- [ ] Dodac `no-unbounded-list-tool-without-limit`.
-- [ ] Dodac reguly destructive/open-world hints.
-- [ ] Dodac `no-raw-error-stack`.
+- [x] Dodac `no-console-log-in-stdio`.
+- [x] Dodac walidacje nazw capability i spojnosci stylu.
+- [x] Dodac unikalnosc nazw i deterministyczny registry.
+- [x] Dodac spojnosc `policy.effects` z annotations.
+- [x] Dodac `protected-capability-requires-policy`.
+- [x] Dodac `structured-output-requires-output-schema`.
+- [x] Dodac `no-unbounded-list-tool-without-limit`.
+- [x] Dodac reguly destructive/open-world hints.
+- [x] Dodac `no-raw-error-stack`.
 
 ### Git i CI
 
-- [ ] Generowac opcjonalny pre-commit `quality --fast`.
-- [ ] Generowac opcjonalny pre-push `quality --full` tylko dla presetu strict.
-- [ ] Generowac GitHub Actions `quality --full`.
-- [ ] Traktowac CI jako rozstrzygajacy quality gate.
+- [x] Generowac opcjonalny pre-commit `quality --fast`.
+- [x] Generowac opcjonalny pre-push `quality --full` tylko dla presetu strict.
+- [x] Generowac GitHub Actions `quality --full`.
+- [x] Traktowac CI jako rozstrzygajacy quality gate.
 
 ### Definition of Done
 
-- [ ] `quality --full` przechodzi dla kazdego wariantu oficjalnego template.
-- [ ] Zepsuty kontrakt MCP powoduje blad quality.
-- [ ] Niedozwolony import powoduje blad testu architektonicznego niezaleznie od presetu.
-- [ ] Presety jakosci nie zmieniaja struktury ani kierunku zaleznosci.
+- [x] `quality --full` przechodzi dla kazdego wariantu oficjalnego template.
+- [x] Zepsuty kontrakt MCP powoduje blad quality.
+- [x] Niedozwolony import powoduje blad testu architektonicznego niezaleznie od presetu.
+- [x] Presety jakosci nie zmieniaja struktury ani kierunku zaleznosci.
 
 ## Milestone 5: Streamable HTTP i security
 

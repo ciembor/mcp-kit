@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["test/**/*.test.ts"],
+      "entry": ["quality.config.js", "test/**/*.test.ts"],
       "project": ["*.ts", "*.js", "test/**/*.ts"]
     },
     "packages/core": {
@@ -25,5 +25,6 @@
       "entry": ["src/index.ts", "src/bin.ts"],
       "project": ["src/**/*.ts"]
     }
-  }
+  },
+  "ignoreDependencies": ["dependency-cruiser"]
 }

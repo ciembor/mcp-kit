@@ -182,7 +182,9 @@ describe('@mcp-kit/testing', () => {
     expect(() => assertPromptContracts([prompt('b'), prompt('a')])).toThrow(
       'prompt registry is not sorted'
     )
-    expect(() => assertPromptContracts([prompt('a'), prompt('b')])).not.toThrow()
+    expect(() =>
+      assertPromptContracts([prompt('a'), prompt('b')])
+    ).not.toThrow()
   })
 
   it('tracks stdio protocol version, stderr, send, close and callbacks', async () => {

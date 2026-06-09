@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 import { runCreateMcpKit } from './index.js'
@@ -12,7 +13,7 @@ export async function main(
 
 /* v8 ignore next 5 -- exercised by Node when this file is the process entrypoint. */
 if (process.argv[1] !== undefined) {
-  if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  if (import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
     await main()
   }
 }

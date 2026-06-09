@@ -12,6 +12,34 @@ import { createHash } from 'node:crypto'
 import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import {
+  runQuality,
+  type QualityMode,
+  type QualityPreset,
+  type QualityReport
+} from './quality.js'
+
+export {
+  analyzeProject,
+  type ProjectAnalysis,
+  type ProjectDiagnostic
+} from './project-analysis.js'
+export {
+  defineQualityConfig,
+  loadQualityConfig,
+  resolveQualityConfig,
+  runQuality,
+  type CoverageExclusion,
+  type CoverageThresholds,
+  type QualityConfig,
+  type QualityExecutor,
+  type QualityMode,
+  type QualityPreset,
+  type QualityReport,
+  type QualityStepResult,
+  type ResolvedQualityConfig
+} from './quality.js'
+
 export const packageInfo = {
   name: '@mcp-kit/cli',
   version: '0.0.0'
@@ -29,7 +57,6 @@ export type ExitCode = (typeof exitCodes)[keyof typeof exitCodes]
 export type PackageManager = 'pnpm' | 'npm' | 'yarn' | 'bun'
 export type ProjectLanguage = 'typescript' | 'javascript'
 export type TransportPreset = 'stdio' | 'http' | 'both'
-export type QualityPreset = 'off' | 'standard' | 'strict'
 export type AgentPreset = 'none' | 'generic' | 'claude' | 'cursor' | 'codex'
 export type FileOperationKind =
   | 'create'
@@ -68,6 +95,8 @@ export type CliResult = {
   root?: string
   plan?: FilePlan
   diagnostics?: readonly DoctorDiagnostic[]
+  quality?: QualityReport
+  exitCode?: ExitCode
 }
 
 export type CliIo = {
@@ -119,7 +148,7 @@ export async function runCli(
   try {
     const result = await dispatch(parsed, cwd)
     writeResult(result, { json, stdout, stderr })
-    return exitCodes.ok
+    return result.exitCode ?? exitCodes.ok
   } catch (error) {
     const cliError =
       error instanceof CliError
@@ -153,6 +182,8 @@ async function dispatch(parsed: ParsedArgs, cwd: string): Promise<CliResult> {
       return addCapability(parsed, cwd)
     case 'doctor':
       return doctorProject(parsed, cwd)
+    case 'quality':
+      return qualityProject(parsed, cwd)
     case undefined:
     case 'help':
     case '--help':
@@ -160,9 +191,47 @@ async function dispatch(parsed: ParsedArgs, cwd: string): Promise<CliResult> {
       return { command: 'help' }
     default:
       throw new CliError(
-        `Unknown command "${parsed.command}". Expected new, init, add or doctor.`,
+        `Unknown command "${parsed.command}". Expected new, init, add, doctor or quality.`,
         exitCodes.usage
       )
+  }
+}
+
+async function qualityProject(
+  parsed: ParsedArgs,
+  cwd: string
+): Promise<CliResult> {
+  const fast = getBoolean(parsed, 'fast')
+  const full = getBoolean(parsed, 'full')
+  if (fast === full) {
+    throw new CliError('Usage: mcp-kit quality --fast|--full', exitCodes.usage)
+  }
+  const mode: QualityMode = fast ? 'fast' : 'full'
+  const root = await detectProjectRoot(cwd, false)
+  const controller = new AbortController()
+  const interrupt = () => controller.abort()
+  process.once('SIGINT', interrupt)
+  process.once('SIGTERM', interrupt)
+  try {
+    const quality = await runQuality({
+      root,
+      mode,
+      fix: getBoolean(parsed, 'fix'),
+      signal: controller.signal,
+      ...(getString(parsed, 'since') === undefined
+        ? {}
+        : { since: getString(parsed, 'since')! })
+    })
+    return {
+      command: 'quality',
+      root,
+      quality,
+      exitCode:
+        quality.status === 'passed' ? exitCodes.ok : exitCodes.validation
+    }
+  } finally {
+    process.removeListener('SIGINT', interrupt)
+    process.removeListener('SIGTERM', interrupt)
   }
 }
 
@@ -381,28 +450,7 @@ async function planGeneratedProject(
   }
 
   operations.push(
-    await createOrMergeOperation(
-      root,
-      'test/contracts/health.contract.test.ts',
-      contractTestContent()
-    )
-  )
-  operations.push(
     await createOrMergeOperation(root, 'docs/tools.md', '# Tools\n\n- health\n')
-  )
-  operations.push(
-    await createOrMergeOperation(
-      root,
-      'mcp-kit.config.ts',
-      mcpKitConfigContent(options)
-    )
-  )
-  operations.push(
-    await createOrMergeOperation(
-      root,
-      'quality.config.ts',
-      qualityConfigContent(options.quality)
-    )
   )
 
   if (options.ci) {
@@ -419,9 +467,18 @@ async function planGeneratedProject(
       await createOrMergeOperation(
         root,
         '.githooks/pre-commit',
-        '#!/usr/bin/env sh\nset -eu\nnpm run typecheck\n'
+        '#!/usr/bin/env sh\nset -eu\nnpm run quality:fast\n'
       )
     )
+    if (options.quality === 'strict') {
+      operations.push(
+        await createOrMergeOperation(
+          root,
+          '.githooks/pre-push',
+          '#!/usr/bin/env sh\nset -eu\nnpm run quality:full\n'
+        )
+      )
+    }
   }
   for (const agentFile of agentFiles(options.agent)) {
     operations.push(
@@ -461,6 +518,7 @@ async function planAddCapability(
       capabilityContent(input.kind, exported)
     )
   )
+  operations.push(await featureIndexUpdateOperation(root, input, exported))
   operations.push(
     await createOrMergeOperation(
       root,
@@ -522,6 +580,31 @@ async function registryUpdateOperation(
     ].join(', ')}])`
   })
   return { kind: 'overwrite', path, content: updated }
+}
+
+async function featureIndexUpdateOperation(
+  root: string,
+  input: {
+    kind: 'tool' | 'resource' | 'prompt'
+    feature: string
+    ext: 'ts' | 'js'
+  },
+  exported: string
+): Promise<FileOperation> {
+  const path = `src/features/${input.feature}/index.${input.ext}`
+  const absolute = resolve(root, path)
+  const exportLine = `export { ${exported} } from './mcp/${input.feature}.${input.kind}.js'`
+  const current = (await exists(absolute))
+    ? await readFile(absolute, 'utf8')
+    : ''
+  const content = current.includes(exportLine)
+    ? current
+    : `${current.trimEnd()}${current.trim() === '' ? '' : '\n'}${exportLine}\n`
+  return {
+    kind: (await exists(absolute)) ? 'overwrite' : 'create',
+    path,
+    content
+  }
 }
 
 async function docsUpdateOperation(
@@ -587,22 +670,44 @@ function renderTemplateFile(
     .replaceAll('{{PROJECT_NAME}}', input.projectName)
     .replaceAll('{{MCP_KIT_CORE}}', '^0.0.0')
     .replaceAll('{{MCP_KIT_NODE}}', '^0.0.0')
+    .replaceAll('{{MCP_KIT_CLI}}', '^0.0.0')
+    .replaceAll('{{MCP_KIT_TESTING}}', '^0.0.0')
+    .replaceAll(' /* {{STRICT_DEPENDENCY_RULES}} */', () =>
+      input.options.quality === 'strict'
+        ? ",\n    {\n      name: 'no-orphan-modules',\n      severity: 'error',\n      from: {\n        orphan: true,\n        pathNot: '(^|/)(main|index|.*\\\\.test)\\\\.[cm]?[jt]s$'\n      },\n      to: {}\n    }"
+        : ''
+    )
 
   if (path === 'package.json') {
     content = renderPackageJson(content, input.options)
   }
+  if (path === 'mcp-kit.config.ts') {
+    content = mcpKitConfigContent(input.options)
+  }
+  if (path === 'quality.config.js') {
+    content = qualityConfigContent(input.options)
+  }
   if (path === 'src/main.ts') {
     content = renderMain(input.options.transport)
   }
+  if (
+    input.options.transport === 'http' &&
+    (/\/stdio\.[cm]?[jt]s$/.test(path) ||
+      /\/stdio\.test\.[cm]?[jt]s$/.test(path))
+  ) {
+    return undefined
+  }
   if (input.options.language === 'javascript') {
     if (path === 'tsconfig.json') return undefined
+    if (path === 'vitest.config.ts') {
+      path = 'vitest.config.js'
+    }
     if (path.endsWith('.ts')) {
       path = `${path.slice(0, -3)}.js`
       content = toJavaScript(content)
+      if (content === '') return undefined
     }
-  }
-  if (input.options.transport === 'http' && path.endsWith('/stdio.ts')) {
-    return undefined
+    content = renderJavaScriptTooling(path, content)
   }
   return { path, content }
 }
@@ -612,31 +717,68 @@ function renderPackageJson(
   options: GeneratorOptions
 ): string {
   const packageJson = JSON.parse(template) as JsonObject
-  packageJson['packageManager'] = `${options.packageManager}@0.0.0`
+  packageJson['packageManager'] = packageManagerSpec(options.packageManager)
   const scripts = asJsonObject(packageJson['scripts'])
   if (options.language === 'javascript') {
     scripts['start'] = 'node src/main.js'
     delete scripts['build']
     delete scripts['typecheck']
-    delete packageJson['devDependencies']
-  }
-  if (options.quality !== 'off') {
-    scripts['test'] = 'vitest run'
-    scripts['quality'] =
-      options.quality === 'strict'
-        ? 'npm run typecheck && npm test'
-        : 'npm test'
+    const devDependencies = asJsonObject(packageJson['devDependencies'])
+    delete devDependencies['@types/node']
+    delete devDependencies['typescript']
+    delete devDependencies['typescript-eslint']
+    if (Object.keys(devDependencies).length === 0) {
+      delete packageJson['devDependencies']
+    } else {
+      packageJson['devDependencies'] = devDependencies
+    }
   }
   if (options.transport === 'http') {
     scripts['start'] = 'node src/main.js'
+    const dependencies = asJsonObject(packageJson['dependencies'])
+    delete dependencies['@mcp-kit/node']
+    packageJson['dependencies'] = dependencies
   }
   packageJson['scripts'] = scripts
   return `${JSON.stringify(packageJson, null, 2)}\n`
 }
 
+function packageManagerSpec(packageManager: PackageManager): string {
+  switch (packageManager) {
+    case 'pnpm':
+      return 'pnpm@11.5.2'
+    case 'npm':
+      return 'npm@11.4.2'
+    case 'yarn':
+      return 'yarn@1.22.22'
+    case 'bun':
+      return 'bun@1.2.15'
+  }
+}
+
+function renderJavaScriptTooling(path: string, content: string): string {
+  if (path === 'eslint.config.js') {
+    return "import js from '@eslint/js'\nimport { defineConfig, globalIgnores } from 'eslint/config'\n\nexport default defineConfig(\n  globalIgnores(['dist/**', 'coverage/**', 'node_modules/**']),\n  js.configs.recommended,\n  {\n    languageOptions: {\n      globals: {\n        process: 'readonly'\n      }\n    }\n  }\n)\n"
+  }
+  if (path === 'dependency-cruiser.config.cjs') {
+    return content.replace("    tsConfig: { fileName: 'tsconfig.json' },\n", '')
+  }
+  if (path === 'knip.json') {
+    const config = JSON.parse(content.replaceAll('.ts', '.js')) as JsonObject
+    config['entry'] = Array.isArray(config['entry'])
+      ? config['entry'].filter((entry) => entry !== 'src/main.js')
+      : []
+    return `${JSON.stringify(config, null, 2)}\n`
+  }
+  if (path === 'vitest.config.js') {
+    return content.replaceAll('.ts', '.js')
+  }
+  return content
+}
+
 function renderMain(transport: TransportPreset): string {
   if (transport === 'http') {
-    return "throw new Error('HTTP transport is not implemented in this template yet. Use --transport stdio until the HTTP runtime milestone lands.')\n"
+    return "throw new Error(\n  'HTTP transport is not implemented in this template yet. Use --transport stdio until the HTTP runtime milestone lands.'\n)\n"
   }
   if (transport === 'both') {
     return "import { startStdio } from './server/transports/stdio.js'\n\nconst transport = process.env['MCP_TRANSPORT'] ?? 'stdio'\nif (transport !== 'stdio') {\n  throw new Error('Only stdio transport is currently runnable in this template.')\n}\n\nawait startStdio()\n"
@@ -645,11 +787,14 @@ function renderMain(transport: TransportPreset): string {
 }
 
 function toJavaScript(content: string): string {
-  return content
+  const converted = content
     .replace(/^import type .*$/gm, '')
     .replace(/^export type [\s\S]*?\n}\n/gm, '')
+    .replace(/^export type .*$/gm, '')
     .replace(/: HealthStatus/g, '')
     .replace(/ satisfies [A-Za-z0-9_<>]+/g, '')
+    .trim()
+  return converted === '' ? '' : `${converted}\n`
 }
 
 function capabilityContent(
@@ -932,20 +1077,22 @@ function mcpKitConfigContent(options: GeneratorOptions): string {
   return `export default {\n  boundedContext: 'default',\n  transport: '${options.transport}',\n  quality: '${options.quality}'\n}\n`
 }
 
-function qualityConfigContent(quality: QualityPreset): string {
-  return `export default {\n  preset: '${quality}'\n}\n`
+function qualityConfigContent(options: GeneratorOptions): string {
+  const quality = options.quality
+  const extension = options.language === 'typescript' ? 'ts' : 'js'
+  const strict =
+    quality === 'strict'
+      ? `,\n    strictInclude: [\n      'src/features/*/domain/**/*.${extension}',\n      'src/features/*/application/**/*.${extension}'\n    ]`
+      : ''
+  return `import { defineQualityConfig } from '@mcp-kit/cli'\n\nexport default defineQualityConfig({\n  preset: '${quality}',\n  project: {\n    root: '.',\n    source: ['src/**/*.${extension}'],\n    tests: ['test/**/*.test.${extension}']\n  },\n  formatting: {\n    command: 'prettier --check .',\n    fixCommand: 'prettier --write .'\n  },\n  lint: {\n    command: 'eslint .',\n    fixCommand: 'eslint . --fix',\n    typed: ${options.language === 'typescript'}\n  },\n  smells: {\n    command: 'eslint . --max-warnings=0'\n  },\n  typecheck: {\n    enabled: ${quality !== 'off' && options.language === 'typescript'},\n    command: 'npm run typecheck --if-present'\n  },\n  deadCode: {\n    command: 'knip'\n  },\n  dependencyCruiser: {\n    command: 'dependency-cruiser src --config dependency-cruiser.config.cjs'\n  },\n  tests: {\n    unit: { command: 'vitest run' }\n  },\n  coverage: {\n    enabled: ${quality !== 'off'},\n    include: ['src/**/*.${extension}'],\n    exclude: [\n      {\n        pattern: 'src/**/index.${extension}',\n        reason:\n          'Public export-only boundaries are verified by architecture tests.'\n      },\n      {\n        pattern: 'src/main.${extension}',\n        reason:\n          'The process entrypoint is covered by the stdio integration smoke test.'\n      }\n    ]${strict}\n  },\n  build: {\n    command: 'npm run build --if-present'\n  }\n})\n`
 }
 
 function ciWorkflowContent(packageManager: PackageManager): string {
   const run =
     packageManager === 'pnpm'
-      ? 'corepack pnpm install --frozen-lockfile && corepack pnpm run typecheck'
-      : 'npm install && npm run typecheck --if-present'
+      ? 'corepack pnpm install --frozen-lockfile && corepack pnpm run quality:full'
+      : 'npm install && npm run quality:full'
   return `name: CI\n\non:\n  pull_request:\n  push:\n    branches: [main]\n\njobs:\n  quality:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v5\n      - uses: actions/setup-node@v6\n        with:\n          node-version: 22\n      - run: corepack enable\n      - run: ${run}\n`
-}
-
-function contractTestContent(): string {
-  return "import { describe, expect, it } from 'vitest'\n\nimport { healthTool } from '../../src/features/health/mcp/health.tool.js'\n\ndescribe('health contract', () => {\n  it('keeps the default health tool registered', () => {\n    expect(healthTool.name).toBe('health')\n  })\n})\n"
 }
 
 function agentFiles(
@@ -1170,7 +1317,12 @@ function writeResult(
   }
 ): void {
   if (io.json) {
-    io.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`)
+    io.stdout.write(
+      `${JSON.stringify({
+        ok: result.quality?.status !== 'failed',
+        ...result
+      })}\n`
+    )
     return
   }
   if (result.command === 'help') {
@@ -1185,6 +1337,27 @@ function writeResult(
     }
     return
   }
+  if (result.command === 'quality') {
+    for (const step of result.quality!.steps) {
+      io.stdout.write(
+        `[${step.status}] ${step.name} ${formatDuration(step.durationMs)}\n`
+      )
+      for (const diagnostic of step.diagnostics ?? []) {
+        io.stdout.write(
+          `  ${diagnostic.file}${diagnostic.line === undefined ? '' : `:${diagnostic.line}`} ${diagnostic.rule}: ${diagnostic.message}\n`
+        )
+      }
+    }
+    for (const exclusion of result.quality!.coverage.exclusions) {
+      io.stdout.write(
+        `[coverage-exclusion] ${exclusion.pattern}: ${exclusion.reason}\n`
+      )
+    }
+    io.stdout.write(
+      `quality ${result.quality!.status} in ${formatDuration(result.quality!.durationMs)}\n`
+    )
+    return
+  }
   const count = result.plan!.operations.length
   io.stderr.write(
     `${result.command}: planned ${count} file operations in ${result.root}\n`
@@ -1192,7 +1365,13 @@ function writeResult(
 }
 
 function helpText(): string {
-  return `Usage: mcp-kit <command>\n\nCommands:\n  new <name>\n  init\n  add tool|resource|prompt <name>\n  doctor\n`
+  return `Usage: mcp-kit <command>\n\nCommands:\n  new <name>\n  init\n  add tool|resource|prompt <name>\n  doctor\n  quality --fast|--full [--fix] [--since <git-ref>] [--json]\n`
+}
+
+function formatDuration(durationMs: number): string {
+  return durationMs < 1000
+    ? `${durationMs}ms`
+    : `${(durationMs / 1000).toFixed(1)}s`
 }
 
 function parseArgs(args: readonly string[]): ParsedArgs {
