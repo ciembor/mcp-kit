@@ -9,24 +9,6 @@
     "!packages/*/src/**/*.test.ts",
     "!packages/*/src/bin.ts"
   ],
-  "mutator": {
-    "excludedMutations": [
-      "ArrowFunction",
-      "ArithmeticOperator",
-      "ArrayDeclaration",
-      "BlockStatement",
-      "BooleanLiteral",
-      "ConditionalExpression",
-      "EqualityOperator",
-      "LogicalOperator",
-      "MethodExpression",
-      "ObjectLiteral",
-      "OptionalChaining",
-      "Regex",
-      "StringLiteral",
-      "UnaryOperator"
-    ]
-  },
   "reporters": ["clear-text", "progress"],
   "thresholds": {
     "high": 100,
