@@ -17,7 +17,7 @@ export default defineQualityConfig({
     typed: true
   },
   smells: {
-    command: 'knip'
+    command: 'eslint --config eslint.smells.config.js'
   },
   typecheck: {
     command: 'corepack pnpm typecheck'

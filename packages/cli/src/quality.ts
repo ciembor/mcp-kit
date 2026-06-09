@@ -451,8 +451,15 @@ async function executeCommand(
     child.once('error', () => resolvePromise(70))
     child.once('exit', (code, signal) => {
       options.signal.removeEventListener('abort', abort)
+      if (code !== null) {
+        resolvePromise(code)
+        return
+      }
+      const signalExitCodes = { SIGINT: 130, SIGTERM: 143 } as const
       resolvePromise(
-        code ?? (signal === 'SIGINT' ? 130 : signal === 'SIGTERM' ? 143 : 70)
+        signal === 'SIGINT' || signal === 'SIGTERM'
+          ? signalExitCodes[signal]
+          : 70
       )
     })
   })

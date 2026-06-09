@@ -17,7 +17,7 @@ export default defineQualityConfig({
     typed: true
   },
   smells: {
-    command: 'eslint . --max-warnings=0'
+    command: 'eslint --config eslint.smells.config.js'
   },
   typecheck: {
     command: 'npm run typecheck --if-present'

@@ -134,5 +134,6 @@ describe('create-mcp-kit', () => {
     await expect(internals.findTemplateDirectory(['\0'])).rejects.toThrow()
     expect(internals.errorMessage(new Error('typed'))).toBe('typed')
     expect(internals.errorMessage('raw')).toBe('raw')
+    expect(internals.toPackageName('---Server---')).toBe('server')
   })
 })

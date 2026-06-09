@@ -45,11 +45,12 @@ export async function runStdio<Services>(
   }
 
   const onSignal = (): void => {
-    void close().catch((error: unknown) => {
+    const signalClose = close().catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error)
       process.stderr.write(`[error] Failed to close MCP server: ${message}\n`)
       process.exitCode = 1
     })
+    closing = signalClose
   }
 
   process.once('SIGINT', onSignal)

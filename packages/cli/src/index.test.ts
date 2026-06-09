@@ -130,6 +130,9 @@ describe('mcp-kit cli', () => {
     await expect(
       readFile(resolve(target, 'tsconfig.json'), 'utf8')
     ).rejects.toThrow()
+    await expect(
+      readFile(resolve(target, 'eslint.smells.config.js'), 'utf8')
+    ).resolves.not.toContain('typescript-eslint')
   })
 
   it('renders transport, quality, package manager and agent variants', async () => {
@@ -173,6 +176,12 @@ describe('mcp-kit cli', () => {
     await expect(
       readFile(resolve(both, 'dependency-cruiser.config.cjs'), 'utf8')
     ).resolves.toContain('no-orphan-modules')
+    await expect(
+      readFile(resolve(both, 'quality.config.js'), 'utf8')
+    ).resolves.toContain('eslint --config eslint.smells.config.js')
+    await expect(
+      readFile(resolve(both, 'eslint.smells.config.js'), 'utf8')
+    ).resolves.toContain('eslint-plugin-sonarjs')
     const strictDependencies = (await import(
       pathToFileURL(resolve(both, 'dependency-cruiser.config.cjs')).href
     )) as { default: { forbidden: readonly { name: string }[] } }
@@ -628,6 +637,7 @@ describe('mcp-kit cli', () => {
     expect(() => internals.toPackageName('!!!')).toThrow(
       'Cannot derive a package name'
     )
+    expect(internals.toPackageName('---Server---')).toBe('server')
 
     const packageMerge = await internals.createOrMergeOperation(
       cwd,

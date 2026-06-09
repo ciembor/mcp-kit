@@ -232,6 +232,7 @@ Cel: egzekwowac jedna architekture we wszystkich projektach i dostarczyc skalowa
 - [x] Zaimplementowac `mcp-kit quality --full`.
 - [x] Dodac `--fix`, `--json` i lokalna optymalizacje `--since`.
 - [x] Orkiestrowac Prettier, ESLint, typed lint, TypeScript, Vitest i Knip.
+- [x] Egzekwowac code smells przez SonarJS, niezaleznie od Knip dla dead code.
 - [x] Zapewnic poprawne przerwanie procesu i propagacje exit code.
 - [x] Dodac czytelny raport czasu i wyniku kazdego kroku.
 

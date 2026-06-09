@@ -519,14 +519,14 @@ function findCapabilities(file: SourceFile): Capability[] {
   const capabilities: Capability[] = []
   walk(file.source, (node) => {
     if (!ts.isCallExpression(node) || node.arguments.length === 0) return
+    const kinds = {
+      defineTool: 'tool',
+      defineResource: 'resource',
+      definePrompt: 'prompt'
+    } as const
+    const expression = node.expression.getText()
     const kind =
-      node.expression.getText() === 'defineTool'
-        ? 'tool'
-        : node.expression.getText() === 'defineResource'
-          ? 'resource'
-          : node.expression.getText() === 'definePrompt'
-            ? 'prompt'
-            : undefined
+      expression in kinds ? kinds[expression as keyof typeof kinds] : undefined
     const definition = node.arguments[0]
     if (
       kind !== undefined &&
@@ -762,7 +762,9 @@ function compareDiagnostics(
 }
 
 function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0
+  if (left < right) return -1
+  if (left > right) return 1
+  return 0
 }
 
 function escapeRegex(value: string): string {

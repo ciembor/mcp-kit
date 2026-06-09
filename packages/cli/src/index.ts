@@ -12,12 +12,28 @@ import { createHash } from 'node:crypto'
 import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { runQuality, type QualityMode } from './quality.js'
 import {
-  runQuality,
-  type QualityMode,
-  type QualityPreset,
-  type QualityReport
-} from './quality.js'
+  exitCodes,
+  packageInfo,
+  type AgentPreset,
+  type CapabilityInput,
+  type CapabilityRegistrationInput,
+  type CliIo,
+  type CliResult,
+  type DoctorDiagnostic,
+  type ExitCode,
+  type FileOperation,
+  type FilePlan,
+  type GeneratorOptions,
+  type JsonObject,
+  type JsonValue,
+  type PackageManager,
+  type ParsedArgs,
+  type ProjectContext,
+  type ProjectLanguage,
+  type TransportPreset
+} from './cli-contracts.js'
 
 export {
   analyzeProject,
@@ -39,91 +55,23 @@ export {
   type QualityStepResult,
   type ResolvedQualityConfig
 } from './quality.js'
-
-export const packageInfo = {
-  name: '@mcp-kit/cli',
-  version: '0.0.0'
-} as const
-
-export const exitCodes = {
-  ok: 0,
-  usage: 1,
-  validation: 2,
-  conflict: 3,
-  internal: 70
-} as const
-
-export type ExitCode = (typeof exitCodes)[keyof typeof exitCodes]
-export type PackageManager = 'pnpm' | 'npm' | 'yarn' | 'bun'
-export type ProjectLanguage = 'typescript' | 'javascript'
-export type TransportPreset = 'stdio' | 'http' | 'both'
-export type AgentPreset = 'none' | 'generic' | 'claude' | 'cursor' | 'codex'
-export type FileOperationKind =
-  | 'create'
-  | 'overwrite'
-  | 'merge-json'
-  | 'merge-yaml'
-  | 'merge-package'
-  | 'conflict'
-
-export type FileOperation = {
-  kind: FileOperationKind
-  path: string
-  content?: string
-  merge?: JsonObject
-}
-
-export type FilePlan = {
-  root: string
-  operations: readonly FileOperation[]
-}
-
-export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | JsonObject
-
-export type JsonObject = {
-  [key: string]: JsonValue
-}
-
-export type CliResult = {
-  command: string
-  root?: string
-  plan?: FilePlan
-  diagnostics?: readonly DoctorDiagnostic[]
-  quality?: QualityReport
-  exitCode?: ExitCode
-}
-
-export type CliIo = {
-  cwd?: string
-  argv?: readonly string[]
-  stdout?: Pick<NodeJS.WriteStream, 'write'>
-  stderr?: Pick<NodeJS.WriteStream, 'write'>
-}
-
-export type DoctorDiagnostic = {
-  level: 'ok' | 'warning' | 'error'
-  code: string
-  message: string
-}
-
-type ParsedArgs = {
-  command?: string
-  positionals: string[]
-  options: Record<string, string | boolean>
-}
-
-type ProjectContext = {
-  root: string
-  packageManager: PackageManager
-  language: ProjectLanguage
-  gitRoot?: string
-}
+export {
+  exitCodes,
+  packageInfo,
+  type AgentPreset,
+  type CliIo,
+  type CliResult,
+  type DoctorDiagnostic,
+  type ExitCode,
+  type FileOperation,
+  type FileOperationKind,
+  type FilePlan,
+  type JsonObject,
+  type JsonValue,
+  type PackageManager,
+  type ProjectLanguage,
+  type TransportPreset
+} from './cli-contracts.js'
 
 class CliError extends Error {
   readonly exitCode: ExitCode
@@ -414,20 +362,6 @@ async function doctorProject(
   return { command: 'doctor', root, diagnostics }
 }
 
-type GeneratorOptions = {
-  transport: TransportPreset
-  quality: QualityPreset
-  language: ProjectLanguage
-  packageManager: PackageManager
-  git: boolean
-  hooks: boolean
-  ci: boolean
-  install: boolean
-  agent: AgentPreset
-  force: boolean
-  dryRun: boolean
-}
-
 async function planGeneratedProject(
   root: string,
   rawName: string,
@@ -500,12 +434,7 @@ async function planGeneratedProject(
 
 async function planAddCapability(
   root: string,
-  input: {
-    kind: 'tool' | 'resource' | 'prompt'
-    feature: string
-    symbol: string
-    ext: 'ts' | 'js'
-  }
+  input: CapabilityInput
 ): Promise<FilePlan> {
   const suffix = input.kind
   const exported = `${input.symbol}${capitalize(input.kind)}`
@@ -534,22 +463,18 @@ async function planAddCapability(
 
 async function registryUpdateOperation(
   root: string,
-  input: {
-    kind: 'tool' | 'resource' | 'prompt'
-    feature: string
-    ext: 'ts' | 'js'
-  },
+  input: CapabilityRegistrationInput,
   exported: string
 ): Promise<FileOperation> {
   const path = 'src/mcp/registry.ts'
   const absolute = resolve(root, path)
   const importPath = `../features/${input.feature}/mcp/${input.feature}.${input.kind}.js`
-  const registryName =
-    input.kind === 'tool'
-      ? 'tools'
-      : input.kind === 'resource'
-        ? 'resources'
-        : 'prompts'
+  const registryNames = {
+    tool: 'tools',
+    resource: 'resources',
+    prompt: 'prompts'
+  } as const
+  const registryName = registryNames[input.kind]
   const current = (await exists(absolute))
     ? await readFile(absolute, 'utf8')
     : "import { defineRegistry } from '@mcp-kit/core'\n\nexport const tools = defineRegistry([])\nexport const resources = defineRegistry([])\nexport const prompts = defineRegistry([])\n"
@@ -584,11 +509,7 @@ async function registryUpdateOperation(
 
 async function featureIndexUpdateOperation(
   root: string,
-  input: {
-    kind: 'tool' | 'resource' | 'prompt'
-    feature: string
-    ext: 'ts' | 'js'
-  },
+  input: CapabilityRegistrationInput,
   exported: string
 ): Promise<FileOperation> {
   const path = `src/features/${input.feature}/index.${input.ext}`
@@ -597,9 +518,10 @@ async function featureIndexUpdateOperation(
   const current = (await exists(absolute))
     ? await readFile(absolute, 'utf8')
     : ''
+  const separator = current.trim() === '' ? '' : '\n'
   const content = current.includes(exportLine)
     ? current
-    : `${current.trimEnd()}${current.trim() === '' ? '' : '\n'}${exportLine}\n`
+    : `${current.trimEnd()}${separator}${exportLine}\n`
   return {
     kind: (await exists(absolute)) ? 'overwrite' : 'create',
     path,
@@ -762,6 +684,14 @@ function renderJavaScriptTooling(path: string, content: string): string {
   }
   if (path === 'dependency-cruiser.config.cjs') {
     return content.replace("    tsConfig: { fileName: 'tsconfig.json' },\n", '')
+  }
+  if (path === 'eslint.smells.config.js') {
+    return content
+      .replace("import tseslint from 'typescript-eslint'\n", '')
+      .replace(
+        ',\n    languageOptions: {\n      parser: tseslint.parser\n    }',
+        ''
+      )
   }
   if (path === 'knip.json') {
     const config = JSON.parse(content.replaceAll('.ts', '.js')) as JsonObject
@@ -1084,7 +1014,7 @@ function qualityConfigContent(options: GeneratorOptions): string {
     quality === 'strict'
       ? `,\n    strictInclude: [\n      'src/features/*/domain/**/*.${extension}',\n      'src/features/*/application/**/*.${extension}'\n    ]`
       : ''
-  return `import { defineQualityConfig } from '@mcp-kit/cli'\n\nexport default defineQualityConfig({\n  preset: '${quality}',\n  project: {\n    root: '.',\n    source: ['src/**/*.${extension}'],\n    tests: ['test/**/*.test.${extension}']\n  },\n  formatting: {\n    command: 'prettier --check .',\n    fixCommand: 'prettier --write .'\n  },\n  lint: {\n    command: 'eslint .',\n    fixCommand: 'eslint . --fix',\n    typed: ${options.language === 'typescript'}\n  },\n  smells: {\n    command: 'eslint . --max-warnings=0'\n  },\n  typecheck: {\n    enabled: ${quality !== 'off' && options.language === 'typescript'},\n    command: 'npm run typecheck --if-present'\n  },\n  deadCode: {\n    command: 'knip'\n  },\n  dependencyCruiser: {\n    command: 'dependency-cruiser src --config dependency-cruiser.config.cjs'\n  },\n  tests: {\n    unit: { command: 'vitest run' }\n  },\n  coverage: {\n    enabled: ${quality !== 'off'},\n    include: ['src/**/*.${extension}'],\n    exclude: [\n      {\n        pattern: 'src/**/index.${extension}',\n        reason:\n          'Public export-only boundaries are verified by architecture tests.'\n      },\n      {\n        pattern: 'src/main.${extension}',\n        reason:\n          'The process entrypoint is covered by the stdio integration smoke test.'\n      }\n    ]${strict}\n  },\n  build: {\n    command: 'npm run build --if-present'\n  }\n})\n`
+  return `import { defineQualityConfig } from '@mcp-kit/cli'\n\nexport default defineQualityConfig({\n  preset: '${quality}',\n  project: {\n    root: '.',\n    source: ['src/**/*.${extension}'],\n    tests: ['test/**/*.test.${extension}']\n  },\n  formatting: {\n    command: 'prettier --check .',\n    fixCommand: 'prettier --write .'\n  },\n  lint: {\n    command: 'eslint .',\n    fixCommand: 'eslint . --fix',\n    typed: ${options.language === 'typescript'}\n  },\n  smells: {\n    command: 'eslint --config eslint.smells.config.js'\n  },\n  typecheck: {\n    enabled: ${quality !== 'off' && options.language === 'typescript'},\n    command: 'npm run typecheck --if-present'\n  },\n  deadCode: {\n    command: 'knip'\n  },\n  dependencyCruiser: {\n    command: 'dependency-cruiser src --config dependency-cruiser.config.cjs'\n  },\n  tests: {\n    unit: { command: 'vitest run' }\n  },\n  coverage: {\n    enabled: ${quality !== 'off'},\n    include: ['src/**/*.${extension}'],\n    exclude: [\n      {\n        pattern: 'src/**/index.${extension}',\n        reason:\n          'Public export-only boundaries are verified by architecture tests.'\n      },\n      {\n        pattern: 'src/main.${extension}',\n        reason:\n          'The process entrypoint is covered by the stdio integration smoke test.'\n      }\n    ]${strict}\n  },\n  build: {\n    command: 'npm run build --if-present'\n  }\n})\n`
 }
 
 function ciWorkflowContent(packageManager: PackageManager): string {
@@ -1343,8 +1273,12 @@ function writeResult(
         `[${step.status}] ${step.name} ${formatDuration(step.durationMs)}\n`
       )
       for (const diagnostic of step.diagnostics ?? []) {
+        const location =
+          diagnostic.line === undefined
+            ? diagnostic.file
+            : `${diagnostic.file}:${diagnostic.line}`
         io.stdout.write(
-          `  ${diagnostic.file}${diagnostic.line === undefined ? '' : `:${diagnostic.line}`} ${diagnostic.rule}: ${diagnostic.message}\n`
+          `  ${location} ${diagnostic.rule}: ${diagnostic.message}\n`
         )
       }
     }
@@ -1510,10 +1444,16 @@ function toPackageName(value: string): string {
 }
 
 function toKebabName(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+  const normalized = value.toLowerCase().replace(/[^a-z0-9._-]+/g, '-')
+  return trimEdgeHyphens(normalized)
+}
+
+function trimEdgeHyphens(value: string): string {
+  let start = 0
+  let end = value.length
+  while (value[start] === '-') start += 1
+  while (value[end - 1] === '-') end -= 1
+  return value.slice(start, end)
 }
 
 function toCamelName(value: string): string {
