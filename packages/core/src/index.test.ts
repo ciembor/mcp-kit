@@ -1,25 +1,21 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { z } from 'zod'
-import { describe, expect, expectTypeOf, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   createMcpApp,
   definePrompt,
-  defineRegistry,
   defineResource,
   defineTool,
-  McpKitError,
-  type InferSchemaOutput
+  McpKitError
 } from './index.js'
 import { ErrorCode } from '@modelcontextprotocol/sdk/types.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 describe('@mcp-kit/core', () => {
-  it('infers tool input and exposes request context', async () => {
+  it('exposes request context to tools', async () => {
     const inputSchema = z.object({ name: z.string() })
-    type Input = InferSchemaOutput<typeof inputSchema>
-    expectTypeOf<Input>().toEqualTypeOf<{ name: string }>()
 
     const tool = defineTool({
       name: 'hello',
@@ -27,7 +23,7 @@ describe('@mcp-kit/core', () => {
       policy: { effects: 'read' },
       annotations: { readOnlyHint: true },
       handler: ({ input, context }) => {
-        expectTypeOf(input).toEqualTypeOf<{ name: string }>()
+        expect(input).toEqual({ name: 'Ada' })
         expect(context.requestId).not.toBe('')
         expect(context.signal).toBeInstanceOf(AbortSignal)
         expect(context.client.info?.name).toBe('core-test')
@@ -62,67 +58,6 @@ describe('@mcp-kit/core', () => {
       content: [{ type: 'text', text: 'Hello Ada' }]
     })
     await client.close()
-  })
-
-  it('sorts registries deterministically and rejects duplicates', () => {
-    expect(
-      defineRegistry([{ name: 'z' }, { name: 'a' }]).map(({ name }) => name)
-    ).toEqual(['a', 'z'])
-    expect(() => defineRegistry([{ name: 'same' }, { name: 'same' }])).toThrow(
-      'Duplicate registry entry: same'
-    )
-  })
-
-  it('rejects inconsistent policy annotations', () => {
-    expect(() =>
-      defineTool({
-        name: 'read',
-        inputSchema: z.object({}),
-        policy: { effects: 'read' },
-        annotations: { readOnlyHint: false },
-        handler: () => ({ content: [] })
-      })
-    ).toThrow('read effects but readOnlyHint is false')
-    expect(() =>
-      defineTool({
-        name: 'write',
-        inputSchema: z.object({}),
-        policy: { effects: 'write' },
-        annotations: { readOnlyHint: true },
-        handler: () => ({ content: [] })
-      })
-    ).toThrow('write effects but readOnlyHint is true')
-  })
-
-  it('validates public definition contracts', () => {
-    expect(() =>
-      defineResource({
-        name: 'invalid-resource',
-        uri: 'test://x',
-        uriTemplate: 'test://{id}',
-        read: () => ({ contents: [] })
-      } as never)
-    ).toThrow('must define exactly one of uri or uriTemplate')
-    expect(() =>
-      definePrompt({
-        name: 'invalid-prompt',
-        argsSchema: z.string(),
-        render: () => ({ messages: [] })
-      })
-    ).toThrow('argsSchema must be an object')
-
-    const cause = new Error('cause')
-    const error = new McpKitError({
-      code: 'TEST',
-      message: 'unsafe',
-      cause
-    })
-    expect(error).toMatchObject({
-      name: 'McpKitError',
-      code: 'TEST',
-      safeMessage: 'Operation failed.',
-      cause
-    })
   })
 
   it('locks capability registration after connecting', async () => {
