@@ -40,6 +40,10 @@ export type ToolPolicy = {
   authorize?(
     context: RequestContext<unknown>
   ): Promise<void> | void
+  rateLimit?: {
+    windowMs: number
+    maxCalls: number
+  }
   timeoutMs?: number
   concurrency?: number
   audit?: boolean

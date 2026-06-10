@@ -210,6 +210,64 @@ describe('runtime helpers', () => {
     releaseBusyGate()
     await firstCall
 
+    const throttledTool = defineTool({
+      name: 'throttled-tool',
+      inputSchema: z.object({}),
+      policy: {
+        effects: 'read',
+        rateLimit: { windowMs: 60_000, maxCalls: 1 }
+      },
+      handler: () => ({ content: [] })
+    })
+    await expect(
+      runToolPipeline(
+        throttledTool,
+        {},
+        makeContext({
+          auth: {
+            source: 'oauth',
+            scopes: ['users:read'],
+            subject: 'alice',
+            tenantId: 'tenant-a'
+          }
+        }),
+        []
+      )
+    ).resolves.toMatchObject({ content: [] })
+    await expect(
+      runToolPipeline(
+        throttledTool,
+        {},
+        makeContext({
+          auth: {
+            source: 'oauth',
+            scopes: ['users:read'],
+            subject: 'alice',
+            tenantId: 'tenant-a'
+          }
+        }),
+        []
+      )
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [{ type: 'text', text: 'Rate limit exceeded. Try again later.' }]
+    })
+    await expect(
+      runToolPipeline(
+        throttledTool,
+        {},
+        makeContext({
+          auth: {
+            source: 'oauth',
+            scopes: ['users:read'],
+            subject: 'bob',
+            tenantId: 'tenant-b'
+          }
+        }),
+        []
+      )
+    ).resolves.toMatchObject({ content: [] })
+
     const protectedTool = defineTool({
       name: 'protected-tool',
       inputSchema: z.object({}),

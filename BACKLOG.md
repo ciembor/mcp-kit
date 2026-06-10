@@ -321,7 +321,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Ufac `Forwarded`/`X-Forwarded-*` tylko od trusted proxies.
 - [x] Nie przyjmowac tozsamosci z dowolnych niepodpisanych naglowkow.
 - [ ] Dodac propagacje correlation id odporna na podszywanie.
-- [ ] Rozdzielic edge rate limits od limitow per subject/tenant/tool.
+- [x] Rozdzielic edge rate limits od limitow per subject/tenant/tool.
 - [x] Dodac health, readiness i graceful drain endpoints/hooks.
 - [ ] Dodac test wieloreplikowy bez sticky sessions.
 - [ ] Przetestowac requesty jednej sesji kierowane naprzemiennie do dwoch workerow.
@@ -362,7 +362,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [ ] Domyslnie odrzucac nieznane pola input.
 - [ ] Walidowac limity stringow, kolekcji i zakresow liczbowych.
 - [ ] Egzekwowac timeout i concurrency per tool.
-- [ ] Egzekwowac rate limit per subject, tenant i kosztowny tool.
+- [x] Egzekwowac rate limit per subject, tenant i kosztowny tool.
 - [ ] Walidowac structured output wzgledem output schema.
 - [ ] Wymagac presentera zamiast surowej odpowiedzi downstream API.
 - [ ] Dodac policies dla URL, host, filesystem path i innych niebezpiecznych inputow.

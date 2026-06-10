@@ -39,6 +39,7 @@ export async function runToolPipeline<Services>(
   const builtIn = [
     createErrorMappingMiddleware<Services>(),
     createAuthorizationMiddleware<Services>(),
+    createRateLimitMiddleware<Services>(),
     createConcurrencyMiddleware<Services>(),
     createTimeoutMiddleware<Services>()
   ]
@@ -136,6 +137,11 @@ export function timeoutAbortError(
 }
 
 const activeToolCalls = new WeakMap<object, number>()
+type RateLimitBucket = { count: number; resetAt: number }
+const toolRateLimits = new WeakMap<
+  object,
+  Map<string, RateLimitBucket>
+>()
 
 function createErrorMappingMiddleware<Services>(): ToolMiddleware<Services> {
   return async ({ tool, context }, next) => {
@@ -193,6 +199,46 @@ function createConcurrencyMiddleware<Services>(): ToolMiddleware<Services> {
       activeToolCalls.set(tool, activeToolCalls.get(tool)! - 1)
     }
   }
+}
+
+function createRateLimitMiddleware<Services>(): ToolMiddleware<Services> {
+  return async ({ tool, context }, next) => {
+    const rateLimit = tool.policy?.rateLimit
+    if (rateLimit === undefined) return next()
+
+    const now = Date.now()
+    const bucketKey = [
+      tool.name,
+      context.auth?.subject ?? 'anonymous',
+      context.auth?.tenantId ?? 'global'
+    ].join(':')
+    const buckets = rateLimitBuckets(tool)
+    toolRateLimits.set(tool, buckets)
+    const current = buckets.get(bucketKey)
+
+    if (current === undefined || current.resetAt <= now) {
+      buckets.set(bucketKey, {
+        count: 1,
+        resetAt: now + rateLimit.windowMs
+      })
+      return next()
+    }
+
+    if (current.count >= rateLimit.maxCalls) {
+      throw new McpKitError({
+        code: 'RATE_LIMIT',
+        message: `Rate limit exceeded for tool ${tool.name}`,
+        safeMessage: 'Rate limit exceeded. Try again later.'
+      })
+    }
+
+    current.count += 1
+    return next()
+  }
+}
+
+function rateLimitBuckets(tool: object): Map<string, RateLimitBucket> {
+  return toolRateLimits.get(tool) ?? new Map<string, RateLimitBucket>()
 }
 
 function createTimeoutMiddleware<Services>(): ToolMiddleware<Services> {
