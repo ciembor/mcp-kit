@@ -17,7 +17,11 @@ import type {
   RequestContext,
   ServerRequestContext
 } from '../definitions.js'
-import { resourceMetadata, sdkResourceListCallback } from '../runtime.js'
+import {
+  requireCapabilityAccess,
+  resourceMetadata,
+  sdkResourceListCallback
+} from '../runtime.js'
 
 export function registerResources<Services>(
   sdk: McpServer,
@@ -101,6 +105,7 @@ async function listResource<Services>(
   context: RequestContext<Services>
 ): Promise<{ resources: Resource[]; nextCursor?: string }> {
   if (resource.uri !== undefined) {
+    requireCapabilityAccess(resource.policy, context)
     return cursor === undefined
       ? {
           resources: [
@@ -116,6 +121,7 @@ async function listResource<Services>(
   if (!('list' in resource) || resource.list === undefined) {
     return { resources: [] }
   }
+  requireCapabilityAccess(resource.policy, context)
   const result = await resource.list({
     ...(cursor === undefined ? {} : { cursor }),
     context
@@ -135,9 +141,15 @@ async function readResource<Services>(
 ) {
   const uri = new URL(requestedUri)
   for (const resource of resources) {
-    if (resource.uri === requestedUri) return resource.read({ uri, context })
+    if (resource.uri === requestedUri) {
+      requireCapabilityAccess(resource.policy, context)
+      return resource.read({ uri, context })
+    }
     const params = templateParams(resource, requestedUri)
-    if (params !== undefined) return resource.read({ uri, params, context })
+    if (params !== undefined) {
+      requireCapabilityAccess(resource.policy, context)
+      return resource.read({ uri, params, context })
+    }
   }
   throw new McpError(
     ErrorCode.InvalidParams,

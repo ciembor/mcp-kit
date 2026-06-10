@@ -3,6 +3,7 @@ import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { describe, expect, it } from 'vitest'
 
+import { requestContext } from './app/context.js'
 import {
   defineResource,
   defineTool,
@@ -11,6 +12,7 @@ import {
 } from './index.js'
 import {
   resourceMetadata,
+  requireCapabilityAccess,
   runToolPipeline,
   sdkResourceListCallback,
   silentLogger,
@@ -211,6 +213,7 @@ describe('runtime helpers', () => {
     const protectedTool = defineTool({
       name: 'protected-tool',
       inputSchema: z.object({}),
+      policy: { effects: 'read', requiredScopes: ['users:read'] },
       handler: () => {
         throw new McpKitError({
           code: 'PROTECTED',
@@ -223,12 +226,76 @@ describe('runtime helpers', () => {
       runToolPipeline(protectedTool, {}, makeContext(), [])
     ).resolves.toMatchObject({
       isError: true,
+      content: [{ type: 'text', text: 'Permission denied.' }]
+    })
+
+    await expect(
+      runToolPipeline(
+        protectedTool,
+        {},
+        makeContext({
+          auth: {
+            source: 'oauth',
+            scopes: ['users:read']
+          }
+        }),
+        []
+      )
+    ).resolves.toMatchObject({
+      isError: true,
       content: [{ type: 'text', text: 'safe' }]
     })
   })
+
+  it('maps authInfo into auth context and checks capability scopes', () => {
+    const context = requestContext(
+      {
+        requestId: 7,
+        signal: new AbortController().signal,
+        authInfo: {
+          token: 'secret',
+          clientId: 'client-1',
+          scopes: ['users:read'],
+          extra: { subject: 'user-1', tenantId: 'tenant-1' }
+        },
+        sendNotification: () => Promise.resolve(),
+        sendRequest: () => Promise.resolve({} as never)
+      },
+      new AbortController().signal,
+      {
+        services: {},
+        logger: silentLogger,
+        sdk: {
+          server: {
+            getClientVersion: () => ({ name: 'client', version: '1.0.0' }),
+            getClientCapabilities: () => ({})
+          }
+        } as never,
+        protocolVersion: '2025-11-25'
+      }
+    )
+
+    expect(context.auth).toMatchObject({
+      subject: 'user-1',
+      tenantId: 'tenant-1',
+      clientId: 'client-1',
+      source: 'oauth',
+      scopes: ['users:read']
+    })
+
+    expect(() =>
+      requireCapabilityAccess({ requiredScopes: ['users:write'] }, context)
+    ).toThrow('Missing required scope: users:write')
+
+    expect(() =>
+      requireCapabilityAccess({ requiredScopes: ['users:read'] }, context)
+    ).not.toThrow()
+  })
 })
 
-function makeContext(): RequestContext<object> {
+function makeContext(
+  overrides: Partial<RequestContext<object>> = {}
+): RequestContext<object> {
   return {
     requestId: 'request-1',
     signal: new AbortController().signal,
@@ -238,6 +305,7 @@ function makeContext(): RequestContext<object> {
       capabilities: {},
       protocolVersion: LATEST_PROTOCOL_VERSION
     },
-    sdk: {} as never
+    sdk: {} as never,
+    ...overrides
   }
 }

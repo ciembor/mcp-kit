@@ -7,6 +7,7 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js'
 
 import type {
+  AuthContext,
   Logger,
   RequestContext,
   ServerRequestContext
@@ -43,11 +44,32 @@ export function requestContext<Services>(
     signal,
     services: runtime.services,
     logger: runtime.logger,
+    ...(extra.authInfo === undefined ? {} : { auth: authContext(extra.authInfo) }),
     client: clientContext(runtime.sdk, runtime.protocolVersion),
     ...(progressToken === undefined
       ? {}
       : { progress: { report: progressReporter(extra, progressToken) } }),
     sdk: extra
+  }
+}
+
+function authContext(authInfo: ServerRequestContext['authInfo']): AuthContext {
+  return {
+    scopes: authInfo?.scopes ?? [],
+    source: authInfo === undefined ? 'anonymous' : 'oauth',
+    ...(typeof authInfo?.extra?.['subject'] === 'string'
+      ? { subject: authInfo.extra['subject'] }
+      : {}),
+    ...(typeof authInfo?.extra?.['tenantId'] === 'string'
+      ? { tenantId: authInfo.extra['tenantId'] }
+      : {}),
+    ...(authInfo?.clientId === undefined ? {} : { clientId: authInfo.clientId }),
+    ...(authInfo?.expiresAt === undefined
+      ? {}
+      : { expiresAt: authInfo.expiresAt }),
+    ...(authInfo?.resource === undefined ? {} : { resource: authInfo.resource }),
+    ...(authInfo?.token === undefined ? {} : { token: authInfo.token }),
+    ...(authInfo?.extra === undefined ? {} : { extra: authInfo.extra })
   }
 }
 

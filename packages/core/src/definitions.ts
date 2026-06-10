@@ -1,6 +1,7 @@
 export {
   packageInfo,
   type AnyResourceDefinition,
+  type AuthContext,
   type CapabilityPolicy,
   type InferSchemaOutput,
   type Logger,

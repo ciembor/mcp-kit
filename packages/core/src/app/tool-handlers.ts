@@ -20,6 +20,7 @@ import {
   type ToolDefinition
 } from '../definitions.js'
 import {
+  requireCapabilityAccess,
   runToolPipeline,
   toolExecutionError,
   type ToolMiddleware
@@ -124,6 +125,7 @@ export function installPromptGetHandler<Services>(
       }
 
       const context = createContext(extra)
+      requireCapabilityAccess(prompt.policy, context)
       try {
         return await prompt.render({
           input: parsed.data as never,

@@ -3,6 +3,7 @@ import type {
   SchemaOutput
 } from '@modelcontextprotocol/sdk/server/zod-compat.js'
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js'
+import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type {
   CallToolResult,
   ClientCapabilities,
@@ -45,6 +46,18 @@ export type CapabilityPolicy = {
   requiredScopes?: readonly string[]
 }
 
+export type AuthContext = {
+  subject?: string
+  scopes: readonly string[]
+  tenantId?: string
+  source: 'anonymous' | 'local' | 'oauth'
+  clientId?: string
+  expiresAt?: number
+  resource?: URL
+  token?: string
+  extra?: Record<string, unknown>
+}
+
 export type ServerRequestContext = RequestHandlerExtra<
   ServerRequest,
   ServerNotification
@@ -61,6 +74,7 @@ export type RequestContext<Services> = {
   signal: AbortSignal
   services: Services
   logger: Logger
+  auth?: AuthContext
   client: {
     info?: Implementation
     capabilities: ClientCapabilities
@@ -181,3 +195,5 @@ export type PromptDefinition<
 export type RegistryItem = {
   name: string
 }
+
+export type { AuthInfo }

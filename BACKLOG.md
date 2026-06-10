@@ -329,9 +329,9 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 
 ### Auth i policy
 
-- [ ] Zdefiniowac rozszerzalny `AuthContext`.
+- [x] Zdefiniowac rozszerzalny `AuthContext`.
 - [ ] Zaimplementowac middleware uwierzytelnienia.
-- [ ] Zaimplementowac domyslna autoryzacje scopes.
+- [x] Zaimplementowac domyslna autoryzacje scopes.
 - [ ] Umozliwic wlasny RBAC/ABAC/tenant authorization.
 - [ ] Autoryzowac kazdy request niezaleznie od session id.
 - [ ] Powiazac sesje z subject i tenantem.

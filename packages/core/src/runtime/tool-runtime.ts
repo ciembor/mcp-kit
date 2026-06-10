@@ -4,6 +4,7 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js'
 
 import type {
+  CapabilityPolicy,
   Logger,
   RequestContext,
   Schema,
@@ -37,6 +38,7 @@ export async function runToolPipeline<Services>(
 ): Promise<CallToolResult> {
   const builtIn = [
     createErrorMappingMiddleware<Services>(),
+    createAuthorizationMiddleware<Services>(),
     createConcurrencyMiddleware<Services>(),
     createTimeoutMiddleware<Services>()
   ]
@@ -63,6 +65,39 @@ export function toolExecutionError(message: string): CallToolResult {
     content: [{ type: 'text', text: message }],
     isError: true
   }
+}
+
+export function authorizeScopes(
+  context: RequestContext<unknown>,
+  requiredScopes: readonly string[]
+): void {
+  if (requiredScopes.length === 0) return
+  if (context.auth === undefined) {
+    throw new McpKitError({
+      code: 'FORBIDDEN',
+      message: 'Missing authentication context',
+      safeMessage: 'Permission denied.'
+    })
+  }
+
+  for (const scope of requiredScopes) {
+    if (!context.auth.scopes.includes(scope)) {
+      throw new McpKitError({
+        code: 'FORBIDDEN',
+        message: `Missing required scope: ${scope}`,
+        safeMessage: 'Permission denied.'
+      })
+    }
+  }
+}
+
+export function requireCapabilityAccess(
+  policy: CapabilityPolicy | undefined,
+  context: RequestContext<unknown>
+): void {
+  const requiredScopes = policy?.requiredScopes
+  if (requiredScopes === undefined) return
+  authorizeScopes(context, requiredScopes)
 }
 
 export function toolConfig(tool: ToolDefinition): {
@@ -123,6 +158,15 @@ function createErrorMappingMiddleware<Services>(): ToolMiddleware<Services> {
         `Operation failed. Correlation id: ${context.requestId}`
       )
     }
+  }
+}
+
+function createAuthorizationMiddleware<Services>(): ToolMiddleware<Services> {
+  return async ({ tool, context }, next) => {
+    if (tool.policy?.requiredScopes !== undefined) {
+      authorizeScopes(context, tool.policy.requiredScopes)
+    }
+    return next()
   }
 }
 
