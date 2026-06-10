@@ -340,8 +340,8 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 
 ### OAuth resource server
 
-- [ ] Dodac Protected Resource Metadata.
-- [ ] Dodac discovery authorization servera.
+- [x] Dodac Protected Resource Metadata.
+- [x] Dodac discovery authorization servera.
 - [ ] Walidowac podpis, issuer, audience i expiry tokenu.
 - [ ] Obsluzyc minimal scopes i step-up authorization.
 - [ ] Uniemozliwic token passthrough.

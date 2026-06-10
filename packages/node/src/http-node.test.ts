@@ -537,6 +537,45 @@ describe('@mcp-kit/node streamable http', () => {
     })
   })
 
+  it('serves protected resource metadata for authenticated HTTP servers', async () => {
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      trustedProxies: ['127.0.0.1'],
+      auth: {
+        verifyBearerToken: createVerifier(),
+        metadata: {
+          authorizationServers: ['https://auth.example/.well-known/oauth'],
+          scopesSupported: ['users:read'],
+          resourceName: 'Test MCP',
+          serviceDocumentationUrl: 'https://docs.example/mcp'
+        }
+      }
+    })
+    runtimes.push(runtime)
+
+    const response = await sendNodeRequest(
+      `http://127.0.0.1:${runtime.options.port}/.well-known/oauth-protected-resource/mcp`,
+      {
+        method: 'GET',
+        headers: {
+          host: `127.0.0.1:${runtime.options.port}`,
+          forwarded: 'for=127.0.0.1;proto=https;host=public.example'
+        }
+      }
+    )
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(response.body)).toMatchObject({
+      resource: 'https://public.example/mcp',
+      authorization_servers: ['https://auth.example/.well-known/oauth'],
+      scopes_supported: ['users:read'],
+      resource_name: 'Test MCP',
+      resource_documentation: 'https://docs.example/mcp',
+      bearer_methods_supported: ['header']
+    })
+  })
+
   it('rejects invalid bearer tokens', async () => {
     const apps = createAppFactory()
     const runtime = await runStreamableHttp(apps.createApp, {

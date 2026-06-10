@@ -18,7 +18,11 @@ export async function runStreamableHttp<Services>(
   const handler = createStreamableHttpHandler(createApp, normalized)
   let draining = false
   const server = createServer((req, res) => {
-    const controlResponse = controlEndpointResponse(req, normalized, draining)
+    const controlResponse = controlEndpointResponse(
+      req,
+      normalized,
+      draining
+    )
     if (controlResponse !== undefined) {
       void writeResponse(res, controlResponse)
       return
@@ -48,16 +52,19 @@ export async function runStreamableHttp<Services>(
   })
   server.requestTimeout = normalized.requestTimeoutMs
 
+  let port = normalized.port
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
     server.listen(normalized.port, normalized.host, () => {
       server.off('error', reject)
+      const address = server.address()
+      port =
+        typeof address === 'object' && address !== null
+          ? address.port
+          : normalized.port
       resolve()
     })
   })
-  const address = server.address()
-  const port =
-    typeof address === 'object' && address !== null ? address.port : normalized.port
   const runtimeOptions = { ...normalized, port }
   const drain = (): Promise<void> => {
     draining = true
@@ -225,8 +232,8 @@ function controlEndpointResponse(
   draining: boolean
 ): Response | undefined {
   if (req.method !== 'GET') return undefined
-  const pathname = new URL(requestUrlFromNodeRequest(req, options.trustedProxies))
-    .pathname
+  const requestUrl = new URL(requestUrlFromNodeRequest(req, options.trustedProxies))
+  const pathname = requestUrl.pathname
 
   if (options.healthPath !== false && pathname === options.healthPath) {
     return new Response(
@@ -252,5 +259,55 @@ function controlEndpointResponse(
     )
   }
 
+  const metadataPath = protectedResourceMetadataPath(options.path)
+  if (
+    options.auth !== false &&
+    options.auth !== undefined &&
+    options.auth.metadata !== undefined &&
+    pathname === metadataPath
+  ) {
+    return new Response(
+      JSON.stringify({
+        resource: canonicalResourceUrl(requestUrl, options.path).toString(),
+        ...(options.auth.metadata.authorizationServers === undefined
+          ? {}
+          : {
+              authorization_servers: [
+                ...options.auth.metadata.authorizationServers
+              ]
+            }),
+        ...(options.auth.metadata.scopesSupported === undefined
+          ? {}
+          : { scopes_supported: [...options.auth.metadata.scopesSupported] }),
+        ...(options.auth.metadata.resourceName === undefined
+          ? {}
+          : { resource_name: options.auth.metadata.resourceName }),
+        ...(options.auth.metadata.serviceDocumentationUrl === undefined
+          ? {}
+          : {
+              resource_documentation:
+                options.auth.metadata.serviceDocumentationUrl
+            }),
+        bearer_methods_supported: ['header']
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json; charset=utf-8' }
+      }
+    )
+  }
+
   return undefined
+}
+
+function protectedResourceMetadataPath(path: string): string {
+  return `/.well-known/oauth-protected-resource${path}`
+}
+
+function canonicalResourceUrl(requestUrl: URL, path: string): URL {
+  const url = new URL(requestUrl.toString())
+  url.pathname = path
+  url.search = ''
+  url.hash = ''
+  return url
 }

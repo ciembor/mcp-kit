@@ -96,6 +96,12 @@ export type StreamableHttpAuthOptions = {
   ): Promise<AuthContext> | AuthContext
   allowAnonymous?: boolean
   challenge?: string
+  metadata?: {
+    authorizationServers?: readonly string[]
+    resourceName?: string
+    scopesSupported?: readonly string[]
+    serviceDocumentationUrl?: string
+  }
 }
 
 export type StreamableHttpAuthResult = {
