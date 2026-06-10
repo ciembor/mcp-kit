@@ -7,7 +7,7 @@ import type {
   QualityCommand,
   QualityConfig,
   ResolvedQualityConfig
-} from './quality/contracts.js'
+} from './contracts.js'
 
 const standardThresholds: CoverageThresholds = {
   lines: 90,

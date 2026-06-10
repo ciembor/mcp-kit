@@ -42,22 +42,22 @@ describe('project analysis source file reader', () => {
       'src/view.tsx'
     ])
 
-    expect(byPath.get('src/feature.ts')?.source.scriptKind).toBe(
+    expect(scriptKind(byPath.get('src/feature.ts'))).toBe(
       ts.ScriptKind.TS
     )
-    expect(byPath.get('src/view.tsx')?.source.scriptKind).toBe(
+    expect(scriptKind(byPath.get('src/view.tsx'))).toBe(
       ts.ScriptKind.TSX
     )
-    expect(byPath.get('src/client.js')?.source.scriptKind).toBe(
+    expect(scriptKind(byPath.get('src/client.js'))).toBe(
       ts.ScriptKind.JS
     )
-    expect(byPath.get('src/client.jsx')?.source.scriptKind).toBe(
+    expect(scriptKind(byPath.get('src/client.jsx'))).toBe(
       ts.ScriptKind.JSX
     )
-    expect(byPath.get('src/module.mjs')?.source.scriptKind).toBe(
+    expect(scriptKind(byPath.get('src/module.mjs'))).toBe(
       ts.ScriptKind.JS
     )
-    expect(byPath.get('src/common.cjs')?.source.scriptKind).toBe(
+    expect(scriptKind(byPath.get('src/common.cjs'))).toBe(
       ts.ScriptKind.JS
     )
     expect(byPath.get('src/feature.ts')?.absolute).toBe(
@@ -131,4 +131,15 @@ async function files(
     await mkdir(resolve(absolute, '..'), { recursive: true })
     await writeFile(absolute, content)
   }
+}
+
+function scriptKind(
+  file: ReturnType<typeof readSourceFiles> extends Promise<infer Files>
+    ? Files extends readonly (infer File)[]
+      ? File | undefined
+      : never
+    : never
+): ts.ScriptKind | undefined {
+  const source = file?.source as ts.SourceFile & { scriptKind?: ts.ScriptKind }
+  return source.scriptKind
 }

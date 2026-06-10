@@ -28,18 +28,37 @@ function objectLiteral(sourceText: string): ts.ObjectLiteralExpression {
     ts.ScriptKind.TS
   )
   const statement = source.statements[0]
+  if (statement === undefined || !ts.isVariableStatement(statement)) {
+    throw new Error('expected object literal fixture')
+  }
+  const declaration = statement.declarationList.declarations[0]
   if (
-    statement === undefined ||
-    !ts.isVariableStatement(statement) ||
-    !ts.isVariableDeclaration(statement.declarationList.declarations[0]) ||
-    statement.declarationList.declarations[0].initializer === undefined ||
-    !ts.isObjectLiteralExpression(
-      statement.declarationList.declarations[0].initializer
-    )
+    declaration === undefined ||
+    declaration.initializer === undefined ||
+    !ts.isObjectLiteralExpression(declaration.initializer)
   ) {
     throw new Error('expected object literal fixture')
   }
-  return statement.declarationList.declarations[0].initializer
+  return declaration.initializer
+}
+
+function fixtureVariable(sourceText: string): ts.VariableDeclaration {
+  const source = ts.createSourceFile(
+    'fixture.ts',
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  )
+  const statement = source.statements[0]
+  if (statement === undefined || !ts.isVariableStatement(statement)) {
+    throw new Error('expected variable declaration fixture')
+  }
+  const declaration = statement.declarationList.declarations[0]
+  if (declaration === undefined) {
+    throw new Error('expected variable declaration fixture')
+  }
+  return declaration
 }
 
 describe('project analysis helpers', () => {
@@ -168,6 +187,12 @@ describe('project analysis helpers', () => {
     expect(kinds).toContain(ts.SyntaxKind.Identifier)
   })
 
+  it('accepts concrete nodes in helper fixtures', () => {
+    const declaration = fixtureVariable('const value = 1\n')
+
+    expect(hasExportModifier(declaration)).toBe(false)
+  })
+
   it('builds diagnostics, normalizes paths and sorts deterministically', () => {
     const source = ts.createSourceFile(
       'src\\feature.ts',
@@ -202,18 +227,18 @@ describe('project analysis helpers', () => {
     expect(compareText('a', 'a')).toBe(0)
 
     const diagnostics: ProjectDiagnostic[] = [
-      { file: 'src/b.ts', line: 1, rule: 'b' },
-      { file: 'src/a.ts', line: 3, rule: 'z' },
-      { file: 'src/a.ts', line: 2, rule: 'a' },
-      { file: 'src/a.ts', rule: 'b' },
-      { file: 'src/a.ts', line: 2, rule: 'c' }
+      { file: 'src/b.ts', line: 1, rule: 'b', message: 'b' },
+      { file: 'src/a.ts', line: 3, rule: 'z', message: 'z' },
+      { file: 'src/a.ts', line: 2, rule: 'a', message: 'a' },
+      { file: 'src/a.ts', rule: 'b', message: 'b' },
+      { file: 'src/a.ts', line: 2, rule: 'c', message: 'c' }
     ]
     expect([...diagnostics].sort(compareDiagnostics)).toEqual([
-      { file: 'src/a.ts', rule: 'b' },
-      { file: 'src/a.ts', line: 2, rule: 'a' },
-      { file: 'src/a.ts', line: 2, rule: 'c' },
-      { file: 'src/a.ts', line: 3, rule: 'z' },
-      { file: 'src/b.ts', line: 1, rule: 'b' }
+      { file: 'src/a.ts', rule: 'b', message: 'b' },
+      { file: 'src/a.ts', line: 2, rule: 'a', message: 'a' },
+      { file: 'src/a.ts', line: 2, rule: 'c', message: 'c' },
+      { file: 'src/a.ts', line: 3, rule: 'z', message: 'z' },
+      { file: 'src/b.ts', line: 1, rule: 'b', message: 'b' }
     ])
   })
 })

@@ -1,4 +1,4 @@
-import { shellQuote } from '../quality-config.js'
+import { shellQuote } from './quality-config.js'
 import type {
   QualityCommand,
   ResolvedQualityConfig,

@@ -1,6 +1,6 @@
 import { analyzeProject } from '../project-analysis.js'
-import { loadQualityConfig, resolveQualityConfig } from '../quality-config.js'
-import { executeCommand } from '../quality-execute.js'
+import { loadQualityConfig, resolveQualityConfig } from './quality-config.js'
+import { executeCommand } from './quality-execute.js'
 import type {
   QualityExecutor,
   QualityReport,
