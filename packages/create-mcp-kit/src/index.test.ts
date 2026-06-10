@@ -4,7 +4,11 @@ import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { main } from './bin.js'
-import { createMcpKitProject, internals, runCreateMcpKit } from './index.js'
+import { runCreateMcpKit } from './app/run-create-mcp-kit.js'
+import { createMcpKitProject } from './index.js'
+import { findTemplateDirectory } from './scaffold/template-directory.js'
+import { errorMessage } from './shared/error-message.js'
+import { toPackageName } from './shared/package-name.js'
 
 const temporaryDirectories: string[] = []
 
@@ -129,11 +133,11 @@ describe('create-mcp-kit', () => {
 
   it('reports missing bundled templates', async () => {
     await expect(
-      internals.findTemplateDirectory(['/definitely/missing'])
+      findTemplateDirectory(['/definitely/missing'])
     ).rejects.toThrow('Bundled project template was not found')
-    await expect(internals.findTemplateDirectory(['\0'])).rejects.toThrow()
-    expect(internals.errorMessage(new Error('typed'))).toBe('typed')
-    expect(internals.errorMessage('raw')).toBe('raw')
-    expect(internals.toPackageName('---Server---')).toBe('server')
+    await expect(findTemplateDirectory(['\0'])).rejects.toThrow()
+    expect(errorMessage(new Error('typed'))).toBe('typed')
+    expect(errorMessage('raw')).toBe('raw')
+    expect(toPackageName('---Server---')).toBe('server')
   })
 })
