@@ -14,6 +14,8 @@ export function normalizeStreamableHttpOptions(
   const host = options.host ?? '127.0.0.1'
   const port = options.port ?? 3000
   const path = normalizePath(options.path ?? '/mcp')
+  const healthPath = normalizeOptionalPath(options.healthPath, '/healthz')
+  const readinessPath = normalizeOptionalPath(options.readinessPath, '/readyz')
   const sessionMode = options.sessionMode ?? 'stateless'
   const sessionStore =
     sessionMode === 'stateful'
@@ -49,6 +51,8 @@ export function normalizeStreamableHttpOptions(
     host,
     port,
     path,
+    healthPath,
+    readinessPath,
     sessionMode,
     ...(sessionStore === undefined ? {} : { sessionStore }),
     trustedProxies,
@@ -162,6 +166,14 @@ function normalizeCors(
 function normalizePath(path: string): string {
   if (path === '') return '/mcp'
   return path.startsWith('/') ? path : `/${path}`
+}
+
+function normalizeOptionalPath(
+  path: string | false | undefined,
+  fallback: string
+): string | false {
+  if (path === false) return false
+  return normalizePath(path ?? fallback)
 }
 
 function defaultAllowedHosts(host: string, port: number): readonly string[] {

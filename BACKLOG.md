@@ -311,7 +311,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Dodac in-memory `SessionStore` wylacznie dla testow i development.
 - [ ] Dodac referencyjny adapter Redis lub udokumentowany kontrakt integracyjny.
 - [ ] Dodac resumability, jesli wspiera ja przypieta wersja SDK.
-- [ ] Dodac graceful shutdown i drain aktywnych polaczen.
+- [x] Dodac graceful shutdown i drain aktywnych polaczen.
 - [x] Nie wlaczac legacy HTTP+SSE bez jawnego adaptera.
 
 ### Gateway i skalowanie
@@ -322,7 +322,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [ ] Nie przyjmowac tozsamosci z dowolnych niepodpisanych naglowkow.
 - [ ] Dodac propagacje correlation id odporna na podszywanie.
 - [ ] Rozdzielic edge rate limits od limitow per subject/tenant/tool.
-- [ ] Dodac health, readiness i graceful drain endpoints/hooks.
+- [x] Dodac health, readiness i graceful drain endpoints/hooks.
 - [ ] Dodac test wieloreplikowy bez sticky sessions.
 - [ ] Przetestowac requesty jednej sesji kierowane naprzemiennie do dwoch workerow.
 - [ ] Udokumentowac deployment za API gateway/reverse proxy.

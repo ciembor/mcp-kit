@@ -240,6 +240,67 @@ describe('@mcp-kit/node streamable http', () => {
     await first
   })
 
+  it('serves health/readiness endpoints and marks drain state', async () => {
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, { port: 0 })
+    runtimes.push(runtime)
+
+    const health = await fetch(
+      `http://127.0.0.1:${runtime.options.port}${runtime.options.healthPath}`
+    )
+    expect(health.status).toBe(200)
+    await expect(health.json()).resolves.toEqual({ status: 'ok' })
+
+    const ready = await fetch(
+      `http://127.0.0.1:${runtime.options.port}${runtime.options.readinessPath}`
+    )
+    expect(ready.status).toBe(200)
+    await expect(ready.json()).resolves.toEqual({ status: 'ready' })
+
+    await runtime.drain()
+
+    const draining = await fetch(
+      `http://127.0.0.1:${runtime.options.port}${runtime.options.readinessPath}`
+    )
+    expect(draining.status).toBe(503)
+    await expect(draining.json()).resolves.toEqual({ status: 'draining' })
+  })
+
+  it('waits for in-flight requests before close resolves', async () => {
+    let release: (() => void) | undefined
+    handleRequestImpl = async () =>
+      await new Promise<Response>((resolve) => {
+        release = () => resolve(new Response('ok'))
+      })
+
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, { port: 0 })
+    runtimes.push(runtime)
+
+    const request = fetch(runtime.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"hello":"world"}'
+    })
+
+    await waitFor(() => apps.instances.length === 1)
+
+    let closed = false
+    const closePromise = runtime.close().then(() => {
+      closed = true
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(closed).toBe(false)
+
+    release?.()
+
+    await closePromise
+    const response = await request
+    expect(response.status).toBe(200)
+    expect(closed).toBe(true)
+  })
+
   it('requires explicit public deployment settings', async () => {
     const apps = createAppFactory()
 

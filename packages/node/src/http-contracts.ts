@@ -14,6 +14,8 @@ export type StreamableHttpOptions = {
   host?: string
   port?: number
   path?: string
+  healthPath?: string | false
+  readinessPath?: string | false
   sessionMode?: SessionMode
   sessionStore?: SessionStore
   trustedProxies?: readonly string[]
@@ -30,6 +32,8 @@ export type NormalizedStreamableHttpOptions = {
   host: string
   port: number
   path: string
+  healthPath: string | false
+  readinessPath: string | false
   sessionMode: SessionMode
   sessionStore?: SessionStore
   trustedProxies: readonly string[]
@@ -58,6 +62,7 @@ export type StreamableHttpHandler = (
 export type StreamableHttpRuntime = {
   readonly url: string
   readonly options: NormalizedStreamableHttpOptions
+  drain(): Promise<void>
   close(): Promise<void>
 }
 

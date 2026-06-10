@@ -16,7 +16,13 @@ export async function runStreamableHttp<Services>(
 ): Promise<StreamableHttpRuntime> {
   const normalized = normalizeStreamableHttpOptions(options)
   const handler = createStreamableHttpHandler(createApp, normalized)
+  let draining = false
   const server = createServer((req, res) => {
+    const controlResponse = controlEndpointResponse(req, normalized, draining)
+    if (controlResponse !== undefined) {
+      void writeResponse(res, controlResponse)
+      return
+    }
     void handleNodeRequest(
       req,
       res,
@@ -53,12 +59,17 @@ export async function runStreamableHttp<Services>(
   const port =
     typeof address === 'object' && address !== null ? address.port : normalized.port
   const runtimeOptions = { ...normalized, port }
+  const drain = (): Promise<void> => {
+    draining = true
+    return Promise.resolve()
+  }
 
   let closing: Promise<void> | undefined
   const close = (): Promise<void> => {
     closing ??= (async () => {
       process.off('SIGINT', onSignal)
       process.off('SIGTERM', onSignal)
+      await drain()
       await closeSessions(runtimeOptions)
       await new Promise<void>((resolve, reject) => {
         server.close((error) => {
@@ -87,6 +98,7 @@ export async function runStreamableHttp<Services>(
   return {
     url: `http://${normalized.host}:${port}${normalized.path}`,
     options: runtimeOptions,
+    drain,
     close
   }
 }
@@ -112,23 +124,7 @@ async function handleNodeRequest(
   const exchange = await handler({ request, parsedBody })
 
   try {
-    res.statusCode = exchange.response.status
-    exchange.response.headers.forEach((value, key) => {
-      res.setHeader(key, value)
-    })
-
-    if (exchange.response.body === null) {
-      res.end()
-      return
-    }
-
-    await new Promise<void>((resolve, reject) => {
-      const body = Readable.fromWeb(exchange.response.body as ReadableStream)
-      body.on('error', reject)
-      res.on('error', reject)
-      res.on('finish', resolve)
-      body.pipe(res)
-    })
+    await writeResponse(res, exchange.response)
   } finally {
     await exchange.close()
   }
@@ -198,4 +194,63 @@ class HttpError extends Error {
   ) {
     super(message)
   }
+}
+
+async function writeResponse(
+  res: ServerResponse,
+  response: Response
+): Promise<void> {
+  res.statusCode = response.status
+  response.headers.forEach((value, key) => {
+    res.setHeader(key, value)
+  })
+
+  if (response.body === null) {
+    res.end()
+    return
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const body = Readable.fromWeb(response.body as ReadableStream)
+    body.on('error', reject)
+    res.on('error', reject)
+    res.on('finish', resolve)
+    body.pipe(res)
+  })
+}
+
+function controlEndpointResponse(
+  req: IncomingMessage,
+  options: StreamableHttpRuntime['options'],
+  draining: boolean
+): Response | undefined {
+  if (req.method !== 'GET') return undefined
+  const pathname = new URL(requestUrlFromNodeRequest(req, options.trustedProxies))
+    .pathname
+
+  if (options.healthPath !== false && pathname === options.healthPath) {
+    return new Response(
+      JSON.stringify({
+        status: 'ok'
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json; charset=utf-8' }
+      }
+    )
+  }
+
+  if (options.readinessPath !== false && pathname === options.readinessPath) {
+    return new Response(
+      JSON.stringify({
+        status: draining ? 'draining' : 'ready'
+      }),
+      {
+        status: draining ? 503 : 200,
+        headers: { 'content-type': 'application/json; charset=utf-8' }
+      }
+    )
+  }
+
+  return undefined
 }
