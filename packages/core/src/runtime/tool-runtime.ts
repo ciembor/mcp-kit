@@ -38,6 +38,7 @@ export async function runToolPipeline<Services>(
 ): Promise<CallToolResult> {
   const builtIn = [
     createErrorMappingMiddleware<Services>(),
+    createAuditMiddleware<Services>(),
     createAuthorizationMiddleware<Services>(),
     createRateLimitMiddleware<Services>(),
     createConcurrencyMiddleware<Services>(),
@@ -178,6 +179,36 @@ function createAuthorizationMiddleware<Services>(): ToolMiddleware<Services> {
   }
 }
 
+function createAuditMiddleware<Services>(): ToolMiddleware<Services> {
+  return async ({ tool, context }, next) => {
+    if (!requiresAudit(tool)) return next()
+
+    try {
+      const result = await next()
+      writeAuditEvent(context.logger, {
+        correlationId: context.requestId,
+        outcome: result.isError === true ? 'error' : 'success',
+        subject: context.auth?.subject,
+        tenantId: context.auth?.tenantId,
+        tool: tool.name
+      })
+      return result
+    } catch (error) {
+      writeAuditEvent(context.logger, {
+        correlationId: context.requestId,
+        outcome:
+          error instanceof McpKitError && error.code === 'FORBIDDEN'
+            ? 'denied'
+            : 'error',
+        subject: context.auth?.subject,
+        tenantId: context.auth?.tenantId,
+        tool: tool.name
+      })
+      throw error
+    }
+  }
+}
+
 function createConcurrencyMiddleware<Services>(): ToolMiddleware<Services> {
   return async ({ tool }, next) => {
     const limit = tool.policy?.concurrency
@@ -239,6 +270,33 @@ function createRateLimitMiddleware<Services>(): ToolMiddleware<Services> {
 
 function rateLimitBuckets(tool: object): Map<string, RateLimitBucket> {
   return toolRateLimits.get(tool) ?? new Map<string, RateLimitBucket>()
+}
+
+function requiresAudit(tool: ToolDefinition): boolean {
+  return (
+    tool.policy?.audit === true ||
+    tool.policy?.requiredScopes !== undefined ||
+    tool.policy?.authorize !== undefined
+  )
+}
+
+function writeAuditEvent(
+  logger: Logger,
+  event: {
+    correlationId: string
+    outcome: 'success' | 'error' | 'denied'
+    subject: string | undefined
+    tenantId: string | undefined
+    tool: string
+  }
+): void {
+  logger.info('Audit event', {
+    correlationId: event.correlationId,
+    outcome: event.outcome,
+    ...(event.subject === undefined ? {} : { subject: event.subject }),
+    ...(event.tenantId === undefined ? {} : { tenantId: event.tenantId }),
+    tool: event.tool
+  })
 }
 
 function createTimeoutMiddleware<Services>(): ToolMiddleware<Services> {

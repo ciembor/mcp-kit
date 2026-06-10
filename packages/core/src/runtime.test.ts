@@ -376,6 +376,70 @@ describe('runtime helpers', () => {
       )
     ).resolves.toBeUndefined()
   })
+
+  it('writes audit events for protected tool calls', async () => {
+    const auditEntries: Array<{ message: string; data?: Record<string, unknown> }> =
+      []
+    const logger = {
+      debug: () => undefined,
+      info: (message: string, data?: Record<string, unknown>) => {
+        auditEntries.push({ message, data })
+      },
+      warn: () => undefined,
+      error: () => undefined
+    }
+    const tool = defineTool({
+      name: 'audited-tool',
+      inputSchema: z.object({}),
+      policy: { effects: 'read', requiredScopes: ['users:read'] },
+      handler: () => ({ content: [] })
+    })
+
+    await expect(
+      runToolPipeline(
+        tool,
+        {},
+        makeContext({
+          logger,
+          auth: {
+            source: 'oauth',
+            scopes: ['users:read'],
+            subject: 'alice',
+            tenantId: 'tenant-a'
+          }
+        }),
+        []
+      )
+    ).resolves.toMatchObject({ content: [] })
+
+    await expect(
+      runToolPipeline(tool, {}, makeContext({ logger }), [])
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [{ type: 'text', text: 'Permission denied.' }]
+    })
+
+    expect(auditEntries).toEqual([
+      {
+        message: 'Audit event',
+        data: {
+          correlationId: 'request-1',
+          outcome: 'success',
+          subject: 'alice',
+          tenantId: 'tenant-a',
+          tool: 'audited-tool'
+        }
+      },
+      {
+        message: 'Audit event',
+        data: {
+          correlationId: 'request-1',
+          outcome: 'denied',
+          tool: 'audited-tool'
+        }
+      }
+    ])
+  })
 })
 
 function makeContext(

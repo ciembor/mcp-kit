@@ -335,8 +335,8 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Umozliwic wlasny RBAC/ABAC/tenant authorization.
 - [x] Autoryzowac kazdy request niezaleznie od session id.
 - [x] Powiazac sesje z subject i tenantem.
-- [ ] Dodac audit events dla operacji wskazanych przez policy.
-- [ ] Dodac audit event dla kazdego chronionego tool call z subject, tenant, tool, outcome i correlation id.
+- [x] Dodac audit events dla operacji wskazanych przez policy.
+- [x] Dodac audit event dla kazdego chronionego tool call z subject, tenant, tool, outcome i correlation id.
 
 ### OAuth resource server
 
