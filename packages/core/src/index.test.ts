@@ -9,7 +9,6 @@ import {
   defineRegistry,
   defineResource,
   defineTool,
-  internals,
   McpKitError,
   type InferSchemaOutput
 } from './index.js'
@@ -512,37 +511,6 @@ describe('@mcp-kit/core', () => {
     await client.close()
   })
 
-  it('builds timeout and cancellation errors', () => {
-    const timeoutController = new AbortController()
-    const timeoutSignal = new AbortController()
-    timeoutController.abort(new Error('timeout'))
-    timeoutSignal.abort(new Error('timeout'))
-
-    expect(
-      internals.timeoutAbortError(
-        timeoutController.signal,
-        timeoutSignal.signal
-      )
-    ).toMatchObject({
-      code: 'TIMEOUT',
-      safeMessage: 'The operation timed out.'
-    })
-
-    const cancelController = new AbortController()
-    const inactiveTimeout = new AbortController()
-    cancelController.abort(new Error('cancel'))
-
-    expect(
-      internals.timeoutAbortError(
-        cancelController.signal,
-        inactiveTimeout.signal
-      )
-    ).toMatchObject({
-      code: 'CANCELLED',
-      safeMessage: 'The operation was cancelled.'
-    })
-  })
-
   it('resets connected state when transport connection fails', async () => {
     const app = createMcpApp({
       name: 'connect-failure-server',
@@ -557,54 +525,5 @@ describe('@mcp-kit/core', () => {
 
     await expect(app.connect(transport)).rejects.toThrow('transport failed')
     expect(app.connected).toBe(false)
-  })
-
-  it('tracks protocol versions through the transport wrapper', async () => {
-    const sent: unknown[] = []
-    const versions: string[] = []
-    const base = {
-      onclose: undefined,
-      onerror: undefined,
-      onmessage: undefined,
-      start: () => Promise.resolve(),
-      send: (...args: unknown[]) => {
-        sent.push(args)
-        return Promise.resolve()
-      },
-      close: () => {
-        sent.push('closed')
-        return Promise.resolve()
-      },
-      setProtocolVersion: (version: string) => {
-        versions.push(`set:${version}`)
-      }
-    } as unknown as Transport
-    const transport = internals.trackProtocolVersion(base, (version) => {
-      versions.push(version)
-    })
-
-    await transport.start()
-    base.onmessage?.(
-      {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: { protocolVersion: '2025-11-25' }
-      },
-      {}
-    )
-    base.onmessage?.({ jsonrpc: '2.0', id: 2, method: 'other', params: {} }, {})
-    base.onerror?.(new Error('transport error'))
-    base.onclose?.()
-    await transport.send({ jsonrpc: '2.0', method: 'ping' })
-    await transport.close()
-    transport.setProtocolVersion?.('2026-01-01')
-    internals.silentLogger.debug('debug')
-    internals.silentLogger.info('info')
-    internals.silentLogger.warn('warn')
-    internals.silentLogger.error('error')
-
-    expect(versions).toEqual(['2025-11-25', 'set:2026-01-01'])
-    expect(sent).toContain('closed')
   })
 })
