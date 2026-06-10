@@ -1,5 +1,17 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import type { Logger, McpApp } from '@mcp-kit/core'
+import type { McpApp } from '@mcp-kit/core'
+export {
+  runStreamableHttp
+} from './http-node.js'
+export type {
+  DeploymentMode,
+  McpAppFactory,
+  SessionMode,
+  StreamableHttpCorsOptions,
+  StreamableHttpOptions,
+  StreamableHttpRuntime
+} from './http-contracts.js'
+import { createStderrLogger } from './stderr-logger.js'
 
 export const packageInfo = {
   name: '@mcp-kit/node',
@@ -9,24 +21,7 @@ export const packageInfo = {
 export type StdioRuntime = {
   close(): Promise<void>
 }
-
-export function createStderrLogger(): Logger {
-  const write = (
-    level: string,
-    message: string,
-    data?: Record<string, unknown>
-  ): void => {
-    const suffix = data === undefined ? '' : ` ${JSON.stringify(data)}`
-    process.stderr.write(`[${level}] ${message}${suffix}\n`)
-  }
-
-  return {
-    debug: (message, data) => write('debug', message, data),
-    info: (message, data) => write('info', message, data),
-    warn: (message, data) => write('warn', message, data),
-    error: (message, data) => write('error', message, data)
-  }
-}
+export { createStderrLogger } from './stderr-logger.js'
 
 export async function runStdio<Services>(
   app: McpApp<Services>

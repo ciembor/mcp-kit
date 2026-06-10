@@ -294,17 +294,17 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 
 ### Transport HTTP
 
-- [ ] Zaimplementowac `runStreamableHttp(app)`.
-- [ ] Domyslnie bind do `127.0.0.1` w development.
-- [ ] Wymagac jawnego deployment mode i trusted proxies dla `0.0.0.0`.
-- [ ] Ustawic stateless jako domyslny tryb production.
-- [ ] Dodac walidacje `Host` i ochrone DNS rebinding.
-- [ ] Dodac walidacje `Origin`.
-- [ ] Dodac bezpieczna, jawna konfiguracje CORS.
-- [ ] Dodac limity request body, timeoutow i wspolbieznosci.
-- [ ] Dodac framework-neutralny adapter HTTP.
+- [x] Zaimplementowac `runStreamableHttp(app)`.
+- [x] Domyslnie bind do `127.0.0.1` w development.
+- [x] Wymagac jawnego deployment mode i trusted proxies dla `0.0.0.0`.
+- [x] Ustawic stateless jako domyslny tryb production.
+- [x] Dodac walidacje `Host` i ochrone DNS rebinding.
+- [x] Dodac walidacje `Origin`.
+- [x] Dodac bezpieczna, jawna konfiguracje CORS.
+- [x] Dodac limity request body, timeoutow i wspolbieznosci.
+- [x] Dodac framework-neutralny adapter HTTP.
 - [ ] Dodac referencyjna integracje Fastify bez wycieku typow Fastify do core.
-- [ ] Dodac stateless mode bez server-side session state.
+- [x] Dodac stateless mode bez server-side session state.
 - [ ] Dodac stateful mode jako jawny opt-in.
 - [ ] Generowac kryptograficznie losowe session ids.
 - [ ] Zdefiniowac port `SessionStore`.
@@ -312,7 +312,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [ ] Dodac referencyjny adapter Redis lub udokumentowany kontrakt integracyjny.
 - [ ] Dodac resumability, jesli wspiera ja przypieta wersja SDK.
 - [ ] Dodac graceful shutdown i drain aktywnych polaczen.
-- [ ] Nie wlaczac legacy HTTP+SSE bez jawnego adaptera.
+- [x] Nie wlaczac legacy HTTP+SSE bez jawnego adaptera.
 
 ### Gateway i skalowanie
 

@@ -39,12 +39,6 @@ export function renderPackageJson(
       packageJson['devDependencies'] = devDependencies
     }
   }
-  if (options.transport === 'http') {
-    scripts['start'] = 'node src/main.js'
-    const dependencies = asJsonObject(packageJson['dependencies'])
-    delete dependencies['@mcp-kit/node']
-    packageJson['dependencies'] = dependencies
-  }
   packageJson['scripts'] = scripts
   return `${JSON.stringify(packageJson, null, 2)}\n`
 }
@@ -79,10 +73,10 @@ export function renderJavaScriptTooling(path: string, content: string): string {
 
 export function renderMain(transport: TransportPreset): string {
   if (transport === 'http') {
-    return "throw new Error(\n  'HTTP transport is not implemented in this template yet. Use --transport stdio until the HTTP runtime milestone lands.'\n)\n"
+    return "import { startHttp } from './server/transports/http.js'\n\nawait startHttp()\n"
   }
   if (transport === 'both') {
-    return "import { startStdio } from './server/transports/stdio.js'\n\nconst transport = process.env['MCP_TRANSPORT'] ?? 'stdio'\nif (transport !== 'stdio') {\n  throw new Error('Only stdio transport is currently runnable in this template.')\n}\n\nawait startStdio()\n"
+    return "import { startHttp } from './server/transports/http.js'\nimport { startStdio } from './server/transports/stdio.js'\n\nconst transport = process.env['MCP_TRANSPORT'] ?? 'stdio'\nif (transport === 'http') {\n  await startHttp()\n} else if (transport === 'stdio') {\n  await startStdio()\n} else {\n  throw new Error(`Unsupported MCP_TRANSPORT: ${transport}`)\n}\n"
   }
   return "import { startStdio } from './server/transports/stdio.js'\n\nawait startStdio()\n"
 }
@@ -154,7 +148,11 @@ function renderConfiguredFile(
 function supportsTransport(path: string, transport: TransportPreset): boolean {
   const stdioFile =
     /\/stdio\.[cm]?[jt]s$/.test(path) || /\/stdio\.test\.[cm]?[jt]s$/.test(path)
-  return transport !== 'http' || !stdioFile
+  const httpFile =
+    /\/http\.[cm]?[jt]s$/.test(path) || /\/http\.test\.[cm]?[jt]s$/.test(path)
+  if (transport === 'http') return !stdioFile
+  if (transport === 'stdio') return !httpFile
+  return true
 }
 
 function renderLanguageFile(

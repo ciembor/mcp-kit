@@ -218,7 +218,10 @@ describe('mcp-kit cli', () => {
     const http = resolve(cwd, 'http-only')
     await expect(
       readFile(resolve(http, 'src/main.ts'), 'utf8')
-    ).resolves.toContain('HTTP transport is not implemented')
+    ).resolves.toContain('await startHttp()')
+    await expect(
+      readFile(resolve(http, 'src/server/transports/http.ts'), 'utf8')
+    ).resolves.toContain('runStreamableHttp(createApp')
     await expect(
       readFile(resolve(http, 'src/server/transports/stdio.ts'), 'utf8')
     ).rejects.toThrow()

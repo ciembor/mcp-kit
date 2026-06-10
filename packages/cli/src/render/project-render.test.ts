@@ -58,8 +58,8 @@ describe('project render', () => {
       )
     ).toContain('"test": "vitest run"')
     expect(renderMain('stdio')).toContain('await startStdio()')
-    expect(renderMain('http')).toContain('HTTP transport')
-    expect(renderMain('both')).toContain('MCP_TRANSPORT')
+    expect(renderMain('http')).toContain('await startHttp()')
+    expect(renderMain('both')).toContain("transport === 'http'")
   })
 
   it('renders javascript tooling and transport-aware template files', () => {
@@ -83,6 +83,31 @@ describe('project render', () => {
           projectName: 'server',
           options: {
             transport: 'http',
+            quality: 'standard',
+            language: 'typescript',
+            packageManager: 'pnpm',
+            git: false,
+            hooks: false,
+            ci: false,
+            install: false,
+            agent: 'none',
+            force: false,
+            dryRun: false
+          }
+        }
+      )
+    ).toBeUndefined()
+
+    expect(
+      renderTemplateFile(
+        {
+          path: 'src/server/transports/http.ts',
+          content: 'export const http = true\n'
+        },
+        {
+          projectName: 'server',
+          options: {
+            transport: 'stdio',
             quality: 'standard',
             language: 'typescript',
             packageManager: 'pnpm',
