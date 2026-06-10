@@ -37,8 +37,7 @@ export async function readSourceFiles(
           absolute,
           content,
           ts.ScriptTarget.Latest,
-          true,
-          scriptKind(absolute)
+          true
         )
       })
     }
@@ -46,21 +45,6 @@ export async function readSourceFiles(
 
   await visit(base)
   return files
-}
-
-function scriptKind(path: string): ts.ScriptKind {
-  switch (extname(path)) {
-    case '.tsx':
-      return ts.ScriptKind.TSX
-    case '.jsx':
-      return ts.ScriptKind.JSX
-    case '.js':
-    case '.mjs':
-    case '.cjs':
-      return ts.ScriptKind.JS
-    default:
-      return ts.ScriptKind.TS
-  }
 }
 
 function isNodeErrorCode(error: unknown, code: string): boolean {

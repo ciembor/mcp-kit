@@ -73,15 +73,23 @@ export function propertyBoolean(
 function propertyName(
   property: ts.ObjectLiteralElementLike
 ): string | undefined {
-  if (!('name' in property) || property.name === undefined) return undefined
   if (
-    ts.isIdentifier(property.name) ||
-    ts.isStringLiteral(property.name) ||
-    ts.isNumericLiteral(property.name)
+    !ts.isPropertyAssignment(property) &&
+    !ts.isShorthandPropertyAssignment(property) &&
+    !ts.isMethodDeclaration(property) &&
+    !ts.isGetAccessorDeclaration(property) &&
+    !ts.isSetAccessorDeclaration(property)
   ) {
-    return property.name.text
+    return undefined
   }
-  return undefined
+  const supportsTextName = new Set<ts.SyntaxKind>([
+    ts.SyntaxKind.Identifier,
+    ts.SyntaxKind.StringLiteral,
+    ts.SyntaxKind.NumericLiteral
+  ])
+  if (!supportsTextName.has(property.name.kind)) return undefined
+  return (property.name as ts.Identifier | ts.StringLiteral | ts.NumericLiteral)
+    .text
 }
 
 function stringLiteralValue(node: ts.Node): string | undefined {
