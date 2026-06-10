@@ -1,4 +1,5 @@
-import type { McpApp } from '@mcp-kit/core'
+import type { AuthContext, McpApp } from '@mcp-kit/core'
+import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 
 export type DeploymentMode = 'development' | 'production'
 export type SessionMode = 'stateless' | 'stateful'
@@ -18,6 +19,7 @@ export type StreamableHttpOptions = {
   readinessPath?: string | false
   sessionMode?: SessionMode
   sessionStore?: SessionStore
+  auth?: false | StreamableHttpAuthOptions
   trustedProxies?: readonly string[]
   allowedHosts?: readonly string[]
   allowedOrigins?: readonly string[]
@@ -36,6 +38,7 @@ export type NormalizedStreamableHttpOptions = {
   readinessPath: string | false
   sessionMode: SessionMode
   sessionStore?: SessionStore
+  auth?: false | StreamableHttpAuthOptions
   trustedProxies: readonly string[]
   allowedHosts: readonly string[]
   allowedOrigins: readonly string[]
@@ -70,7 +73,12 @@ export type McpAppFactory<Services> = () => McpApp<Services>
 
 export type ManagedSession = {
   readonly id: string
-  handleRequest(request: Request, parsedBody?: unknown): Promise<Response>
+  readonly auth: AuthContext | undefined
+  handleRequest(
+    request: Request,
+    parsedBody?: unknown,
+    auth?: AuthContext
+  ): Promise<Response>
   close(): Promise<void>
 }
 
@@ -79,4 +87,19 @@ export type SessionStore = {
   set(sessionId: string, session: ManagedSession): Promise<void>
   delete(sessionId: string): Promise<void>
   list(): Promise<readonly ManagedSession[]>
+}
+
+export type StreamableHttpAuthOptions = {
+  verifyBearerToken(
+    token: string,
+    request: Request
+  ): Promise<AuthContext> | AuthContext
+  allowAnonymous?: boolean
+  challenge?: string
+}
+
+export type StreamableHttpAuthResult = {
+  auth?: AuthContext
+  authInfo?: AuthInfo
+  rejection?: Response
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 
-import type { McpApp } from '@mcp-kit/core'
+import type { AuthContext, McpApp } from '@mcp-kit/core'
 
 import type {
   ManagedSession,
@@ -13,6 +13,7 @@ import type {
   StreamableHttpOptions,
   StreamableHttpRequest
 } from './http-contracts.js'
+import { authenticateRequest, sameAuthIdentity } from './http-auth.js'
 import {
   corsHeaders,
   normalizeStreamableHttpOptions,
@@ -77,6 +78,11 @@ async function handleStatelessRequest<Services>(
   request: Request,
   parsedBody: unknown
 ): Promise<StreamableHttpExchange> {
+  const auth = await authenticateRequest(request, options.auth)
+  if (auth.rejection !== undefined) {
+    return staticExchange(auth.rejection)
+  }
+
   const app = createConfiguredApp(createApp)
   const transport = new WebStandardStreamableHTTPServerTransport()
 
@@ -84,7 +90,10 @@ async function handleStatelessRequest<Services>(
     await app.connect(transport)
     const response = await transport.handleRequest(
       request,
-      parsedBody === undefined ? undefined : { parsedBody }
+      {
+        ...(parsedBody === undefined ? {} : { parsedBody }),
+        ...(auth.authInfo === undefined ? {} : { authInfo: auth.authInfo })
+      }
     )
     return createClosableExchange(
       withCorsHeaders(response, request, options.cors),
@@ -119,8 +128,18 @@ async function handleStatefulRequest<Services>(
     return staticExchange(jsonError(404, 'Unknown MCP session.'))
   }
 
+  const auth = await authenticateRequest(request, options.auth)
+  if (auth.rejection !== undefined) {
+    return staticExchange(auth.rejection)
+  }
+
   if (session !== undefined) {
-    const response = await session.handleRequest(request, parsedBody)
+    if (!sameAuthIdentity(session.auth, auth.auth)) {
+      return staticExchange(
+        jsonError(403, 'Session subject or tenant does not match this request.')
+      )
+    }
+    const response = await session.handleRequest(request, parsedBody, auth.auth)
     return createClosableExchange(
       withCorsHeaders(response, request, options.cors),
       () => Promise.resolve()
@@ -133,10 +152,7 @@ async function handleStatefulRequest<Services>(
     closeSession
   )
   try {
-    const response = await nextSession.transport.handleRequest(
-      request,
-      parsedBody === undefined ? undefined : { parsedBody }
-    )
+    const response = await nextSession.handleRequest(request, parsedBody, auth.auth)
     if (nextSession.transport.sessionId === undefined) {
       await nextSession.close()
     } else {
@@ -174,6 +190,9 @@ async function createStatefulSession<Services>(
     get id() {
       return transport.sessionId ?? ''
     },
+    get auth() {
+      return activeAuth
+    },
     app,
     transport,
     async close() {
@@ -182,13 +201,18 @@ async function createStatefulSession<Services>(
       }
       await closeManagedResources(app, transport)
     },
-    handleRequest(request, parsedBody) {
+    handleRequest(request, parsedBody, auth) {
+      activeAuth = auth
       return transport.handleRequest(
         request,
-        parsedBody === undefined ? undefined : { parsedBody }
+        {
+          ...(parsedBody === undefined ? {} : { parsedBody }),
+          ...(auth === undefined ? {} : { authInfo: toAuthInfo(auth) })
+        }
       )
     }
   }
+  let activeAuth: AuthContext | undefined
 
   try {
     await app.connect(transport)
@@ -263,6 +287,21 @@ async function closeManagedResources(
 ): Promise<void> {
   await transport.close().catch(() => undefined)
   await app.close().catch(() => undefined)
+}
+
+function toAuthInfo(auth: AuthContext) {
+  return {
+    token: auth.token ?? '',
+    clientId: auth.clientId ?? 'mcp-kit',
+    scopes: [...auth.scopes],
+    ...(auth.expiresAt === undefined ? {} : { expiresAt: auth.expiresAt }),
+    ...(auth.resource === undefined ? {} : { resource: auth.resource }),
+    extra: {
+      ...(auth.extra ?? {}),
+      ...(auth.subject === undefined ? {} : { subject: auth.subject }),
+      ...(auth.tenantId === undefined ? {} : { tenantId: auth.tenantId })
+    }
+  }
 }
 
 function createClosableExchange(

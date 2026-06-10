@@ -319,7 +319,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Dodac jawna konfiguracje trusted proxies.
 - [x] Poprawnie wyznaczac canonical resource URI za reverse proxy.
 - [x] Ufac `Forwarded`/`X-Forwarded-*` tylko od trusted proxies.
-- [ ] Nie przyjmowac tozsamosci z dowolnych niepodpisanych naglowkow.
+- [x] Nie przyjmowac tozsamosci z dowolnych niepodpisanych naglowkow.
 - [ ] Dodac propagacje correlation id odporna na podszywanie.
 - [ ] Rozdzielic edge rate limits od limitow per subject/tenant/tool.
 - [x] Dodac health, readiness i graceful drain endpoints/hooks.
@@ -330,11 +330,11 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 ### Auth i policy
 
 - [x] Zdefiniowac rozszerzalny `AuthContext`.
-- [ ] Zaimplementowac middleware uwierzytelnienia.
+- [x] Zaimplementowac middleware uwierzytelnienia.
 - [x] Zaimplementowac domyslna autoryzacje scopes.
-- [ ] Umozliwic wlasny RBAC/ABAC/tenant authorization.
-- [ ] Autoryzowac kazdy request niezaleznie od session id.
-- [ ] Powiazac sesje z subject i tenantem.
+- [x] Umozliwic wlasny RBAC/ABAC/tenant authorization.
+- [x] Autoryzowac kazdy request niezaleznie od session id.
+- [x] Powiazac sesje z subject i tenantem.
 - [ ] Dodac audit events dla operacji wskazanych przez policy.
 - [ ] Dodac audit event dla kazdego chronionego tool call z subject, tenant, tool, outcome i correlation id.
 

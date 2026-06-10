@@ -9,7 +9,17 @@ type MockTransport = {
   close: ReturnType<typeof vi.fn<() => Promise<void>>>
   handleRequest: ReturnType<
     typeof vi.fn<
-      (request: Request, options?: { parsedBody?: unknown }) => Promise<Response>
+      (
+        request: Request,
+        options?: {
+          parsedBody?: unknown
+          authInfo?: {
+            clientId: string
+            scopes: readonly string[]
+            extra?: Record<string, unknown>
+          }
+        }
+      ) => Promise<Response>
     >
   >
 }
@@ -22,13 +32,21 @@ type MockTransportOptions = {
 const transportInstances: MockTransport[] = []
 let handleRequestImpl: (
   request: Request,
-  options?: { parsedBody?: unknown }
+  options?: {
+    parsedBody?: unknown
+    authInfo?: {
+      clientId: string
+      scopes: readonly string[]
+      extra?: Record<string, unknown>
+    }
+  }
 ) => Promise<Response> = (request, options) =>
   new Response(
     JSON.stringify({
       url: request.url,
       pathname: new URL(request.url).pathname,
-      body: options?.parsedBody ?? null
+      body: options?.parsedBody ?? null,
+      auth: options?.authInfo?.extra ?? null
     }),
     {
       status: 200,
@@ -42,7 +60,17 @@ vi.mock('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js', () => (
     sessionId?: string
     close = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     handleRequest = vi.fn(
-      async (request: Request, options?: { parsedBody?: unknown }) => {
+      async (
+        request: Request,
+        options?: {
+          parsedBody?: unknown
+          authInfo?: {
+            clientId: string
+            scopes: readonly string[]
+            extra?: Record<string, unknown>
+          }
+        }
+      ) => {
         if (
           request.method === 'POST' &&
           this.sessionId === undefined &&
@@ -89,7 +117,8 @@ afterEach(async () => {
       JSON.stringify({
         url: request.url,
         pathname: new URL(request.url).pathname,
-        body: options?.parsedBody ?? null
+        body: options?.parsedBody ?? null,
+        auth: options?.authInfo?.extra ?? null
       }),
       {
         status: 200,
@@ -117,7 +146,8 @@ describe('@mcp-kit/node streamable http', () => {
     await expect(response.json()).resolves.toEqual({
       url: runtime.url,
       pathname: '/mcp',
-      body: { hello: 'world' }
+      body: { hello: 'world' },
+      auth: null
     })
     expect(apps.instances).toHaveLength(1)
     expect(apps.instances[0]?.setLogger).toHaveBeenCalledTimes(1)
@@ -315,6 +345,14 @@ describe('@mcp-kit/node streamable http', () => {
         port: 0
       })
     ).rejects.toThrow('trusted proxies')
+
+    await expect(
+      runStreamableHttp(apps.createApp, {
+        host: 'api.example',
+        mode: 'production',
+        port: 0
+      })
+    ).rejects.toThrow('explicit auth decision')
   })
 
   it('uses forwarded host and proto only from trusted proxies', async () => {
@@ -449,6 +487,130 @@ describe('@mcp-kit/node streamable http', () => {
       })
     ).rejects.toThrow('explicit SessionStore')
   })
+
+  it('rejects missing bearer tokens when auth middleware is enabled', async () => {
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      auth: {
+        verifyBearerToken: createVerifier()
+      }
+    })
+    runtimes.push(runtime)
+
+    const response = await fetch(runtime.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"hello":"world"}'
+    })
+
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toContain('Bearer')
+    expect(apps.instances).toHaveLength(0)
+  })
+
+  it('passes bearer auth into request handling', async () => {
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      auth: {
+        verifyBearerToken: createVerifier()
+      }
+    })
+    runtimes.push(runtime)
+
+    const response = await fetch(runtime.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer alice-token'
+      },
+      body: '{"hello":"world"}'
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      url: runtime.url,
+      pathname: '/mcp',
+      body: { hello: 'world' },
+      auth: { subject: 'alice', tenantId: 'tenant-a' }
+    })
+  })
+
+  it('rejects invalid bearer tokens', async () => {
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      auth: {
+        verifyBearerToken: createVerifier()
+      }
+    })
+    runtimes.push(runtime)
+
+    const response = await fetch(runtime.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer missing-token'
+      },
+      body: '{"hello":"world"}'
+    })
+
+    expect(response.status).toBe(401)
+    expect(await response.text()).toContain('Bearer token rejected.')
+  })
+
+  it('binds stateful sessions to subject and tenant on every request', async () => {
+    const apps = createAppFactory()
+    const sessionStore = createInMemorySessionStore()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      sessionMode: 'stateful',
+      sessionStore,
+      auth: {
+        verifyBearerToken: createVerifier()
+      }
+    })
+    runtimes.push(runtime)
+
+    const initialize = await fetch(runtime.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer alice-token'
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize' })
+    })
+    const sessionId = initialize.headers.get('mcp-session-id') ?? ''
+
+    const followUp = await fetch(runtime.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer alice-token',
+        'mcp-session-id': sessionId
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' })
+    })
+    expect(followUp.status).toBe(200)
+
+    const hijack = await fetch(runtime.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer bob-token',
+        'mcp-session-id': sessionId
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/list' })
+    })
+
+    expect(hijack.status).toBe(403)
+    expect(JSON.parse(await hijack.text())).toMatchObject({
+      error: {
+        message: 'Session subject or tenant does not match this request.'
+      }
+    })
+  })
 })
 
 function createAppFactory() {
@@ -524,5 +686,30 @@ async function waitFor(predicate: () => boolean): Promise<void> {
       throw new Error('Timed out waiting for predicate.')
     }
     await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
+
+function createVerifier() {
+  return (token: string) => {
+    switch (token) {
+      case 'alice-token':
+        return {
+          source: 'oauth' as const,
+          clientId: 'client-1',
+          subject: 'alice',
+          tenantId: 'tenant-a',
+          scopes: ['users:read']
+        }
+      case 'bob-token':
+        return {
+          source: 'oauth' as const,
+          clientId: 'client-2',
+          subject: 'bob',
+          tenantId: 'tenant-b',
+          scopes: ['users:read']
+        }
+      default:
+        throw new Error(`Unknown token: ${token}`)
+    }
   }
 }

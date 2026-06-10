@@ -37,6 +37,9 @@ export type Logger = {
 export type ToolPolicy = {
   effects: 'read' | 'write'
   requiredScopes?: readonly string[]
+  authorize?(
+    context: RequestContext<unknown>
+  ): Promise<void> | void
   timeoutMs?: number
   concurrency?: number
   audit?: boolean
@@ -44,6 +47,9 @@ export type ToolPolicy = {
 
 export type CapabilityPolicy = {
   requiredScopes?: readonly string[]
+  authorize?(
+    context: RequestContext<unknown>
+  ): Promise<void> | void
 }
 
 export type AuthContext = {

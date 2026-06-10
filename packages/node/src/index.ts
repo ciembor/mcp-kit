@@ -10,6 +10,7 @@ export type {
   McpAppFactory,
   SessionStore,
   SessionMode,
+  StreamableHttpAuthOptions,
   StreamableHttpCorsOptions,
   StreamableHttpOptions,
   StreamableHttpRuntime

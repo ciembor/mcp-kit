@@ -247,7 +247,7 @@ describe('runtime helpers', () => {
     })
   })
 
-  it('maps authInfo into auth context and checks capability scopes', () => {
+  it('maps authInfo into auth context and checks capability scopes', async () => {
     const context = requestContext(
       {
         requestId: 7,
@@ -283,13 +283,40 @@ describe('runtime helpers', () => {
       scopes: ['users:read']
     })
 
-    expect(() =>
+    await expect(
       requireCapabilityAccess({ requiredScopes: ['users:write'] }, context)
-    ).toThrow('Missing required scope: users:write')
+    ).rejects.toThrow('Missing required scope: users:write')
 
-    expect(() =>
+    await expect(
       requireCapabilityAccess({ requiredScopes: ['users:read'] }, context)
-    ).not.toThrow()
+    ).resolves.toBeUndefined()
+  })
+
+  it('supports custom capability authorization hooks', async () => {
+    const context = makeContext({
+      auth: {
+        source: 'oauth',
+        scopes: ['users:read'],
+        tenantId: 'tenant-a'
+      }
+    })
+
+    await expect(
+      requireCapabilityAccess(
+        {
+          authorize(current) {
+            if (current.auth?.tenantId !== 'tenant-a') {
+              throw new McpKitError({
+                code: 'FORBIDDEN',
+                message: 'Tenant mismatch',
+                safeMessage: 'Permission denied.'
+              })
+            }
+          }
+        },
+        context
+      )
+    ).resolves.toBeUndefined()
   })
 })
 

@@ -91,10 +91,11 @@ export function authorizeScopes(
   }
 }
 
-export function requireCapabilityAccess(
+export async function requireCapabilityAccess(
   policy: CapabilityPolicy | undefined,
   context: RequestContext<unknown>
-): void {
+): Promise<void> {
+  await policy?.authorize?.(context)
   const requiredScopes = policy?.requiredScopes
   if (requiredScopes === undefined) return
   authorizeScopes(context, requiredScopes)
@@ -163,6 +164,7 @@ function createErrorMappingMiddleware<Services>(): ToolMiddleware<Services> {
 
 function createAuthorizationMiddleware<Services>(): ToolMiddleware<Services> {
   return async ({ tool, context }, next) => {
+    await tool.policy?.authorize?.(context)
     if (tool.policy?.requiredScopes !== undefined) {
       authorizeScopes(context, tool.policy.requiredScopes)
     }

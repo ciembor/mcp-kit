@@ -21,6 +21,7 @@ export function normalizeStreamableHttpOptions(
     sessionMode === 'stateful'
       ? options.sessionStore ?? defaultSessionStore(mode)
       : undefined
+  const auth = options.auth
   const trustedProxies = freeze(options.trustedProxies ?? [])
   const allowedOrigins = freeze(options.allowedOrigins ?? [])
   const cors = normalizeCors(options.cors)
@@ -36,6 +37,12 @@ export function normalizeStreamableHttpOptions(
         'Binding Streamable HTTP to 0.0.0.0 requires explicit trusted proxies.'
       )
     }
+  }
+
+  if (mode === 'production' && !isLoopbackHost(host) && auth === undefined) {
+    throw new Error(
+      'Public production Streamable HTTP requires an explicit auth decision.'
+    )
   }
 
   if (cors !== false && allowedOrigins.length === 0) {
@@ -55,6 +62,7 @@ export function normalizeStreamableHttpOptions(
     readinessPath,
     sessionMode,
     ...(sessionStore === undefined ? {} : { sessionStore }),
+    ...(auth === undefined ? {} : { auth }),
     trustedProxies,
     allowedHosts,
     allowedOrigins,

@@ -125,7 +125,7 @@ export function installPromptGetHandler<Services>(
       }
 
       const context = createContext(extra)
-      requireCapabilityAccess(prompt.policy, context)
+      await requireCapabilityAccess(prompt.policy, context)
       try {
         return await prompt.render({
           input: parsed.data as never,
