@@ -309,7 +309,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Generowac kryptograficznie losowe session ids.
 - [x] Zdefiniowac port `SessionStore`.
 - [x] Dodac in-memory `SessionStore` wylacznie dla testow i development.
-- [ ] Dodac referencyjny adapter Redis lub udokumentowany kontrakt integracyjny.
+- [x] Dodac referencyjny adapter Redis lub udokumentowany kontrakt integracyjny.
 - [ ] Dodac resumability, jesli wspiera ja przypieta wersja SDK.
 - [x] Dodac graceful shutdown i drain aktywnych polaczen.
 - [x] Nie wlaczac legacy HTTP+SSE bez jawnego adaptera.
@@ -325,7 +325,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Dodac health, readiness i graceful drain endpoints/hooks.
 - [ ] Dodac test wieloreplikowy bez sticky sessions.
 - [ ] Przetestowac requesty jednej sesji kierowane naprzemiennie do dwoch workerow.
-- [ ] Udokumentowac deployment za API gateway/reverse proxy.
+- [x] Udokumentowac deployment za API gateway/reverse proxy.
 
 ### Auth i policy
 
