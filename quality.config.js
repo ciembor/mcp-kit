@@ -39,7 +39,11 @@ export default defineQualityConfig({
       enabled: true,
       command: 'vitest run test/e2e'
     },
-    contract: { enabled: true, command: 'vitest run test/smoke' }
+    contract: { enabled: true, command: 'vitest run test/smoke' },
+    architecture: {
+      enabled: true,
+      command: 'corepack pnpm test:architecture'
+    }
   },
   coverage: {
     command:

@@ -15,6 +15,7 @@
     "smells": "eslint --config eslint.smells.config.js",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:architecture": "vitest run test/architecture",
     "test:coverage": "vitest run --coverage",
     "quality": "mcp-kit quality --full",
     "quality:fast": "mcp-kit quality --fast",

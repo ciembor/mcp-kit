@@ -5,8 +5,8 @@ import {
   ciWorkflowContent,
   renderJavaScriptTooling,
   renderMain,
-  renderPackageJson,
-  renderTemplateFile
+  renderTemplateFile,
+  renderPackageJson
 } from './project-render.js'
 
 describe('project render', () => {
@@ -37,20 +37,26 @@ describe('project render', () => {
       })
     ).not.toContain('devDependencies')
     expect(
-      renderPackageJson('{}', {
-        transport: 'http',
-        quality: 'standard',
-        language: 'typescript',
-        packageManager: 'pnpm',
-        git: false,
+      renderPackageJson(
+        JSON.stringify({
+          scripts: { test: 'vitest run' },
+          dependencies: { '@mcp-kit/node': '1' }
+        }),
+        {
+          transport: 'http',
+          quality: 'standard',
+          language: 'typescript',
+          packageManager: 'pnpm',
+          git: false,
         hooks: false,
         ci: false,
         install: false,
-        agent: 'none',
-        force: false,
-        dryRun: false
-      })
-    ).toContain('"scripts"')
+          agent: 'none',
+          force: false,
+          dryRun: false
+        }
+      )
+    ).toContain('"test": "vitest run"')
     expect(renderMain('stdio')).toContain('await startStdio()')
     expect(renderMain('http')).toContain('HTTP transport')
     expect(renderMain('both')).toContain('MCP_TRANSPORT')
@@ -91,6 +97,33 @@ describe('project render', () => {
         }
       )
     ).toBeUndefined()
+
+    const qualityConfig = renderTemplateFile(
+      {
+        path: 'quality.config.js',
+        content: ''
+      },
+      {
+        projectName: 'server',
+        options: {
+          transport: 'stdio',
+          quality: 'standard',
+          language: 'typescript',
+          packageManager: 'pnpm',
+          git: false,
+          hooks: false,
+          ci: false,
+          install: false,
+          agent: 'none',
+          force: false,
+          dryRun: false
+        }
+      }
+    )
+    expect(qualityConfig).toBeDefined()
+    expect(qualityConfig?.content).toContain(
+      "architecture: { command: 'npm run test:architecture --if-present' }"
+    )
 
     expect(
       renderTemplateFile(

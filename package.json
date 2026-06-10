@@ -19,6 +19,7 @@
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --project tsconfig.json && corepack pnpm --recursive --if-present run typecheck",
     "test": "vitest run",
+    "test:architecture": "vitest run test/architecture",
     "test:conformance": "conformance --version >/dev/null && node test/conformance/run.mjs",
     "test:smoke": "vitest run test/smoke",
     "knip": "knip",

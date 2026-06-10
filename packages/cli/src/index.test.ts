@@ -180,6 +180,11 @@ describe('mcp-kit cli', () => {
       readFile(resolve(both, 'quality.config.js'), 'utf8')
     ).resolves.toContain('eslint --config eslint.smells.config.js')
     await expect(
+      readFile(resolve(both, 'quality.config.js'), 'utf8')
+    ).resolves.toContain(
+      "architecture: { command: 'npm run test:architecture --if-present' }"
+    )
+    await expect(
       readFile(resolve(both, 'eslint.smells.config.js'), 'utf8')
     ).resolves.toContain('eslint-plugin-sonarjs')
     const strictDependencies = (await import(
@@ -191,6 +196,9 @@ describe('mcp-kit cli', () => {
     await expect(
       readFile(resolve(both, '.github/workflows/ci.yml'), 'utf8')
     ).resolves.toContain('quality:full')
+    await expect(
+      readFile(resolve(both, 'package.json'), 'utf8')
+    ).resolves.toContain('"test:architecture": "vitest run test/architecture"')
 
     await expect(
       runCli(
