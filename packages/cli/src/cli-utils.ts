@@ -24,6 +24,8 @@ export function sha256(value: string): string {
 }
 
 export function toPackageName(value: string): string {
+  // Kept local to CLI so create-mcp-kit doesn't depend on the whole CLI package
+  // just to reuse a tiny normalization rule.
   const normalized = toKebabName(value)
   if (normalized === '') {
     throw new CliError(

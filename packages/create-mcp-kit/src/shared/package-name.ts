@@ -1,4 +1,6 @@
 export function toPackageName(value: string): string {
+  // Intentionally mirrors the CLI rule without importing @mcp-kit/cli, which
+  // would add a much heavier dependency than this tiny helper is worth.
   const normalized = value.toLowerCase().replace(/[^a-z0-9._-]+/g, '-')
   const packageName = trimEdgeHyphens(normalized)
 
