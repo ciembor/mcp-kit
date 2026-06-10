@@ -1,4 +1,4 @@
-import type { ProjectDiagnostic } from '../project-analysis.js'
+import type { ProjectDiagnostic } from '../analysis/project-analysis.js'
 
 export type QualityPreset = 'off' | 'standard' | 'strict'
 export type QualityMode = 'fast' | 'full'

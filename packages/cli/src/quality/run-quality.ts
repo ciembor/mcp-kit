@@ -1,4 +1,4 @@
-import { analyzeProject } from '../project-analysis.js'
+import { analyzeProject } from '../analysis/project-analysis.js'
 import { loadQualityConfig, resolveQualityConfig } from './quality-config.js'
 import { executeCommand } from './quality-execute.js'
 import type {
