@@ -35,15 +35,3 @@ export {
   type ToolMiddleware,
   type ToolMiddlewareArgs
 } from './runtime.js'
-
-import {
-  silentLogger,
-  timeoutAbortError,
-  trackProtocolVersion
-} from './runtime.js'
-
-export const internals = {
-  silentLogger,
-  timeoutAbortError,
-  trackProtocolVersion
-}
