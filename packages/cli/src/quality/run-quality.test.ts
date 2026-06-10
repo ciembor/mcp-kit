@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { runQuality, type QualityConfig } from './quality.js'
+import { runQuality } from '../quality.js'
+import type { QualityConfig } from './contracts.js'
 
 const temporaryDirectories: string[] = []
 
