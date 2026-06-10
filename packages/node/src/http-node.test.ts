@@ -26,6 +26,7 @@ let handleRequestImpl: (
 ) => Promise<Response> = (request, options) =>
   new Response(
     JSON.stringify({
+      url: request.url,
       pathname: new URL(request.url).pathname,
       body: options?.parsedBody ?? null
     }),
@@ -86,6 +87,7 @@ afterEach(async () => {
   handleRequestImpl = (request, options) =>
     new Response(
       JSON.stringify({
+        url: request.url,
         pathname: new URL(request.url).pathname,
         body: options?.parsedBody ?? null
       }),
@@ -113,6 +115,7 @@ describe('@mcp-kit/node streamable http', () => {
     expect(runtime.options.sessionMode).toBe('stateless')
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
+      url: runtime.url,
       pathname: '/mcp',
       body: { hello: 'world' }
     })
@@ -251,6 +254,51 @@ describe('@mcp-kit/node streamable http', () => {
         port: 0
       })
     ).rejects.toThrow('trusted proxies')
+  })
+
+  it('uses forwarded host and proto only from trusted proxies', async () => {
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      trustedProxies: ['127.0.0.1']
+    })
+    runtimes.push(runtime)
+
+    const response = await sendNodeRequest(runtime.url, {
+      method: 'POST',
+      headers: {
+        host: `127.0.0.1:${runtime.options.port}`,
+        forwarded: 'for=127.0.0.1;proto=https;host=public.example',
+        'content-type': 'application/json'
+      },
+      body: '{"hello":"world"}'
+    })
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(response.body)).toMatchObject({
+      url: 'https://public.example/mcp'
+    })
+  })
+
+  it('ignores forwarded headers from untrusted clients', async () => {
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, { port: 0 })
+    runtimes.push(runtime)
+
+    const response = await sendNodeRequest(runtime.url, {
+      method: 'POST',
+      headers: {
+        host: `127.0.0.1:${runtime.options.port}`,
+        forwarded: 'for=127.0.0.1;proto=https;host=public.example',
+        'content-type': 'application/json'
+      },
+      body: '{"hello":"world"}'
+    })
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(response.body)).toMatchObject({
+      url: `http://127.0.0.1:${runtime.options.port}/mcp`
+    })
   })
 
   it('creates cryptographic session ids and reuses stateful sessions', async () => {

@@ -316,9 +316,9 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 
 ### Gateway i skalowanie
 
-- [ ] Dodac jawna konfiguracje trusted proxies.
-- [ ] Poprawnie wyznaczac canonical resource URI za reverse proxy.
-- [ ] Ufac `Forwarded`/`X-Forwarded-*` tylko od trusted proxies.
+- [x] Dodac jawna konfiguracje trusted proxies.
+- [x] Poprawnie wyznaczac canonical resource URI za reverse proxy.
+- [x] Ufac `Forwarded`/`X-Forwarded-*` tylko od trusted proxies.
 - [ ] Nie przyjmowac tozsamosci z dowolnych niepodpisanych naglowkow.
 - [ ] Dodac propagacje correlation id odporna na podszywanie.
 - [ ] Rozdzielic edge rate limits od limitow per subject/tenant/tool.

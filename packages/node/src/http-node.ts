@@ -7,6 +7,7 @@ import type {
   StreamableHttpRuntime
 } from './http-contracts.js'
 import { createStreamableHttpHandler } from './http-handler.js'
+import { requestUrlFromNodeRequest } from './proxy-resolution.js'
 import { normalizeStreamableHttpOptions } from './http-security.js'
 
 export async function runStreamableHttp<Services>(
@@ -16,24 +17,28 @@ export async function runStreamableHttp<Services>(
   const normalized = normalizeStreamableHttpOptions(options)
   const handler = createStreamableHttpHandler(createApp, normalized)
   const server = createServer((req, res) => {
-    void handleNodeRequest(req, res, handler, normalized.maxBodyBytes).catch(
-      (error: unknown) => {
-        const status = error instanceof HttpError ? error.status : 500
-        const message = error instanceof Error ? error.message : String(error)
-        if (!res.headersSent) {
-          res.writeHead(status, {
-            'content-type': 'application/json; charset=utf-8'
-          })
-        }
-        res.end(
-          JSON.stringify({
-            jsonrpc: '2.0',
-            error: { code: status === 500 ? -32603 : -32000, message },
-            id: null
-          })
-        )
+    void handleNodeRequest(
+      req,
+      res,
+      handler,
+      normalized.maxBodyBytes,
+      normalized.trustedProxies
+    ).catch((error: unknown) => {
+      const status = error instanceof HttpError ? error.status : 500
+      const message = error instanceof Error ? error.message : String(error)
+      if (!res.headersSent) {
+        res.writeHead(status, {
+          'content-type': 'application/json; charset=utf-8'
+        })
       }
-    )
+      res.end(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: status === 500 ? -32603 : -32000, message },
+          id: null
+        })
+      )
+    })
   })
   server.requestTimeout = normalized.requestTimeoutMs
 
@@ -96,16 +101,14 @@ async function handleNodeRequest(
   req: IncomingMessage,
   res: ServerResponse,
   handler: ReturnType<typeof createStreamableHttpHandler>,
-  maxBodyBytes: number
+  maxBodyBytes: number,
+  trustedProxies: readonly string[]
 ): Promise<void> {
-  const bodyText = await readBody(req, maxBodyBytes)
-  const request = new Request(toRequestUrl(req), {
-    method: req.method ?? 'GET',
-    headers: toHeaders(req),
-    ...(bodyText === undefined ? {} : { body: bodyText })
-  })
-  const parsedBody =
-    bodyText === undefined ? undefined : (JSON.parse(bodyText) as unknown)
+  const { request, parsedBody } = await buildRequest(
+    req,
+    maxBodyBytes,
+    trustedProxies
+  )
   const exchange = await handler({ request, parsedBody })
 
   try {
@@ -128,6 +131,25 @@ async function handleNodeRequest(
     })
   } finally {
     await exchange.close()
+  }
+}
+
+async function buildRequest(
+  req: IncomingMessage,
+  maxBodyBytes: number,
+  trustedProxies: readonly string[]
+): Promise<{ request: Request; parsedBody?: unknown }> {
+  const bodyText = await readBody(req, maxBodyBytes)
+  const request = new Request(requestUrlFromNodeRequest(req, trustedProxies), {
+    method: req.method ?? 'GET',
+    headers: toHeaders(req),
+    ...(bodyText === undefined ? {} : { body: bodyText })
+  })
+  return {
+    request,
+    ...(bodyText === undefined
+      ? {}
+      : { parsedBody: JSON.parse(bodyText) as unknown })
   }
 }
 
@@ -167,12 +189,6 @@ function toHeaders(req: IncomingMessage): Headers {
     headers.set(key, Array.isArray(value) ? value.join(', ') : value)
   }
   return headers
-}
-
-function toRequestUrl(req: IncomingMessage): string {
-  const host = req.headers.host ?? '127.0.0.1'
-  const protocol = 'encrypted' in req.socket ? 'https' : 'http'
-  return `${protocol}://${host}${req.url ?? '/'}`
 }
 
 class HttpError extends Error {
