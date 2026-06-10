@@ -1,12 +1,12 @@
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
-import { silentLogger } from './runtime.js'
-import { capabilityMethods } from './app/capabilities.js'
-import { contextFactory } from './app/context.js'
-import type { McpApp, McpAppOptions } from './app/contracts.js'
-import { lifecycleMethods } from './app/lifecycle.js'
-import { createAppState, assertNotConnected } from './app/state.js'
+import { silentLogger } from '../runtime.js'
+import { capabilityMethods } from './capabilities.js'
+import { contextFactory } from './context.js'
+import type { McpApp, McpAppOptions } from './contracts.js'
+import { lifecycleMethods } from './lifecycle.js'
+import { createAppState, assertNotConnected } from './state.js'
 
-export type { McpApp, McpAppOptions } from './app/contracts.js'
+export type { McpApp, McpAppOptions } from './contracts.js'
 
 export function createMcpApp<Services>(
   options: McpAppOptions<Services>

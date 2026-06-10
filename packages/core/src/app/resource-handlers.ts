@@ -16,8 +16,8 @@ import type {
   AnyResourceDefinition,
   RequestContext,
   ServerRequestContext
-} from './definitions.js'
-import { resourceMetadata, sdkResourceListCallback } from './runtime.js'
+} from '../definitions.js'
+import { resourceMetadata, sdkResourceListCallback } from '../runtime.js'
 
 export function registerResources<Services>(
   sdk: McpServer,

@@ -11,11 +11,11 @@ import type {
 import {
   installResourceHandlers,
   registerResources
-} from '../app-resource-handlers.js'
+} from './resource-handlers.js'
 import {
   installPromptGetHandler,
   installToolCallHandler
-} from '../app-tool-handlers.js'
+} from './tool-handlers.js'
 import { toolConfig } from '../runtime.js'
 import type { AppRuntime, McpApp } from './contracts.js'
 import { assertNotConnected } from './state.js'

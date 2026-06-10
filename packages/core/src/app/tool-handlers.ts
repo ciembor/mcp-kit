@@ -18,12 +18,12 @@ import {
   type Schema,
   type ServerRequestContext,
   type ToolDefinition
-} from './definitions.js'
+} from '../definitions.js'
 import {
   runToolPipeline,
   toolExecutionError,
   type ToolMiddleware
-} from './runtime.js'
+} from '../runtime.js'
 
 export function installToolCallHandler<Services>(runtime: {
   sdk: McpServer
