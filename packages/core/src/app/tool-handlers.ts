@@ -25,6 +25,7 @@ import {
   toolExecutionError,
   type ToolMiddleware
 } from '../runtime.js'
+import { unknownInputPaths } from '../runtime/input-validation.js'
 
 export function installToolCallHandler<Services>(runtime: {
   sdk: McpServer
@@ -58,6 +59,13 @@ async function executeTool<Services>(
     throw new McpError(
       ErrorCode.InvalidParams,
       `Invalid arguments for tool ${tool.name}: ${getParseErrorMessage(parsed.error)}`
+    )
+  }
+  const unknownPaths = unknownInputPaths(params.arguments ?? {}, parsed.data)
+  if (unknownPaths.length > 0) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      `Invalid arguments for tool ${tool.name}: unknown fields ${unknownPaths.join(', ')}`
     )
   }
   const context = runtime.createRequestContext(extra)
@@ -121,6 +129,16 @@ export function installPromptGetHandler<Services>(
         throw new McpError(
           ErrorCode.InvalidParams,
           `Invalid arguments for prompt ${prompt.name}: ${getParseErrorMessage(parsed.error)}`
+        )
+      }
+      const unknownPaths = unknownInputPaths(
+        request.params.arguments ?? {},
+        parsed.data
+      )
+      if (unknownPaths.length > 0) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Invalid arguments for prompt ${prompt.name}: unknown fields ${unknownPaths.join(', ')}`
         )
       }
 

@@ -20,6 +20,7 @@ import {
   toolConfig,
   trackProtocolVersion
 } from './runtime.js'
+import { unknownInputPaths } from './runtime/input-validation.js'
 
 describe('runtime helpers', () => {
   it('builds timeout and cancellation errors', () => {
@@ -375,6 +376,25 @@ describe('runtime helpers', () => {
         context
       )
     ).resolves.toBeUndefined()
+  })
+
+  it('detects unknown nested input fields', () => {
+    expect(
+      unknownInputPaths(
+        {
+          known: {
+            keep: true,
+            extra: 'drop'
+          },
+          other: 1
+        },
+        {
+          known: {
+            keep: true
+          }
+        }
+      )
+    ).toEqual(['known.extra', 'other'])
   })
 
   it('writes audit events for protected tool calls', async () => {

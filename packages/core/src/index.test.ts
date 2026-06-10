@@ -320,6 +320,12 @@ describe('@mcp-kit/core', () => {
       client.callTool({ name: 'needs-input' })
     ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
     await expect(
+      client.callTool({
+        name: 'needs-input',
+        arguments: { name: 'Ada', extra: true }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
+    await expect(
       client.callTool({ name: 'needs-output', arguments: {} })
     ).resolves.toMatchObject({
       isError: true,
