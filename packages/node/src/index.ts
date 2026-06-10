@@ -3,9 +3,12 @@ import type { McpApp } from '@mcp-kit/core'
 export {
   runStreamableHttp
 } from './http-node.js'
+export { createInMemorySessionStore } from './session-store.js'
 export type {
   DeploymentMode,
+  ManagedSession,
   McpAppFactory,
+  SessionStore,
   SessionMode,
   StreamableHttpCorsOptions,
   StreamableHttpOptions,

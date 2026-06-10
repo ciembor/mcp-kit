@@ -305,10 +305,10 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Dodac framework-neutralny adapter HTTP.
 - [ ] Dodac referencyjna integracje Fastify bez wycieku typow Fastify do core.
 - [x] Dodac stateless mode bez server-side session state.
-- [ ] Dodac stateful mode jako jawny opt-in.
-- [ ] Generowac kryptograficznie losowe session ids.
-- [ ] Zdefiniowac port `SessionStore`.
-- [ ] Dodac in-memory `SessionStore` wylacznie dla testow i development.
+- [x] Dodac stateful mode jako jawny opt-in.
+- [x] Generowac kryptograficznie losowe session ids.
+- [x] Zdefiniowac port `SessionStore`.
+- [x] Dodac in-memory `SessionStore` wylacznie dla testow i development.
 - [ ] Dodac referencyjny adapter Redis lub udokumentowany kontrakt integracyjny.
 - [ ] Dodac resumability, jesli wspiera ja przypieta wersja SDK.
 - [ ] Dodac graceful shutdown i drain aktywnych polaczen.

@@ -3,6 +3,7 @@ import type {
   StreamableHttpCorsOptions,
   StreamableHttpOptions
 } from './http-contracts.js'
+import { createInMemorySessionStore } from './session-store.js'
 
 const loopbackHosts = new Set(['127.0.0.1', '::1', '[::1]', 'localhost'])
 
@@ -14,15 +15,13 @@ export function normalizeStreamableHttpOptions(
   const port = options.port ?? 3000
   const path = normalizePath(options.path ?? '/mcp')
   const sessionMode = options.sessionMode ?? 'stateless'
+  const sessionStore =
+    sessionMode === 'stateful'
+      ? options.sessionStore ?? defaultSessionStore(mode)
+      : undefined
   const trustedProxies = freeze(options.trustedProxies ?? [])
   const allowedOrigins = freeze(options.allowedOrigins ?? [])
   const cors = normalizeCors(options.cors)
-
-  if (sessionMode === 'stateful') {
-    throw new Error(
-      'Stateful Streamable HTTP requires a SessionStore and is not implemented yet.'
-    )
-  }
 
   if (host === '0.0.0.0') {
     if (options.mode === undefined) {
@@ -51,6 +50,7 @@ export function normalizeStreamableHttpOptions(
     port,
     path,
     sessionMode,
+    ...(sessionStore === undefined ? {} : { sessionStore }),
     trustedProxies,
     allowedHosts,
     allowedOrigins,
@@ -128,6 +128,17 @@ function detectDeploymentMode(): 'development' | 'production' {
   return process.env['NODE_ENV'] === 'production'
     ? 'production'
     : 'development'
+}
+
+function defaultSessionStore(
+  mode: 'development' | 'production'
+) {
+  if (mode === 'development') {
+    return createInMemorySessionStore()
+  }
+  throw new Error(
+    'Stateful Streamable HTTP requires an explicit SessionStore outside development.'
+  )
 }
 
 function normalizeCors(

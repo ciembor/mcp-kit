@@ -15,6 +15,7 @@ export type StreamableHttpOptions = {
   port?: number
   path?: string
   sessionMode?: SessionMode
+  sessionStore?: SessionStore
   trustedProxies?: readonly string[]
   allowedHosts?: readonly string[]
   allowedOrigins?: readonly string[]
@@ -30,6 +31,7 @@ export type NormalizedStreamableHttpOptions = {
   port: number
   path: string
   sessionMode: SessionMode
+  sessionStore?: SessionStore
   trustedProxies: readonly string[]
   allowedHosts: readonly string[]
   allowedOrigins: readonly string[]
@@ -60,3 +62,16 @@ export type StreamableHttpRuntime = {
 }
 
 export type McpAppFactory<Services> = () => McpApp<Services>
+
+export type ManagedSession = {
+  readonly id: string
+  handleRequest(request: Request, parsedBody?: unknown): Promise<Response>
+  close(): Promise<void>
+}
+
+export type SessionStore = {
+  get(sessionId: string): Promise<ManagedSession | undefined>
+  set(sessionId: string, session: ManagedSession): Promise<void>
+  delete(sessionId: string): Promise<void>
+  list(): Promise<readonly ManagedSession[]>
+}

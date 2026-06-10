@@ -2,13 +2,21 @@ import { request as httpRequest } from 'node:http'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { McpApp } from '@mcp-kit/core'
 
+import { createInMemorySessionStore } from './session-store.js'
+
 type MockTransport = {
+  readonly sessionId?: string
   close: ReturnType<typeof vi.fn<() => Promise<void>>>
   handleRequest: ReturnType<
     typeof vi.fn<
       (request: Request, options?: { parsedBody?: unknown }) => Promise<Response>
     >
   >
+}
+
+type MockTransportOptions = {
+  sessionIdGenerator?: () => string
+  onsessionclosed?: (sessionId: string) => Promise<void> | void
 }
 
 const transportInstances: MockTransport[] = []
@@ -29,10 +37,40 @@ let handleRequestImpl: (
 
 vi.mock('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js', () => ({
   WebStandardStreamableHTTPServerTransport: class {
+    readonly options?: MockTransportOptions
+    sessionId?: string
     close = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
-    handleRequest = vi.fn(handleRequestImpl)
+    handleRequest = vi.fn(
+      async (request: Request, options?: { parsedBody?: unknown }) => {
+        if (
+          request.method === 'POST' &&
+          this.sessionId === undefined &&
+          this.options?.sessionIdGenerator !== undefined
+        ) {
+          this.sessionId = this.options.sessionIdGenerator()
+        }
 
-    constructor() {
+        if (request.method === 'DELETE' && this.sessionId !== undefined) {
+          const closedSession = this.sessionId
+          this.sessionId = undefined
+          await this.options?.onsessionclosed?.(closedSession)
+          return new Response(null, { status: 204 })
+        }
+
+        const response = await handleRequestImpl(request, options)
+        if (this.sessionId === undefined) return response
+        const headers = new Headers(response.headers)
+        headers.set('mcp-session-id', this.sessionId)
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers
+        })
+      }
+    )
+
+    constructor(options?: MockTransportOptions) {
+      this.options = options
       transportInstances.push(this)
     }
   }
@@ -215,15 +253,92 @@ describe('@mcp-kit/node streamable http', () => {
     ).rejects.toThrow('trusted proxies')
   })
 
-  it('rejects stateful mode until a SessionStore exists', async () => {
+  it('creates cryptographic session ids and reuses stateful sessions', async () => {
+    const apps = createAppFactory()
+    const sessionStore = createInMemorySessionStore()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      sessionMode: 'stateful',
+      sessionStore
+    })
+    runtimes.push(runtime)
+
+    const initialize = await fetch(runtime.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {}
+      })
+    })
+    const sessionId = initialize.headers.get('mcp-session-id')
+
+    expect(initialize.status).toBe(200)
+    expect(sessionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    )
+    expect(apps.instances).toHaveLength(1)
+    expect(await sessionStore.get(sessionId ?? '')).toBeDefined()
+
+    const followUp = await fetch(runtime.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'mcp-session-id': sessionId ?? ''
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' })
+    })
+
+    expect(followUp.status).toBe(200)
+    expect(apps.instances).toHaveLength(1)
+    expect(transportInstances).toHaveLength(1)
+    expect(transportInstances[0]?.handleRequest).toHaveBeenCalledTimes(2)
+  })
+
+  it('removes stateful sessions on DELETE', async () => {
+    const apps = createAppFactory()
+    const sessionStore = createInMemorySessionStore()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      sessionMode: 'stateful',
+      sessionStore
+    })
+    runtimes.push(runtime)
+
+    const initialize = await fetch(runtime.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {}
+      })
+    })
+    const sessionId = initialize.headers.get('mcp-session-id') ?? ''
+
+    const response = await fetch(runtime.url, {
+      method: 'DELETE',
+      headers: { 'mcp-session-id': sessionId }
+    })
+
+    expect(response.status).toBe(204)
+    expect(await sessionStore.get(sessionId)).toBeUndefined()
+    expect(apps.instances[0]?.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('requires an explicit SessionStore for stateful production', async () => {
     const apps = createAppFactory()
 
     await expect(
       runStreamableHttp(apps.createApp, {
         port: 0,
+        mode: 'production',
         sessionMode: 'stateful'
       })
-    ).rejects.toThrow('Stateful Streamable HTTP requires a SessionStore')
+    ).rejects.toThrow('explicit SessionStore')
   })
 })
 

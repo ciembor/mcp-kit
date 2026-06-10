@@ -51,17 +51,20 @@ export async function runStreamableHttp<Services>(
 
   let closing: Promise<void> | undefined
   const close = (): Promise<void> => {
-    closing ??= new Promise<void>((resolve, reject) => {
+    closing ??= (async () => {
       process.off('SIGINT', onSignal)
       process.off('SIGTERM', onSignal)
-      server.close((error) => {
-        if (error) {
-          reject(error)
-          return
-        }
-        resolve()
+      await closeSessions(runtimeOptions)
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error)
+            return
+          }
+          resolve()
+        })
       })
-    })
+    })()
     return closing
   }
 
@@ -81,6 +84,12 @@ export async function runStreamableHttp<Services>(
     options: runtimeOptions,
     close
   }
+}
+
+async function closeSessions(options: StreamableHttpRuntime['options']): Promise<void> {
+  const sessions = await options.sessionStore?.list()
+  if (sessions === undefined) return
+  await Promise.all(sessions.map((session) => session.close()))
 }
 
 async function handleNodeRequest(
