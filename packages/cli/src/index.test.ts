@@ -380,6 +380,50 @@ describe('mcp-kit cli', () => {
     ).resolves.toBe(exitCodes.usage)
   })
 
+  it('supports mutation quality mode as a dedicated pipeline', async () => {
+    const cwd = await makeTemp()
+    const output = createOutput()
+    await writeFile(
+      resolve(cwd, 'quality.config.js'),
+      `export default {
+  preset: 'off',
+  formatting: { enabled: false, command: '' },
+  lint: { enabled: false, command: '', typed: false },
+  smells: { enabled: false, command: '' },
+  typecheck: { enabled: false, command: '' },
+  deadCode: { enabled: false, command: '' },
+  dependencyCruiser: { enabled: false, command: '' },
+  tests: {
+    unit: { enabled: false, command: '' },
+    integration: { enabled: false, command: '' },
+    contract: { enabled: false, command: '' },
+    architecture: { enabled: false, command: '' }
+  },
+  coverage: { enabled: false, command: '' },
+  build: { enabled: false, command: '' },
+  mutation: { command: 'node -e "process.exit(0)"' }
+}
+`
+    )
+
+    await expect(
+      runCli(['quality', '--mutation', '--json'], {
+        cwd,
+        stdout: output.stdout,
+        stderr: output.stderr
+      })
+    ).resolves.toBe(exitCodes.ok)
+    expect(JSON.parse(output.out)).toMatchObject({
+      ok: true,
+      command: 'quality',
+      quality: { mode: 'mutation', preset: 'off', status: 'passed' }
+    })
+
+    await expect(
+      runCli(['quality', '--full', '--mutation'], { cwd })
+    ).resolves.toBe(exitCodes.usage)
+  })
+
   it('prepares a release through the release command without publishing', async () => {
     const cwd = await makeTemp()
     const output = createOutput()

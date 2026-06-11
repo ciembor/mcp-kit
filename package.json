@@ -26,6 +26,7 @@
     "quality": "corepack pnpm quality:full",
     "quality:fast": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --fast",
     "quality:full": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --full",
+    "quality:mutation": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --mutation",
     "prepublishOnly": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --release"
   },
   "devDependencies": {

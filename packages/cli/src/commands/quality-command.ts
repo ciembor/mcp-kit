@@ -11,14 +11,21 @@ export async function qualityProject(
   const fast = getBoolean(parsed, 'fast')
   const full = getBoolean(parsed, 'full')
   const release = getBoolean(parsed, 'release')
-  const selectedModes = [fast, full, release].filter(Boolean).length
+  const mutation = getBoolean(parsed, 'mutation')
+  const selectedModes = [fast, full, release, mutation].filter(Boolean).length
   if (selectedModes !== 1) {
     throw new CliError(
-      'Usage: mcp-kit quality --fast|--full|--release',
+      'Usage: mcp-kit quality --fast|--full|--release|--mutation',
       exitCodes.usage
     )
   }
-  const mode: QualityMode = fast ? 'fast' : full ? 'full' : 'release'
+  const mode: QualityMode = fast
+    ? 'fast'
+    : full
+      ? 'full'
+      : release
+        ? 'release'
+        : 'mutation'
   const root = await detectProjectRoot(cwd, false)
   const controller = new AbortController()
   const interrupt = () => controller.abort()

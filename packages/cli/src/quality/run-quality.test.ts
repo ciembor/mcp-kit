@@ -267,6 +267,45 @@ describe('quality runner', () => {
     ])
   })
 
+  it('runs mutation mode through full quality and then forces mutation', async () => {
+    const root = await makeProject()
+    const commands: string[] = []
+    const report = await runQuality({
+      root,
+      mode: 'mutation',
+      config: {
+        ...configWithCommands(),
+        mutation: { enabled: false, command: 'mutation' }
+      },
+      execute: (command) => {
+        commands.push(command)
+        return Promise.resolve(0)
+      }
+    })
+
+    expect(report.status).toBe('passed')
+    expect(commands).toEqual([
+      'format',
+      'lint',
+      'smells',
+      'typecheck',
+      'dead-code',
+      'dependencies',
+      'unit',
+      'integration',
+      'contract',
+      'architecture',
+      'coverage',
+      'build',
+      'smoke',
+      'mutation'
+    ])
+    expect(report.steps.at(-1)).toMatchObject({
+      name: 'mutation',
+      status: 'passed'
+    })
+  })
+
   it('skips mutation by default', async () => {
     const root = await makeProject()
     const commands: string[] = []

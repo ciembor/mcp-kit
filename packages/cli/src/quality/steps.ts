@@ -83,6 +83,18 @@ export function fullSteps(
     external('package-smoke', config.packageSmoke)
   ]
 
+  if (options.mode === 'mutation') {
+    return [
+      ...full,
+      {
+        name: 'mutation',
+        kind: 'external',
+        enabled: true,
+        command: config.mutation.command
+      }
+    ]
+  }
+
   if (options.mode !== 'release') {
     return [...full, external('mutation', config.mutation)]
   }

@@ -1,7 +1,7 @@
 import type { ProjectDiagnostic } from '../analysis/project-analysis.js'
 
 export type QualityPreset = 'off' | 'standard' | 'strict'
-export type QualityMode = 'fast' | 'full' | 'release'
+export type QualityMode = 'fast' | 'full' | 'release' | 'mutation'
 export type CoverageThresholds = {
   lines: number
   functions: number

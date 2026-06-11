@@ -13,6 +13,8 @@ servers.
     <a href="#development">Development</a>
     ·
     <a href="#release">Release</a>
+    ·
+    <a href="#mutation-testing">Mutation Testing</a>
   </p>
 </div>
 
@@ -32,3 +34,7 @@ pnpm quality
 ## Release
 
 The standard release and rollback procedure lives in [docs/release.md](./docs/release.md).
+
+## Mutation Testing
+
+Mutation testing guidance lives in [docs/mutation-testing.md](./docs/mutation-testing.md).

@@ -438,10 +438,10 @@ Cel: zapewnic powtarzalne budowanie i publikowanie pakietow bez omijania quality
 
 Cel: dodac opcjonalna walidacje skutecznosci testow bez obciazania podstawowego workflow.
 
-- [ ] Dodac bazowa konfiguracje StrykerJS.
-- [ ] Dodac `mcp-kit quality --mutation`.
-- [ ] Ustawic domyslny prog 80%.
-- [ ] Udokumentowac rekomendowany prog 90% dla dojrzalych projektow.
+- [x] Dodac bazowa konfiguracje StrykerJS.
+- [x] Dodac `mcp-kit quality --mutation`.
+- [x] Ustawic domyslny prog 80%.
+- [x] Udokumentowac rekomendowany prog 90% dla dojrzalych projektow.
 - [ ] Dodac konfigurowalne wykluczenia z uzasadnieniem.
 - [ ] Dodac nightly GitHub Actions workflow.
 - [ ] Dodac opcjonalne egzekwowanie mutation score w release.
