@@ -93,6 +93,8 @@ export async function runReleaseCheck(
       )
     case 'package-usage':
       return checkPackageUsage(context.root, context.signal)
+    case 'stdio-smoke':
+      return checkStdioSmoke(context.root, context.signal)
   }
 }
 
@@ -446,6 +448,42 @@ async function checkPackageUsage(
       prepared.manifests,
       signal
     )
+  } finally {
+    await cleanupPreparedRelease(prepared)
+  }
+}
+
+async function checkStdioSmoke(
+  root: string,
+  signal: AbortSignal
+): Promise<readonly ProjectDiagnostic[]> {
+  const releasePackages = await releasePackageManifests(root)
+  if (!supportsStdioSmoke(releasePackages)) return []
+
+  const prepared = await prepareInstalledReleasePackages(root, signal)
+  try {
+    if (prepared.diagnostics.length > 0) return prepared.diagnostics
+    if (!('installDirectory' in prepared)) return prepared.diagnostics
+
+    const serverPath = resolve(prepared.installDirectory, 'stdio-server.mjs')
+    const smokePath = resolve(prepared.installDirectory, 'stdio-smoke.mjs')
+    await writeFile(serverPath, stdioServerSource())
+    await writeFile(smokePath, stdioSmokeSource(serverPath))
+    const result = await runCommand(
+      'node',
+      [smokePath],
+      prepared.installDirectory,
+      signal
+    )
+    return result.exitCode === 0
+      ? []
+      : [
+          releaseDiagnostic(
+            'release-stdio-smoke',
+            'stdio-smoke.mjs',
+            `Packaged stdio smoke failed: ${sanitizeMessage(result.stderr || result.stdout, 'stdio smoke failed')}`
+          )
+        ]
   } finally {
     await cleanupPreparedRelease(prepared)
   }
@@ -1075,6 +1113,63 @@ function exportSpecifiers(
     .map((key) =>
       key === '.' ? manifest.name : `${manifest.name}/${key.slice(2)}`
     )
+}
+
+function supportsStdioSmoke(
+  manifests: readonly WorkspacePackageManifest[]
+): boolean {
+  const names = new Set(manifests.map((manifest) => manifest.name))
+  return (
+    names.has('@mcp-kit/core') &&
+    names.has('@mcp-kit/node') &&
+    names.has('@mcp-kit/testing')
+  )
+}
+
+function stdioServerSource(): string {
+  return `import { z } from 'zod'
+import { createMcpApp, defineTool } from '@mcp-kit/core'
+import { runStdio } from '@mcp-kit/node'
+
+const health = defineTool({
+  name: 'health',
+  inputSchema: z.object({}),
+  handler: () => ({
+    content: [{ type: 'text', text: 'ok' }]
+  })
+})
+
+const app = createMcpApp({
+  name: 'packaged-stdio-smoke',
+  version: '1.0.0',
+  services: {}
+})
+
+app.tools([health])
+await runStdio(app)
+`
+}
+
+function stdioSmokeSource(serverPath: string): string {
+  return `import { connectStdioTestClient } from '@mcp-kit/testing'
+
+const client = await connectStdioTestClient({
+  command: process.execPath,
+  args: [${JSON.stringify(serverPath)}]
+})
+
+try {
+  const result = await client.client.callTool({
+    name: 'health',
+    arguments: {}
+  })
+  if (result.content?.[0]?.type !== 'text' || result.content[0].text !== 'ok') {
+    throw new Error('unexpected health result')
+  }
+} finally {
+  await client.close()
+}
+`
 }
 
 function collectPathTargets(value: unknown): readonly string[] {

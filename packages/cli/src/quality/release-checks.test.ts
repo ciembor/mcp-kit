@@ -34,7 +34,7 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('passed')
-    expect(report.steps.slice(-9)).toMatchObject([
+    expect(report.steps.slice(-10)).toMatchObject([
       { name: 'clean-git', status: 'passed' },
       { name: 'version', status: 'passed' },
       { name: 'changelog', status: 'passed' },
@@ -43,6 +43,7 @@ describe('release quality checks', () => {
       { name: 'npm-pack', status: 'passed' },
       { name: 'install-packages', status: 'passed' },
       { name: 'package-usage', status: 'passed' },
+      { name: 'stdio-smoke', status: 'passed' },
       { name: 'mutation', status: 'skipped' }
     ])
   })
