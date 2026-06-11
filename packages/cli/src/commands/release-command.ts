@@ -93,15 +93,10 @@ export async function prepareRelease(
 function releasePublishCommand(packageManager: PackageManager): string {
   switch (packageManager) {
     case 'pnpm':
-      return 'corepack pnpm publish -r --access public'
+      return 'corepack pnpm publish -r --access public --provenance'
     case 'npm':
-      return 'npm publish --workspaces --access public'
     case 'yarn':
-      return 'yarn workspaces foreach -A npm publish --access public'
     case 'bun':
-      throw new CliError(
-        'Release publishing is not supported for bun workspaces',
-        exitCodes.validation
-      )
+      return 'npm publish --workspaces --access public --provenance'
   }
 }

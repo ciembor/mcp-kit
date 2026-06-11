@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   release:
@@ -23,6 +24,6 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @mcp-kit/cli build
+      # Configure npmjs.com trusted publishers for this repository and workflow
+      # so GitHub OIDC can publish without a long-lived npm token.
       - run: pnpm exec mcp-kit release --publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -32,7 +32,9 @@ describe('release command', () => {
 
     expect(result.exitCode).toBe(exitCodes.ok)
     expect(result.release).toMatchObject({ status: 'published' })
-    expect(commands).toEqual(['corepack pnpm publish -r --access public'])
+    expect(commands).toEqual([
+      'corepack pnpm publish -r --access public --provenance'
+    ])
   })
 
   it('does not publish when release quality fails', async () => {
@@ -72,7 +74,9 @@ describe('release command', () => {
       exitCode: exitCodes.ok,
       release: { status: 'published' }
     })
-    expect(commands).toEqual(['npm publish --workspaces --access public'])
+    expect(commands).toEqual([
+      'npm publish --workspaces --access public --provenance'
+    ])
   })
 })
 

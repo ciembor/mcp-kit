@@ -424,7 +424,7 @@ Cel: zapewnic powtarzalne budowanie i publikowanie pakietow bez omijania quality
 - [x] Dodac jawne `mcp-kit release --publish`.
 - [x] Dodac `prepublishOnly`.
 - [x] Dodac GitHub Actions release workflow.
-- [ ] Dodac provenance i rekomendowane npm trusted publishing.
+- [x] Dodac provenance i rekomendowane npm trusted publishing.
 - [ ] Dodac ochrone przed publikacja z niewlasciwej galezi lub wersji.
 - [ ] Udokumentowac standardowa procedure release i rollback.
 
