@@ -24,6 +24,7 @@ describe('release command', () => {
 
     const result = await prepareRelease(releaseArgs({ publish: true }), root, {
       runQuality: () => Promise.resolve(passedQuality(root)),
+      gitBranch: () => Promise.resolve('main'),
       execute: (command) => {
         commands.push(command)
         return Promise.resolve(0)
@@ -47,6 +48,7 @@ describe('release command', () => {
           ...passedQuality(root),
           status: 'failed'
         } as QualityReport),
+      gitBranch: () => Promise.resolve('main'),
       execute: (command) => {
         commands.push(command)
         return Promise.resolve(0)
@@ -65,6 +67,7 @@ describe('release command', () => {
     await expect(
       prepareRelease(releaseArgs({ publish: true }), root, {
         runQuality: () => Promise.resolve(passedQuality(root)),
+        gitBranch: () => Promise.resolve('main'),
         execute: (command) => {
           commands.push(command)
           return Promise.resolve(0)
@@ -77,6 +80,38 @@ describe('release command', () => {
     expect(commands).toEqual([
       'npm publish --workspaces --access public --provenance'
     ])
+  })
+
+  it('rejects publishing from a branch other than main', async () => {
+    const root = await makeReleaseRoot('pnpm-lock.yaml')
+
+    await expect(
+      prepareRelease(releaseArgs({ publish: true }), root, {
+        runQuality: () => Promise.resolve(passedQuality(root)),
+        gitBranch: () => Promise.resolve('release/1.2.3'),
+        execute: () => Promise.resolve(0)
+      })
+    ).rejects.toMatchObject({
+      message:
+        'Release publishing is only allowed from main, received release/1.2.3',
+      exitCode: exitCodes.validation
+    })
+  })
+
+  it('rejects publishing the placeholder root version', async () => {
+    const root = await makeReleaseRoot('pnpm-lock.yaml', '0.0.0')
+
+    await expect(
+      prepareRelease(releaseArgs({ publish: true }), root, {
+        runQuality: () => Promise.resolve(passedQuality(root)),
+        gitBranch: () => Promise.resolve('main'),
+        execute: () => Promise.resolve(0)
+      })
+    ).rejects.toMatchObject({
+      message:
+        'Release publishing requires a real root package version instead of 0.0.0',
+      exitCode: exitCodes.validation
+    })
   })
 })
 
@@ -109,14 +144,15 @@ function passedQuality(root: string): QualityReport {
 }
 
 async function makeReleaseRoot(
-  lockfile: 'pnpm-lock.yaml' | 'package-lock.json'
+  lockfile: 'pnpm-lock.yaml' | 'package-lock.json',
+  version = '1.2.3'
 ) {
   const root = await mkdtemp(resolve(tmpdir(), 'mcp-kit-release-command-'))
   temporaryDirectories.push(root)
   await mkdir(resolve(root, 'packages/core'), { recursive: true })
   await writeFile(
     resolve(root, 'package.json'),
-    JSON.stringify({ name: 'repo', private: true, version: '1.2.3' })
+    JSON.stringify({ name: 'repo', private: true, version })
   )
   await writeFile(resolve(root, lockfile), '')
   return root

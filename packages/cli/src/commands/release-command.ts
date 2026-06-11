@@ -1,3 +1,7 @@
+import { spawn } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
+
 import { getBoolean } from '../cli-args.js'
 import {
   exitCodes,
@@ -13,6 +17,7 @@ import { executeCommand } from '../quality/quality-execute.js'
 type ReleaseDependencies = {
   runQuality?: typeof runQuality
   execute?: typeof executeCommand
+  gitBranch?: typeof readCurrentBranch
 }
 
 export async function prepareRelease(
@@ -69,6 +74,25 @@ export async function prepareRelease(
       }
     }
 
+    const currentBranch = await (dependencies.gitBranch ?? readCurrentBranch)(
+      root,
+      controller.signal
+    )
+    if (currentBranch !== 'main') {
+      throw new CliError(
+        `Release publishing is only allowed from main, received ${currentBranch === '' ? 'detached HEAD' : currentBranch}`,
+        exitCodes.validation
+      )
+    }
+
+    const version = await readRootVersion(root)
+    if (version === '0.0.0') {
+      throw new CliError(
+        'Release publishing requires a real root package version instead of 0.0.0',
+        exitCodes.validation
+      )
+    }
+
     const publishCommand = releasePublishCommand(detectPackageManager(root))
     const publishExitCode = await commandExecutor(publishCommand, {
       cwd: root,
@@ -90,6 +114,34 @@ export async function prepareRelease(
   }
 }
 
+async function readCurrentBranch(
+  root: string,
+  signal: AbortSignal
+): Promise<string> {
+  const result = await runCommand(
+    'git',
+    ['branch', '--show-current'],
+    root,
+    signal
+  )
+  if (result.exitCode !== 0) {
+    throw new CliError(
+      `Could not determine the current git branch: ${result.stderr || 'unknown error'}`,
+      exitCodes.validation
+    )
+  }
+  return result.stdout.trim()
+}
+
+async function readRootVersion(root: string): Promise<string | undefined> {
+  const packageJson = JSON.parse(
+    await readFile(resolve(root, 'package.json'), 'utf8')
+  ) as { version?: unknown }
+  return typeof packageJson.version === 'string'
+    ? packageJson.version
+    : undefined
+}
+
 function releasePublishCommand(packageManager: PackageManager): string {
   switch (packageManager) {
     case 'pnpm':
@@ -99,4 +151,46 @@ function releasePublishCommand(packageManager: PackageManager): string {
     case 'bun':
       return 'npm publish --workspaces --access public --provenance'
   }
+}
+
+async function runCommand(
+  program: string,
+  args: readonly string[],
+  cwd: string,
+  signal: AbortSignal
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return new Promise((resolvePromise) => {
+    const child = spawn(program, [...args], {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (chunk: Buffer | string) => {
+      stdout += String(chunk)
+    })
+    child.stderr.on('data', (chunk: Buffer | string) => {
+      stderr += String(chunk)
+    })
+    const abort = () => child.kill('SIGTERM')
+    signal.addEventListener('abort', abort, { once: true })
+    child.once('error', (error) => {
+      signal.removeEventListener('abort', abort)
+      resolvePromise({
+        exitCode: 70,
+        stdout,
+        stderr: error instanceof Error ? error.message : String(error)
+      })
+    })
+    child.once('exit', (code, exitSignal) => {
+      signal.removeEventListener('abort', abort)
+      resolvePromise({
+        exitCode:
+          code ??
+          (exitSignal === 'SIGINT' ? 130 : exitSignal === 'SIGTERM' ? 143 : 70),
+        stdout,
+        stderr
+      })
+    })
+  })
 }
