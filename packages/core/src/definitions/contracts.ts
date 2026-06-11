@@ -108,6 +108,7 @@ export type ClientElicitation = {
 
 export type RequestContext<Services> = {
   requestId: string
+  correlationId: string
   signal: AbortSignal
   services: Services
   logger: Logger

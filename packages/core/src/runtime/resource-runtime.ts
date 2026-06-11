@@ -36,6 +36,7 @@ export function sdkResourceListCallback<Services>(
     resource.list!({
       context: {
         requestId: String(extra.requestId),
+        correlationId: String(extra.requestId),
         signal: extra.signal,
         services: undefined as Services,
         logger: silentLogger,

@@ -1,6 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
 
+import {
+  correlationHeaders,
+  setCorrelationHeader,
+  withCorrelationId
+} from './correlation-id.js'
 import type {
   McpAppFactory,
   StreamableHttpOptions,
@@ -29,21 +34,29 @@ export function createNodeHttpRuntime<Services>(
   return {
     options: normalized,
     async handle(req, res) {
+      const correlationId = correlationHeaders(req, normalized.trustedProxies)
       const controlResponse = controlEndpointResponse(req, normalized, draining)
       if (controlResponse !== undefined) {
-        await writeResponse(res, controlResponse)
+        await writeResponse(
+          res,
+          withCorrelationId(controlResponse, correlationId)
+        )
         return
       }
 
       try {
         const { request, parsedBody } = await buildRequest(
           req,
+          correlationId,
           normalized.maxBodyBytes,
           normalized.trustedProxies
         )
         const exchange = await handler({ request, parsedBody })
         try {
-          await writeResponse(res, exchange.response)
+          await writeResponse(
+            res,
+            withCorrelationId(exchange.response, correlationId)
+          )
         } finally {
           await exchange.close()
         }
@@ -52,7 +65,8 @@ export function createNodeHttpRuntime<Services>(
         const message = error instanceof Error ? error.message : String(error)
         if (!res.headersSent) {
           res.writeHead(status, {
-            'content-type': 'application/json; charset=utf-8'
+            'content-type': 'application/json; charset=utf-8',
+            'x-correlation-id': correlationId
           })
         }
         res.end(
@@ -85,13 +99,16 @@ async function closeSessions(
 
 async function buildRequest(
   req: IncomingMessage,
+  correlationId: string,
   maxBodyBytes: number,
   trustedProxies: readonly string[]
 ): Promise<{ request: Request; parsedBody?: unknown }> {
   const bodyText = await readBody(req, maxBodyBytes)
+  const headers = toHeaders(req)
+  setCorrelationHeader(headers, correlationId)
   const request = new Request(requestUrlFromNodeRequest(req, trustedProxies), {
     method: req.method ?? 'GET',
-    headers: toHeaders(req),
+    headers,
     ...(bodyText === undefined ? {} : { body: bodyText })
   })
   return {

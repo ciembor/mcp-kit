@@ -222,6 +222,9 @@ describe('@mcp-kit/node streamable http', () => {
     expect(preflight.headers['access-control-allow-headers']).toContain(
       'Last-Event-ID'
     )
+    expect(preflight.headers['access-control-expose-headers']).toBe(
+      'X-Correlation-Id'
+    )
 
     const rejected = await sendNodeRequest(runtime.url, {
       method: 'POST',
@@ -430,6 +433,36 @@ describe('@mcp-kit/node streamable http', () => {
     })
   })
 
+  it('propagates trusted proxy correlation ids and echoes them in responses', async () => {
+    let seenCorrelationId: string | null = null
+    handleRequestImpl = (request) => {
+      seenCorrelationId = request.headers.get('x-mcp-kit-correlation-id')
+      return Promise.resolve(new Response('ok'))
+    }
+
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      trustedProxies: ['127.0.0.1']
+    })
+    runtimes.push(runtime)
+
+    const response = await sendNodeRequest(runtime.url, {
+      method: 'POST',
+      headers: {
+        host: `127.0.0.1:${runtime.options.port}`,
+        forwarded: 'for=127.0.0.1;proto=https;host=public.example',
+        'x-request-id': 'edge-request-123',
+        'content-type': 'application/json'
+      },
+      body: '{"hello":"world"}'
+    })
+
+    expect(response.status).toBe(200)
+    expect(seenCorrelationId).toBe('edge-request-123')
+    expect(response.headers['x-correlation-id']).toBe('edge-request-123')
+  })
+
   it('ignores forwarded headers from untrusted clients', async () => {
     const apps = createAppFactory()
     const runtime = await runStreamableHttp(apps.createApp, { port: 0 })
@@ -449,6 +482,35 @@ describe('@mcp-kit/node streamable http', () => {
     expect(JSON.parse(response.body)).toMatchObject({
       url: `http://127.0.0.1:${runtime.options.port}/mcp`
     })
+  })
+
+  it('does not trust client-supplied correlation ids without a trusted proxy', async () => {
+    let seenCorrelationId: string | null = null
+    handleRequestImpl = (request) => {
+      seenCorrelationId = request.headers.get('x-mcp-kit-correlation-id')
+      return Promise.resolve(new Response('ok'))
+    }
+
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, { port: 0 })
+    runtimes.push(runtime)
+
+    const response = await sendNodeRequest(runtime.url, {
+      method: 'POST',
+      headers: {
+        host: `127.0.0.1:${runtime.options.port}`,
+        'x-request-id': 'forged-request-id',
+        'content-type': 'application/json'
+      },
+      body: '{"hello":"world"}'
+    })
+
+    expect(response.status).toBe(200)
+    expect(seenCorrelationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    )
+    expect(seenCorrelationId).not.toBe('forged-request-id')
+    expect(response.headers['x-correlation-id']).toBe(seenCorrelationId)
   })
 
   it('creates cryptographic session ids and reuses stateful sessions', async () => {

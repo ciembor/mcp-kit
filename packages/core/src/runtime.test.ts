@@ -147,6 +147,7 @@ describe('runtime helpers', () => {
       uriTemplate: 'thing://{id}',
       list: ({ context }) => {
         expect(context.requestId).toBe('42')
+        expect(context.correlationId).toBe('42')
         expect(context.logger).toBe(silentLogger)
         expect(context.client.protocolVersion).toBe(LATEST_PROTOCOL_VERSION)
         return {
@@ -341,6 +342,7 @@ describe('runtime helpers', () => {
       source: 'oauth',
       scopes: ['users:read']
     })
+    expect(context.correlationId).toMatch(/^mcp-/)
 
     await expect(
       requireCapabilityAccess({ requiredScopes: ['users:write'] }, context)
@@ -349,6 +351,37 @@ describe('runtime helpers', () => {
     await expect(
       requireCapabilityAccess({ requiredScopes: ['users:read'] }, context)
     ).resolves.toBeUndefined()
+  })
+
+  it('prefers transport-provided correlation ids over JSON-RPC request ids', () => {
+    const context = requestContext(
+      {
+        requestId: 'client-visible-id',
+        signal: new AbortController().signal,
+        requestInfo: {
+          headers: {
+            'x-mcp-kit-correlation-id': 'edge-correlation-id'
+          }
+        },
+        sendNotification: () => Promise.resolve(),
+        sendRequest: () => Promise.resolve({} as never)
+      },
+      new AbortController().signal,
+      {
+        services: {},
+        logger: silentLogger,
+        sdk: {
+          server: {
+            getClientVersion: () => ({ name: 'client', version: '1.0.0' }),
+            getClientCapabilities: () => ({})
+          }
+        } as never,
+        protocolVersion: '2025-11-25'
+      }
+    )
+
+    expect(context.requestId).toBe('client-visible-id')
+    expect(context.correlationId).toBe('edge-correlation-id')
   })
 
   it('supports custom capability authorization hooks', async () => {
@@ -452,7 +485,7 @@ describe('runtime helpers', () => {
       {
         message: 'Audit event',
         data: {
-          correlationId: 'request-1',
+          correlationId: 'correlation-1',
           outcome: 'success',
           subject: 'alice',
           tenantId: 'tenant-a',
@@ -462,7 +495,7 @@ describe('runtime helpers', () => {
       {
         message: 'Audit event',
         data: {
-          correlationId: 'request-1',
+          correlationId: 'correlation-1',
           outcome: 'denied',
           tool: 'audited-tool'
         }
@@ -476,6 +509,7 @@ function makeContext(
 ): RequestContext<object> {
   return {
     requestId: 'request-1',
+    correlationId: 'correlation-1',
     signal: new AbortController().signal,
     services: {},
     logger: silentLogger,

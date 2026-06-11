@@ -127,6 +127,7 @@ export function corsHeaders(
   headers.set('Access-Control-Allow-Origin', origin)
   headers.set('Access-Control-Allow-Methods', 'DELETE, GET, OPTIONS, POST')
   headers.set('Access-Control-Allow-Headers', cors.allowedHeaders.join(', '))
+  headers.set('Access-Control-Expose-Headers', 'X-Correlation-Id')
   headers.set('Access-Control-Max-Age', String(cors.maxAgeSeconds))
   if (cors.allowCredentials) {
     headers.set('Access-Control-Allow-Credentials', 'true')

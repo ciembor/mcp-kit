@@ -149,18 +149,18 @@ function createErrorMappingMiddleware<Services>(): ToolMiddleware<Services> {
       if (error instanceof McpKitError) {
         context.logger.warn('Tool execution failed', {
           code: error.code,
-          correlationId: context.requestId,
+          correlationId: context.correlationId,
           tool: tool.name
         })
         return toolExecutionError(error.safeMessage)
       }
 
       context.logger.error('Unexpected tool execution error', {
-        correlationId: context.requestId,
+        correlationId: context.correlationId,
         tool: tool.name
       })
       return toolExecutionError(
-        `Operation failed. Correlation id: ${context.requestId}`
+        `Operation failed. Correlation id: ${context.correlationId}`
       )
     }
   }
@@ -183,7 +183,7 @@ function createAuditMiddleware<Services>(): ToolMiddleware<Services> {
     try {
       const result = await next()
       writeAuditEvent(context.logger, {
-        correlationId: context.requestId,
+        correlationId: context.correlationId,
         outcome: result.isError === true ? 'error' : 'success',
         subject: context.auth?.subject,
         tenantId: context.auth?.tenantId,
@@ -192,7 +192,7 @@ function createAuditMiddleware<Services>(): ToolMiddleware<Services> {
       return result
     } catch (error) {
       writeAuditEvent(context.logger, {
-        correlationId: context.requestId,
+        correlationId: context.correlationId,
         outcome:
           error instanceof McpKitError && error.code === 'FORBIDDEN'
             ? 'denied'

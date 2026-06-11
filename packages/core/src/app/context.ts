@@ -47,8 +47,10 @@ export function requestContext<Services>(
   }
 ): RequestContext<Services> {
   const progressToken = extra._meta?.progressToken
+  const correlationId = requestCorrelationId(extra)
   return {
     requestId: String(extra.requestId),
+    correlationId,
     signal,
     services: runtime.services,
     logger: runtime.logger,
@@ -61,6 +63,17 @@ export function requestContext<Services>(
       : { progress: { report: progressReporter(extra, progressToken) } }),
     sdk: extra
   }
+}
+
+function requestCorrelationId(extra: ServerRequestContext): string {
+  const header = extra.requestInfo?.headers['x-mcp-kit-correlation-id']
+  if (typeof header === 'string' && header.length > 0) {
+    return header
+  }
+  if (Array.isArray(header) && header[0] !== undefined && header[0] !== '') {
+    return header[0]
+  }
+  return `mcp-${globalThis.crypto.randomUUID()}`
 }
 
 function authContext(authInfo: ServerRequestContext['authInfo']): AuthContext {

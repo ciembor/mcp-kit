@@ -96,11 +96,11 @@ async function validateToolOutput<Services>(
   )
   if (output.success) return result
   runtime.logger().error('Tool output validation failed', {
-    correlationId: context.requestId,
+    correlationId: context.correlationId,
     tool: tool.name
   })
   return toolExecutionError(
-    `Tool output validation failed. Correlation id: ${context.requestId}`
+    `Tool output validation failed. Correlation id: ${context.correlationId}`
   )
 }
 
@@ -153,9 +153,9 @@ export function installPromptGetHandler<Services>(
         const safeMessage =
           error instanceof McpKitError
             ? error.safeMessage
-            : `Operation failed. Correlation id: ${context.requestId}`
+            : `Operation failed. Correlation id: ${context.correlationId}`
         logger().error('Prompt rendering failed', {
-          correlationId: context.requestId,
+          correlationId: context.correlationId,
           prompt: prompt.name
         })
         throw new McpError(ErrorCode.InternalError, safeMessage)

@@ -320,7 +320,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Poprawnie wyznaczac canonical resource URI za reverse proxy.
 - [x] Ufac `Forwarded`/`X-Forwarded-*` tylko od trusted proxies.
 - [x] Nie przyjmowac tozsamosci z dowolnych niepodpisanych naglowkow.
-- [ ] Dodac propagacje correlation id odporna na podszywanie.
+- [x] Dodac propagacje correlation id odporna na podszywanie.
 - [x] Rozdzielic edge rate limits od limitow per subject/tenant/tool.
 - [x] Dodac health, readiness i graceful drain endpoints/hooks.
 - [ ] Dodac test wieloreplikowy bez sticky sessions.
