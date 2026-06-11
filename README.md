@@ -12,6 +12,8 @@ servers.
     ·
     <a href="#development">Development</a>
     ·
+    <a href="#documentation">Documentation</a>
+    ·
     <a href="#release">Release</a>
     ·
     <a href="#mutation-testing">Mutation Testing</a>
@@ -30,6 +32,13 @@ corepack enable
 pnpm install --frozen-lockfile
 pnpm quality
 ```
+
+## Documentation
+
+- Core API reference: [docs/api-core.md](./docs/api-core.md)
+- Compatibility matrix: [docs/compatibility.md](./docs/compatibility.md)
+- Semver policy: [docs/semver-policy.md](./docs/semver-policy.md)
+- Migration guide: [docs/migration-guide.md](./docs/migration-guide.md)
 
 ## Release
 
