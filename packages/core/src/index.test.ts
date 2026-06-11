@@ -820,6 +820,67 @@ describe('@mcp-kit/core', () => {
     await urlApp.close()
   })
 
+  it('rejects secrets in form elicitation requests', async () => {
+    const app = createMcpApp({
+      name: 'elicitation-secret-server',
+      version: '1.0.0',
+      services: {}
+    })
+    app.tools([
+      defineTool({
+        name: 'elicit-secret',
+        inputSchema: z.object({}),
+        handler: async ({ context }) => {
+          await context.client.elicitation.create({
+            message: 'Share your password',
+            requestedSchema: {
+              type: 'object',
+              properties: {
+                password: {
+                  type: 'string',
+                  title: 'Password',
+                  description: 'Enter your password'
+                }
+              },
+              required: ['password']
+            }
+          })
+          return { content: [] }
+        }
+      })
+    ])
+
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
+    const client = new Client(
+      { name: 'elicitation-secret-test', version: '1.0.0' },
+      { capabilities: { elicitation: {} } }
+    )
+    client.setRequestHandler(ElicitRequestSchema, () => ({
+      action: 'accept',
+      content: { password: 'secret' }
+    }))
+
+    await Promise.all([
+      app.connect(serverTransport),
+      client.connect(clientTransport)
+    ])
+
+    await expect(
+      client.callTool({ name: 'elicit-secret', arguments: {} })
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: 'Form elicitation must not request secrets. Use URL elicitation or another secure flow.'
+        }
+      ]
+    })
+    await client.close()
+    await app.close()
+  })
+
   it('handles remaining tool protocol and middleware failures', async () => {
     const tools = [
       defineTool({

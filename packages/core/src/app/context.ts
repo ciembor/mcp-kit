@@ -190,6 +190,9 @@ export function clientContext(
             safeMessage: 'Client does not support URL elicitation requests.'
           })
         }
+        if (mode === 'form' && 'requestedSchema' in params) {
+          assertNoSensitiveFormFields(params)
+        }
 
         return sdk.server.elicitInput(params)
       },
@@ -206,6 +209,33 @@ export function clientContext(
       }
     }
   }
+}
+
+function assertNoSensitiveFormFields(params: ElicitRequestFormParams): void {
+  const properties = params.requestedSchema.properties
+  for (const [name, field] of Object.entries(properties)) {
+    if (!isSensitiveFormField(name, field)) continue
+    throw new McpKitError({
+      code: 'UNSAFE_ELICITATION',
+      message: `Form elicitation must not request sensitive field "${name}"`,
+      safeMessage:
+        'Form elicitation must not request secrets. Use URL elicitation or another secure flow.'
+    })
+  }
+}
+
+function isSensitiveFormField(name: string, field: unknown): boolean {
+  const parts = [name]
+  if (isObject(field)) {
+    const title = field.title
+    const description = field.description
+    if (typeof title === 'string') parts.push(title)
+    if (typeof description === 'string') parts.push(description)
+  }
+
+  return parts.some((part) =>
+    sensitiveTokenPattern.test(normalizeSensitiveText(part))
+  )
 }
 
 function elicitationSupport(capabilities: ClientCapabilities): {
@@ -232,3 +262,17 @@ function elicitationSupport(capabilities: ClientCapabilities): {
     supportsUrlElicitation
   }
 }
+
+function isObject(value: unknown): value is {
+  title?: unknown
+  description?: unknown
+} {
+  return typeof value === 'object' && value !== null
+}
+
+function normalizeSensitiveText(value: string): string {
+  return value.replace(/[^a-zA-Z0-9]+/g, ' ').toLowerCase()
+}
+
+const sensitiveTokenPattern =
+  /\b(pass(word|phrase)?|secret|token|api key|apikey|access key|private key|credential|auth(?:entication)? code)\b/

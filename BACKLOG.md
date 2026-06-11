@@ -462,7 +462,7 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 - [x] Dodac roots z kontrola capabilities klienta.
 - [x] Dodac sampling z kontrolowanym bledem przy braku wsparcia klienta.
 - [x] Dodac form i URL elicitation.
-- [ ] Dodac jawne zasady zakazujace sekretow w form elicitation.
+- [x] Dodac jawne zasady zakazujace sekretow w form elicitation.
 - [ ] Dodac tasks po ustabilizowaniu funkcji w protokole i SDK.
 
 ### Runtime i ekosystem
