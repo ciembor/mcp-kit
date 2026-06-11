@@ -25,7 +25,8 @@
     "knip": "knip",
     "quality": "corepack pnpm quality:full",
     "quality:fast": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --fast",
-    "quality:full": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --full"
+    "quality:full": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --full",
+    "prepublishOnly": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --release"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
