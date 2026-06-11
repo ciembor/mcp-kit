@@ -3,6 +3,7 @@ import {
   createNewProject,
   doctorProject,
   initProject,
+  prepareRelease,
   qualityProject
 } from '../cli-commands.js'
 import { exitCodes, type CliResult, type ParsedArgs } from '../cli-contracts.js'
@@ -18,7 +19,8 @@ export async function dispatchCli(
     init: () => initProject(parsed, cwd),
     add: () => addCapability(parsed, cwd),
     doctor: () => doctorProject(parsed, cwd),
-    quality: () => qualityProject(parsed, cwd)
+    quality: () => qualityProject(parsed, cwd),
+    release: () => prepareRelease(parsed, cwd)
   }
   if (command === undefined || ['help', '--help', '-h'].includes(command)) {
     return { command: 'help' }
@@ -26,7 +28,7 @@ export async function dispatchCli(
   const handler = handlers[command]
   if (handler !== undefined) return handler()
   throw new CliError(
-    `Unknown command "${command}". Expected new, init, add, doctor or quality.`,
+    `Unknown command "${command}". Expected new, init, add, doctor, quality or release.`,
     exitCodes.usage
   )
 }

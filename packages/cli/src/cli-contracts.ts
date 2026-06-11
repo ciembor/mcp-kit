@@ -62,6 +62,10 @@ export type CliResult = {
   plan?: FilePlan
   diagnostics?: readonly DoctorDiagnostic[]
   quality?: QualityReport
+  release?: {
+    status: 'prepared' | 'failed'
+    durationMs: number
+  }
   exitCode?: ExitCode
 }
 

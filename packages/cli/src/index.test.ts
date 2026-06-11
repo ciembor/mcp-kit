@@ -380,6 +380,72 @@ describe('mcp-kit cli', () => {
     ).resolves.toBe(exitCodes.usage)
   })
 
+  it('prepares a release through the release command without publishing', async () => {
+    const cwd = await makeTemp()
+    const output = createOutput()
+    await mkdir(resolve(cwd, 'packages/core/src'), { recursive: true })
+    await mkdir(resolve(cwd, 'packages/core/dist'), { recursive: true })
+    await writeFile(
+      resolve(cwd, 'package.json'),
+      JSON.stringify({ name: 'repo', private: true, version: '1.2.3' })
+    )
+    await writeFile(
+      resolve(cwd, 'CHANGELOG.md'),
+      '# Changelog\n\n## [Unreleased]\n'
+    )
+    await writeFile(
+      resolve(cwd, 'packages/core/package.json'),
+      JSON.stringify({
+        name: '@mcp-kit/core',
+        version: '1.2.3',
+        type: 'module',
+        exports: {
+          '.': {
+            types: './dist/index.d.ts',
+            import: './dist/index.js'
+          }
+        },
+        files: ['dist', 'README.md']
+      })
+    )
+    await writeFile(resolve(cwd, 'packages/core/README.md'), '# core\n')
+    await writeFile(
+      resolve(cwd, 'packages/core/dist/index.js'),
+      "export const packageInfo = { name: '@mcp-kit/core', version: '1.2.3' }\n"
+    )
+    await writeFile(
+      resolve(cwd, 'packages/core/dist/index.d.ts'),
+      "export declare const packageInfo: { readonly name: '@mcp-kit/core'; readonly version: '1.2.3' }\n"
+    )
+    await writeFile(
+      resolve(cwd, 'packages/core/src/index.ts'),
+      "export const packageInfo = {\n  name: '@mcp-kit/core',\n  version: '1.2.3'\n} as const\n"
+    )
+    await writeFile(
+      resolve(cwd, 'quality.config.js'),
+      "export default { preset: 'off', dependencyCruiser: { enabled: false, command: '' }, tests: { unit: { enabled: false, command: '' } }, build: { enabled: false, command: '' } }\n"
+    )
+    await initializeGitRepository(cwd)
+
+    await expect(
+      runCli(['release', '--json'], {
+        cwd,
+        stdout: output.stdout,
+        stderr: output.stderr
+      })
+    ).resolves.toBe(exitCodes.ok)
+    expect(JSON.parse(output.out)).toMatchObject({
+      ok: true,
+      command: 'release',
+      quality: { mode: 'release', preset: 'off', status: 'passed' },
+      release: { status: 'prepared' }
+    })
+
+    await expect(runCli(['release', '--publish'], { cwd })).resolves.toBe(
+      exitCodes.usage
+    )
+  })
+
   it('prints quality diagnostics and coverage exclusions in text mode', async () => {
     const cwd = await makeTemp()
     await writeFile(

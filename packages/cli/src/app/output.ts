@@ -49,7 +49,12 @@ export function writeError(
 
 function writeJsonResult(result: CliResult, stdout: ResultWriter): void {
   stdout.write(
-    `${JSON.stringify({ ok: result.quality?.status !== 'failed', ...result })}\n`
+    `${JSON.stringify({
+      ok:
+        result.quality?.status !== 'failed' &&
+        result.release?.status !== 'failed',
+      ...result
+    })}\n`
   )
 }
 
@@ -69,8 +74,13 @@ function writeInformationalResult(
     }
     return true
   }
-  if (result.command !== 'quality') return false
+  if (result.command !== 'quality' && result.command !== 'release') return false
   writeQualityResult(result, stdout)
+  if (result.command === 'release') {
+    stdout.write(
+      `release ${result.release!.status} in ${formatDuration(result.release!.durationMs)}\n`
+    )
+  }
   return true
 }
 
@@ -98,7 +108,7 @@ function writeQualityResult(result: CliResult, stdout: ResultWriter): void {
 }
 
 function helpText(): string {
-  return `Usage: mcp-kit <command>\n\nCommands:\n  new <name>\n  init\n  add tool|resource|prompt <name>\n  doctor\n  quality --fast|--full|--release [--fix] [--since <git-ref>] [--json]\n`
+  return `Usage: mcp-kit <command>\n\nCommands:\n  new <name>\n  init\n  add tool|resource|prompt <name>\n  doctor\n  quality --fast|--full|--release [--fix] [--since <git-ref>] [--json]\n  release [--json]\n`
 }
 
 function formatDuration(durationMs: number): string {

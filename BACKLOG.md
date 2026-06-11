@@ -420,7 +420,7 @@ Cel: zapewnic powtarzalne budowanie i publikowanie pakietow bez omijania quality
 
 ### Release command i CI
 
-- [ ] Zaimplementowac `mcp-kit release` jako prepare-only.
+- [x] Zaimplementowac `mcp-kit release` jako prepare-only.
 - [ ] Dodac jawne `mcp-kit release --publish`.
 - [ ] Dodac `prepublishOnly`.
 - [ ] Dodac GitHub Actions release workflow.
