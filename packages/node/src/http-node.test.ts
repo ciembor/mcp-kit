@@ -484,6 +484,31 @@ describe('@mcp-kit/node streamable http', () => {
     })
   })
 
+  it('ignores spoofed x-forwarded headers when proxy trust is misconfigured', async () => {
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      trustedProxies: ['10.0.0.10']
+    })
+    runtimes.push(runtime)
+
+    const response = await sendNodeRequest(runtime.url, {
+      method: 'POST',
+      headers: {
+        host: `127.0.0.1:${runtime.options.port}`,
+        'x-forwarded-host': 'public.example',
+        'x-forwarded-proto': 'https',
+        'content-type': 'application/json'
+      },
+      body: '{"hello":"world"}'
+    })
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(response.body)).toMatchObject({
+      url: `http://127.0.0.1:${runtime.options.port}/mcp`
+    })
+  })
+
   it('does not trust client-supplied correlation ids without a trusted proxy', async () => {
     let seenCorrelationId: string | null = null
     handleRequestImpl = (request) => {
@@ -510,6 +535,38 @@ describe('@mcp-kit/node streamable http', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     )
     expect(seenCorrelationId).not.toBe('forged-request-id')
+    expect(response.headers['x-correlation-id']).toBe(seenCorrelationId)
+  })
+
+  it('ignores spoofed correlation ids when trusted proxy configuration does not match the caller', async () => {
+    let seenCorrelationId: string | null = null
+    handleRequestImpl = (request) => {
+      seenCorrelationId = request.headers.get('x-mcp-kit-correlation-id')
+      return Promise.resolve(new Response('ok'))
+    }
+
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      trustedProxies: ['10.0.0.10']
+    })
+    runtimes.push(runtime)
+
+    const response = await sendNodeRequest(runtime.url, {
+      method: 'POST',
+      headers: {
+        host: `127.0.0.1:${runtime.options.port}`,
+        'x-correlation-id': 'spoofed-edge-id',
+        'content-type': 'application/json'
+      },
+      body: '{"hello":"world"}'
+    })
+
+    expect(response.status).toBe(200)
+    expect(seenCorrelationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    )
+    expect(seenCorrelationId).not.toBe('spoofed-edge-id')
     expect(response.headers['x-correlation-id']).toBe(seenCorrelationId)
   })
 
