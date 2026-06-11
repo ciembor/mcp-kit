@@ -2,11 +2,15 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import type {
   ClientCapabilities,
+  CreateMessageRequest,
+  CreateMessageResult,
+  CreateMessageResultWithTools,
   Implementation,
   ProgressNotificationParams,
   Root
 } from '@modelcontextprotocol/sdk/types.js'
 
+import { McpKitError } from '../definitions.js'
 import type {
   AuthContext,
   Logger,
@@ -105,9 +109,16 @@ export function clientContext(
     listChanged: boolean
     list(): Promise<readonly Root[] | undefined>
   }
+  sampling: {
+    supported: boolean
+    createMessage(
+      params: CreateMessageRequest['params']
+    ): Promise<CreateMessageResult | CreateMessageResultWithTools>
+  }
 } {
   const capabilities = sdk.server.getClientCapabilities() ?? {}
   const supportsRoots = capabilities.roots !== undefined
+  const supportsSampling = capabilities.sampling !== undefined
   return {
     info: sdk.server.getClientVersion() ?? { name: '', version: '' },
     capabilities,
@@ -119,6 +130,19 @@ export function clientContext(
         if (!supportsRoots) return undefined
         const result = await sdk.server.listRoots()
         return result.roots
+      }
+    },
+    sampling: {
+      supported: supportsSampling,
+      async createMessage(params) {
+        if (!supportsSampling) {
+          throw new McpKitError({
+            code: 'UNSUPPORTED_CAPABILITY',
+            message: 'Client does not support sampling/createMessage',
+            safeMessage: 'Client does not support sampling requests.'
+          })
+        }
+        return sdk.server.createMessage(params)
       }
     }
   }

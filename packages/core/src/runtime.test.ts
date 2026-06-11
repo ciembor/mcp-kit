@@ -486,6 +486,11 @@ function makeContext(
         supported: false,
         listChanged: false,
         list: () => Promise.resolve(undefined)
+      },
+      sampling: {
+        supported: false,
+        createMessage: () =>
+          Promise.reject(new Error('sampling is not available in this test'))
       }
     },
     sdk: {} as never,

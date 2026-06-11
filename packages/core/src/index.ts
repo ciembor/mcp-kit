@@ -13,6 +13,7 @@ export {
   type AuthContext,
   type CapabilityPolicy,
   type ClientRoots,
+  type ClientSampling,
   type InferSchemaOutput,
   type Logger,
   type ProgressReporter,

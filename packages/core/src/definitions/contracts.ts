@@ -8,6 +8,9 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type {
   CallToolResult,
   ClientCapabilities,
+  CreateMessageRequest,
+  CreateMessageResult,
+  CreateMessageResultWithTools,
   GetPromptResult,
   Implementation,
   Root,
@@ -83,6 +86,13 @@ export type ClientRoots = {
   list(): Promise<readonly Root[] | undefined>
 }
 
+export type ClientSampling = {
+  supported: boolean
+  createMessage(
+    params: CreateMessageRequest['params']
+  ): Promise<CreateMessageResult | CreateMessageResultWithTools>
+}
+
 export type RequestContext<Services> = {
   requestId: string
   signal: AbortSignal
@@ -94,6 +104,7 @@ export type RequestContext<Services> = {
     capabilities: ClientCapabilities
     protocolVersion: string
     roots: ClientRoots
+    sampling: ClientSampling
   }
   progress?: ProgressReporter
   sdk: ServerRequestContext

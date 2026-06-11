@@ -46,6 +46,13 @@ export function sdkResourceListCallback<Services>(
             supported: false,
             listChanged: false,
             list: () => Promise.resolve(undefined)
+          },
+          sampling: {
+            supported: false,
+            createMessage: () =>
+              Promise.reject(
+                new Error('sampling is not available in resource runtime')
+              )
           }
         },
         sdk: extra
