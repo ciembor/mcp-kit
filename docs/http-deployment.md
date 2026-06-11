@@ -20,6 +20,19 @@ The runtime derives:
 - protected resource metadata from the same canonical URL
 - health/readiness responses without trusting arbitrary client headers
 
+## Fastify
+
+When the hosting process already uses Fastify, register the MCP routes through
+`@mcp-kit/node/fastify`. The adapter reuses the same raw Node bridge as
+`runStreamableHttp()`, so host validation, trusted proxy handling, auth,
+session management, and graceful drain stay identical.
+
+Fastify should remain the outer delivery mechanism:
+
+- let Fastify own `listen()` and global shutdown
+- call `drain()` before closing the Fastify server during rolling shutdown
+- rely on the adapter `onClose` hook to release MCP sessions
+
 ## SessionStore contract
 
 Stateful HTTP is an explicit opt-in and requires a `SessionStore` outside

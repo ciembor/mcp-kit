@@ -303,7 +303,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Dodac bezpieczna, jawna konfiguracje CORS.
 - [x] Dodac limity request body, timeoutow i wspolbieznosci.
 - [x] Dodac framework-neutralny adapter HTTP.
-- [ ] Dodac referencyjna integracje Fastify bez wycieku typow Fastify do core.
+- [x] Dodac referencyjna integracje Fastify bez wycieku typow Fastify do core.
 - [x] Dodac stateless mode bez server-side session state.
 - [x] Dodac stateful mode jako jawny opt-in.
 - [x] Generowac kryptograficznie losowe session ids.
