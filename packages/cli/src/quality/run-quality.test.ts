@@ -359,7 +359,7 @@ describe('quality runner', () => {
       npmPack: () =>
         Promise.resolve({
           exitCode: 0,
-          stdout: '[{\"filename\":\"mcp-kit-core.tgz\"}]',
+          stdout: '[{"filename":"mcp-kit-core.tgz"}]',
           stderr: ''
         }),
       npmInstall: () =>
@@ -462,7 +462,7 @@ describe('quality runner', () => {
       npmPack: () =>
         Promise.resolve({
           exitCode: 0,
-          stdout: '[{\"filename\":\"mcp-kit-core.tgz\"}]',
+          stdout: '[{"filename":"mcp-kit-core.tgz"}]',
           stderr: ''
         }),
       npmInstall: () =>

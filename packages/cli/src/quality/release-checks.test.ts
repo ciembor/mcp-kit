@@ -5,6 +5,10 @@ import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { runQuality } from '../quality.js'
+import type {
+  ReleaseNpmInstallResult,
+  ReleaseNpmPackResult
+} from './contracts.js'
 
 const temporaryDirectories: string[] = []
 
@@ -202,16 +206,17 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('failed')
-    expect(step(report, 'package-files')).toMatchObject({
+    const packageFilesStep = step(report, 'package-files')
+    expect(packageFilesStep).toMatchObject({
       name: 'package-files',
-      status: 'failed',
-      diagnostics: expect.arrayContaining([
-        expect.objectContaining({
-          rule: 'release-package-files',
-          file: 'packages/core/package.json'
-        })
-      ])
+      status: 'failed'
     })
+    expect(packageFilesStep?.diagnostics).toContainEqual(
+      expect.objectContaining({
+        rule: 'release-package-files',
+        file: 'packages/core/package.json'
+      })
+    )
   })
 
   it('fails release mode when exports point outside dist', async () => {
@@ -414,7 +419,7 @@ async function makeReleaseWorkspace(
   return root
 }
 
-function successfulNpmPack() {
+function successfulNpmPack(): Promise<ReleaseNpmPackResult> {
   return Promise.resolve({
     exitCode: 0,
     stdout: '[{"filename":"mcp-kit-core.tgz"}]',
@@ -422,7 +427,7 @@ function successfulNpmPack() {
   })
 }
 
-function successfulNpmInstall() {
+function successfulNpmInstall(): Promise<ReleaseNpmInstallResult> {
   return Promise.resolve({
     exitCode: 0,
     stdout: '',

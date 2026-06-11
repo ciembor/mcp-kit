@@ -13,8 +13,8 @@ import {
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 
-import type { ProjectDiagnostic } from '../analysis/project-analysis.js'
 import { isJsonObject } from '../cli-utils.js'
+import type { ProjectDiagnostic } from '../project-analysis.js'
 import type {
   ReleaseGitStatusResult,
   ReleaseNpmInstallResult,
@@ -144,12 +144,13 @@ async function checkVersions(
     ]
   }
 
-  if (!isSemver(rootPackage.version)) {
+  const rootVersion = packageVersion(rootPackage.version)
+  if (rootVersion === undefined) {
     diagnostics.push(
       releaseDiagnostic(
         'release-version',
         'package.json',
-        `Root package version must be a concrete semver value, received "${String(rootPackage.version)}"`
+        `Root package version must be a concrete semver value, received "${displayValue(rootPackage.version)}"`
       )
     )
   }
@@ -166,12 +167,12 @@ async function checkVersions(
       )
       continue
     }
-    if (manifest.version !== rootPackage.version) {
+    if (rootVersion !== undefined && manifest.version !== rootVersion) {
       diagnostics.push(
         releaseDiagnostic(
           'release-version',
           manifest.path,
-          `Package ${manifest.name} version ${manifest.version} must match root version ${rootPackage.version}`
+          `Package ${manifest.name} version ${manifest.version} must match root version ${rootVersion}`
         )
       )
     }
@@ -1051,9 +1052,14 @@ async function readWorkspacePackages(
         return undefined
       }
 
+      const version = packageVersion(manifest.version)
+      if (version === undefined) {
+        return undefined
+      }
+
       return {
         name: manifest.name,
-        version: String(manifest.version ?? ''),
+        version,
         private: manifest.private === true,
         path: relativePath(root, path),
         directory: `packages/${entry}`,
@@ -1072,10 +1078,20 @@ async function readPackageManifest(
 ): Promise<PackageManifest | undefined> {
   try {
     const value = JSON.parse(await readFile(path, 'utf8')) as unknown
-    return isJsonObject(value) ? (value as PackageManifest) : undefined
+    return isJsonObject(value) ? value : undefined
   } catch {
     return undefined
   }
+}
+
+function packageVersion(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function displayValue(value: unknown): string {
+  if (typeof value === 'string') return value
+  const json = JSON.stringify(value)
+  return json ?? String(value)
 }
 
 async function findPackageInfoFile(

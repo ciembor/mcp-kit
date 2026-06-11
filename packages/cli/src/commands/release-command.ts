@@ -11,8 +11,7 @@ import {
 } from '../cli-contracts.js'
 import { CliError } from '../cli-error.js'
 import { detectPackageManager, detectProjectRoot } from '../cli-files.js'
-import { runQuality } from '../quality.js'
-import { executeCommand } from '../quality/quality-execute.js'
+import { executeCommand, runQuality } from '../quality.js'
 
 type ReleaseDependencies = {
   runQuality?: typeof runQuality

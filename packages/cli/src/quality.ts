@@ -3,6 +3,7 @@ export {
   loadQualityConfig,
   resolveQualityConfig
 } from './quality/quality-config.js'
+export { executeCommand } from './quality/quality-execute.js'
 export { runQuality } from './quality/run-quality.js'
 export type {
   CoverageExclusion,

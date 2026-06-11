@@ -5,7 +5,7 @@ import type { McpApp } from '@mcp-kit/core'
 import { createInMemorySessionStore } from './session-store.js'
 
 type MockTransport = {
-  readonly sessionId?: string
+  readonly sessionId: string | undefined
   close: ReturnType<typeof vi.fn<() => Promise<void>>>
   handleRequest: ReturnType<
     typeof vi.fn<
@@ -41,25 +41,27 @@ let handleRequestImpl: (
     }
   }
 ) => Promise<Response> = (request, options) =>
-  new Response(
-    JSON.stringify({
-      url: request.url,
-      pathname: new URL(request.url).pathname,
-      body: options?.parsedBody ?? null,
-      auth: options?.authInfo?.extra ?? null
-    }),
-    {
-      status: 200,
-      headers: { 'content-type': 'application/json; charset=utf-8' }
-    }
+  Promise.resolve(
+    new Response(
+      JSON.stringify({
+        url: request.url,
+        pathname: new URL(request.url).pathname,
+        body: options?.parsedBody ?? null,
+        auth: options?.authInfo?.extra ?? null
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json; charset=utf-8' }
+      }
+    )
   )
 
 vi.mock(
   '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js',
   () => ({
     WebStandardStreamableHTTPServerTransport: class {
-      readonly options?: MockTransportOptions
-      sessionId?: string
+      readonly options: MockTransportOptions | undefined
+      sessionId: string | undefined
       close = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
       handleRequest = vi.fn(
         async (
@@ -116,17 +118,19 @@ afterEach(async () => {
   await Promise.all(runtimes.splice(0).map((runtime) => runtime.close()))
   transportInstances.splice(0)
   handleRequestImpl = (request, options) =>
-    new Response(
-      JSON.stringify({
-        url: request.url,
-        pathname: new URL(request.url).pathname,
-        body: options?.parsedBody ?? null,
-        auth: options?.authInfo?.extra ?? null
-      }),
-      {
-        status: 200,
-        headers: { 'content-type': 'application/json; charset=utf-8' }
-      }
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          url: request.url,
+          pathname: new URL(request.url).pathname,
+          body: options?.parsedBody ?? null,
+          auth: options?.authInfo?.extra ?? null
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json; charset=utf-8' }
+        }
+      )
     )
   vi.restoreAllMocks()
 })
