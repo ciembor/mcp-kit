@@ -390,7 +390,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [ ] Przetestowac DNS rebinding protections.
 - [ ] Przetestowac path traversal, symlink escape i SSRF.
 - [x] Przetestowac forged proxy headers i bledna konfiguracje trusted proxy.
-- [ ] Przetestowac brak sticky sessions i zewnetrzny session store.
+- [x] Przetestowac brak sticky sessions i zewnetrzny session store.
 - [x] Przetestowac limity per tool oraz odrzucanie nieznanych pol.
 - [ ] Uruchomic conformance runner dla Streamable HTTP.
 
