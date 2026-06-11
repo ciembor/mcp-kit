@@ -108,7 +108,7 @@ function writeQualityResult(result: CliResult, stdout: ResultWriter): void {
 }
 
 function helpText(): string {
-  return `Usage: mcp-kit <command>\n\nCommands:\n  new <name>\n  init\n  add tool|resource|prompt <name>\n  doctor\n  quality --fast|--full|--release [--fix] [--since <git-ref>] [--json]\n  release [--json]\n`
+  return `Usage: mcp-kit <command>\n\nCommands:\n  new <name>\n  init\n  add tool|resource|prompt <name>\n  doctor\n  quality --fast|--full|--release [--fix] [--since <git-ref>] [--json]\n  release [--publish] [--json]\n`
 }
 
 function formatDuration(durationMs: number): string {

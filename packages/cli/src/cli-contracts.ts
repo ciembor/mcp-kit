@@ -63,7 +63,7 @@ export type CliResult = {
   diagnostics?: readonly DoctorDiagnostic[]
   quality?: QualityReport
   release?: {
-    status: 'prepared' | 'failed'
+    status: 'prepared' | 'published' | 'failed'
     durationMs: number
   }
   exitCode?: ExitCode

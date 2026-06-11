@@ -440,10 +440,6 @@ describe('mcp-kit cli', () => {
       quality: { mode: 'release', preset: 'off', status: 'passed' },
       release: { status: 'prepared' }
     })
-
-    await expect(runCli(['release', '--publish'], { cwd })).resolves.toBe(
-      exitCodes.usage
-    )
   })
 
   it('prints quality diagnostics and coverage exclusions in text mode', async () => {
