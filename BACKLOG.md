@@ -486,8 +486,8 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 - [x] Macierz SDK/protokol/Node jest opublikowana i testowana.
 - [ ] Wszystkie oficjalne warianty jednego template przechodza E2E.
 - [ ] Stdio i Streamable HTTP przechodza wspierany zakres conformance.
-- [ ] Wszystkie projekty uzywaja jednej architektury feature-first.
-- [ ] Presety off/standard/strict zmieniaja rygor quality, ale nie konwencje kodu.
+- [x] Wszystkie projekty uzywaja jednej architektury feature-first.
+- [x] Presety off/standard/strict zmieniaja rygor quality, ale nie konwencje kodu.
 - [ ] Referencyjny production deployment jest stateless-first i nie wymaga sticky sessions.
 - [ ] Stateful sessions oraz joby uzywaja zewnetrznych store przez frameworkowe porty.
 - [ ] Gateway deployment zachowuje walidacje tokenu, autoryzacje, limity i audit w serwerze.

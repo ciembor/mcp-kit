@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -287,6 +294,51 @@ describe('mcp-kit cli', () => {
             analyzeProject(resolve(cwd, name))
           ).resolves.toMatchObject({ diagnostics: [] })
         }
+      }
+    }
+  })
+
+  it('keeps generated source architecture identical across quality presets', async () => {
+    const cwd = await makeTemp()
+    const transports = ['stdio', 'http', 'both'] as const
+    const qualities = ['off', 'standard', 'strict'] as const
+    const languages = ['typescript', 'javascript'] as const
+
+    for (const transport of transports) {
+      for (const language of languages) {
+        const snapshots = new Map<string, readonly string[]>()
+
+        for (const quality of qualities) {
+          const name = `${transport}-${quality}-${language}-shape`
+          await expect(
+            runCli(
+              [
+                'new',
+                name,
+                '--transport',
+                transport,
+                '--quality',
+                quality,
+                '--language',
+                language,
+                '--no-install',
+                '--no-ci',
+                '--no-hooks'
+              ],
+              { cwd }
+            )
+          ).resolves.toBe(exitCodes.ok)
+
+          snapshots.set(
+            quality,
+            await snapshotProjectFiles(resolve(cwd, name, 'src'), {
+              [name]: `${transport}-${language}-shape`
+            })
+          )
+        }
+
+        expect(snapshots.get('off')).toEqual(snapshots.get('standard'))
+        expect(snapshots.get('off')).toEqual(snapshots.get('strict'))
       }
     }
   })
@@ -856,6 +908,53 @@ async function makeTemp(): Promise<string> {
   const directory = await mkdtemp(resolve(tmpdir(), 'mcp-kit-cli-'))
   temporaryDirectories.push(directory)
   return directory
+}
+
+async function snapshotProjectFiles(
+  root: string,
+  replacements: Readonly<Record<string, string>> = {}
+): Promise<readonly string[]> {
+  const files: string[] = []
+  await collectProjectFiles(root, root, files, replacements)
+  return files.sort()
+}
+
+async function collectProjectFiles(
+  root: string,
+  current: string,
+  files: string[],
+  replacements: Readonly<Record<string, string>>
+): Promise<void> {
+  const entries = await readdir(current, { withFileTypes: true })
+
+  for (const entry of entries) {
+    const path = resolve(current, entry.name)
+
+    if (entry.isDirectory()) {
+      await collectProjectFiles(root, path, files, replacements)
+      continue
+    }
+
+    const relative = path.slice(root.length + 1)
+    const content = normalizeSnapshot(
+      await readFile(path, 'utf8'),
+      replacements
+    )
+    files.push(`${relative}\n${content}`)
+  }
+}
+
+function normalizeSnapshot(
+  content: string,
+  replacements: Readonly<Record<string, string>>
+): string {
+  let normalized = content
+
+  for (const [from, to] of Object.entries(replacements)) {
+    normalized = normalized.split(from).join(to)
+  }
+
+  return normalized
 }
 
 function createOutput(): {
