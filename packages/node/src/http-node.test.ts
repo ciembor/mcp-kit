@@ -242,6 +242,17 @@ describe('@mcp-kit/node streamable http', () => {
     expect(apps.instances).toHaveLength(0)
   })
 
+  it('rejects enabling CORS without explicit allowed origins', async () => {
+    const apps = createAppFactory()
+
+    await expect(
+      runStreamableHttp(apps.createApp, {
+        port: 0,
+        cors: {}
+      })
+    ).rejects.toThrow('CORS requires explicit allowedOrigins')
+  })
+
   it('passes resumability settings through to the SDK transport', async () => {
     const apps = createAppFactory()
     const eventStore = {
