@@ -12,6 +12,7 @@ Recommended policy for mature projects:
 
 - raise the break threshold to `90%`
 - keep exclusions narrow and explain every exclusion next to the config entry
+- keep release mutation disabled unless the project explicitly sets `runInRelease: true`
 
 The repository-level baseline lives in [stryker.config.json](../stryker.config.json).
 
@@ -35,3 +36,18 @@ export default defineQualityConfig({
 ```
 
 Each exclusion must include a reason.
+
+To enforce mutation in release:
+
+```ts
+import { defineQualityConfig } from '@mcp-kit/cli'
+
+export default defineQualityConfig({
+  preset: 'standard',
+  mutation: {
+    enabled: true,
+    runInRelease: true,
+    threshold: 90
+  }
+})
+```

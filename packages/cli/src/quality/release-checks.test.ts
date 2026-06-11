@@ -49,6 +49,43 @@ describe('release quality checks', () => {
     ])
   })
 
+  it('runs mutation in release only when the project opts in', async () => {
+    const root = await makeReleaseWorkspace()
+    const commands: string[] = []
+    const report = await runQuality({
+      root,
+      mode: 'release',
+      gitStatus: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
+      npmPack: successfulNpmPack,
+      npmInstall: successfulNpmInstall,
+      config: {
+        ...releaseOnlyConfig(),
+        mutation: {
+          enabled: true,
+          command: 'mutation',
+          runInRelease: true,
+          threshold: 80
+        }
+      },
+      execute: (command) => {
+        commands.push(command)
+        return Promise.resolve(0)
+      }
+    })
+
+    expect(report.status).toBe('passed')
+    expect(commands.at(-1)).toBe('mutation')
+    expect(step(report, 'mutation')).toMatchObject({
+      name: 'mutation',
+      status: 'passed'
+    })
+  })
+
   it('fails release mode on a dirty git worktree and skips later release checks', async () => {
     const root = await makeReleaseWorkspace()
     const report = await runQuality({

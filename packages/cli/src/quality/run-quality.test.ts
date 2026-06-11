@@ -390,6 +390,106 @@ describe('quality runner', () => {
     })
   })
 
+  it('fails mutation mode when the mutation step fails its threshold', async () => {
+    const root = await makeProject()
+    const report = await runQuality({
+      root,
+      mode: 'mutation',
+      config: {
+        ...configWithCommands(),
+        mutation: { enabled: true, command: 'mutation' }
+      },
+      execute: (command) => Promise.resolve(command === 'mutation' ? 1 : 0)
+    })
+
+    expect(report.status).toBe('failed')
+    expect(report.steps.at(-1)).toMatchObject({
+      name: 'mutation',
+      status: 'failed',
+      exitCode: 1
+    })
+  })
+
+  it('fails release mode when mutation is opted in and the mutation step fails', async () => {
+    const root = await makeProject()
+    await writeFile(
+      resolve(root, 'package.json'),
+      JSON.stringify({ name: 'repo', private: true, version: '1.2.3' })
+    )
+    await writeFile(
+      resolve(root, 'CHANGELOG.md'),
+      '# Changelog\n\n## [Unreleased]\n'
+    )
+    await mkdir(resolve(root, 'packages/core/src'), { recursive: true })
+    await mkdir(resolve(root, 'packages/core/dist'), { recursive: true })
+    await writeFile(
+      resolve(root, 'packages/core/package.json'),
+      JSON.stringify({
+        name: '@mcp-kit/core',
+        version: '1.2.3',
+        type: 'module',
+        exports: {
+          '.': {
+            types: './dist/index.d.ts',
+            import: './dist/index.js'
+          }
+        },
+        files: ['dist', 'README.md']
+      })
+    )
+    await writeFile(resolve(root, 'packages/core/README.md'), '# core\n')
+    await writeFile(
+      resolve(root, 'packages/core/dist/index.js'),
+      "export const packageInfo = { name: '@mcp-kit/core', version: '1.2.3' }\n"
+    )
+    await writeFile(
+      resolve(root, 'packages/core/dist/index.d.ts'),
+      "export declare const packageInfo: { readonly name: '@mcp-kit/core'; readonly version: '1.2.3' }\n"
+    )
+    await writeFile(
+      resolve(root, 'packages/core/src/index.ts'),
+      "export const packageInfo = {\n  name: '@mcp-kit/core',\n  version: '1.2.3'\n} as const\n"
+    )
+    const report = await runQuality({
+      root,
+      mode: 'release',
+      gitStatus: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
+      npmPack: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '[{\"filename\":\"mcp-kit-core.tgz\"}]',
+          stderr: ''
+        }),
+      npmInstall: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
+      config: {
+        ...configWithCommands(),
+        mutation: {
+          enabled: true,
+          command: 'mutation',
+          runInRelease: true
+        }
+      },
+      execute: (command) => Promise.resolve(command === 'mutation' ? 1 : 0)
+    })
+
+    expect(report.status).toBe('failed')
+    expect(report.steps.at(-1)).toMatchObject({
+      name: 'mutation',
+      status: 'failed',
+      exitCode: 1
+    })
+  })
+
   it('skips mutation by default', async () => {
     const root = await makeProject()
     const commands: string[] = []

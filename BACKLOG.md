@@ -444,13 +444,13 @@ Cel: dodac opcjonalna walidacje skutecznosci testow bez obciazania podstawowego 
 - [x] Udokumentowac rekomendowany prog 90% dla dojrzalych projektow.
 - [x] Dodac konfigurowalne wykluczenia z uzasadnieniem.
 - [x] Dodac nightly GitHub Actions workflow.
-- [ ] Dodac opcjonalne egzekwowanie mutation score w release.
+- [x] Dodac opcjonalne egzekwowanie mutation score w release.
 - [x] Dodac raport tekstowy i HTML.
 
 ### Definition of Done
 
-- [ ] Mutation score ponizej progu konczy pipeline bledem.
-- [ ] Mutation testing pozostaje opcjonalne poza jawnie skonfigurowanym release.
+- [x] Mutation score ponizej progu konczy pipeline bledem.
+- [x] Mutation testing pozostaje opcjonalne poza jawnie skonfigurowanym release.
 
 ## Milestone 8: Funkcje MCP po MVP
 
