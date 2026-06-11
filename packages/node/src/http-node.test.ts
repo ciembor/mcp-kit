@@ -54,56 +54,59 @@ let handleRequestImpl: (
     }
   )
 
-vi.mock('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js', () => ({
-  WebStandardStreamableHTTPServerTransport: class {
-    readonly options?: MockTransportOptions
-    sessionId?: string
-    close = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
-    handleRequest = vi.fn(
-      async (
-        request: Request,
-        options?: {
-          parsedBody?: unknown
-          authInfo?: {
-            clientId: string
-            scopes: readonly string[]
-            extra?: Record<string, unknown>
+vi.mock(
+  '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js',
+  () => ({
+    WebStandardStreamableHTTPServerTransport: class {
+      readonly options?: MockTransportOptions
+      sessionId?: string
+      close = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+      handleRequest = vi.fn(
+        async (
+          request: Request,
+          options?: {
+            parsedBody?: unknown
+            authInfo?: {
+              clientId: string
+              scopes: readonly string[]
+              extra?: Record<string, unknown>
+            }
           }
-        }
-      ) => {
-        if (
-          request.method === 'POST' &&
-          this.sessionId === undefined &&
-          this.options?.sessionIdGenerator !== undefined
-        ) {
-          this.sessionId = this.options.sessionIdGenerator()
-        }
+        ) => {
+          if (
+            request.method === 'POST' &&
+            this.sessionId === undefined &&
+            this.options?.sessionIdGenerator !== undefined
+          ) {
+            this.sessionId = this.options.sessionIdGenerator()
+          }
 
-        if (request.method === 'DELETE' && this.sessionId !== undefined) {
-          const closedSession = this.sessionId
-          this.sessionId = undefined
-          await this.options?.onsessionclosed?.(closedSession)
-          return new Response(null, { status: 204 })
-        }
+          if (request.method === 'DELETE' && this.sessionId !== undefined) {
+            const closedSession = this.sessionId
+            this.sessionId = undefined
+            await this.options?.onsessionclosed?.(closedSession)
+            return new Response(null, { status: 204 })
+          }
 
-        const response = await handleRequestImpl(request, options)
-        if (this.sessionId === undefined) return response
-        const headers = new Headers(response.headers)
-        headers.set('mcp-session-id', this.sessionId)
-        return new Response(response.body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers
-        })
+          const response = await handleRequestImpl(request, options)
+          if (this.sessionId === undefined) return response
+          const headers = new Headers(response.headers)
+          headers.set('mcp-session-id', this.sessionId)
+          return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers
+          })
+        }
+      )
+
+      constructor(options?: MockTransportOptions) {
+        this.options = options
+        transportInstances.push(this)
       }
-    )
-
-    constructor(options?: MockTransportOptions) {
-      this.options = options
-      transportInstances.push(this)
     }
-  }
-}))
+  })
+)
 
 import { runStreamableHttp } from './http-node.js'
 

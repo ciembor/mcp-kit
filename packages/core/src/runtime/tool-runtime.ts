@@ -139,10 +139,7 @@ export function timeoutAbortError(
 
 const activeToolCalls = new WeakMap<object, number>()
 type RateLimitBucket = { count: number; resetAt: number }
-const toolRateLimits = new WeakMap<
-  object,
-  Map<string, RateLimitBucket>
->()
+const toolRateLimits = new WeakMap<object, Map<string, RateLimitBucket>>()
 
 function createErrorMappingMiddleware<Services>(): ToolMiddleware<Services> {
   return async ({ tool, context }, next) => {

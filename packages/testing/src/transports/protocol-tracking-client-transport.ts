@@ -1,7 +1,5 @@
 import type { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import type {
-  JSONRPCMessage
-} from '@modelcontextprotocol/sdk/types.js'
+import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 export class ProtocolTrackingClientTransport implements Transport {

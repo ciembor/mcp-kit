@@ -4,8 +4,9 @@ export function requestUrlFromNodeRequest(
   req: IncomingMessage,
   trustedProxies: readonly string[]
 ): string {
-  const forwarded =
-    isTrustedProxy(req, trustedProxies) ? forwardedOrigin(req) : undefined
+  const forwarded = isTrustedProxy(req, trustedProxies)
+    ? forwardedOrigin(req)
+    : undefined
   const host = forwarded?.host ?? req.headers.host ?? '127.0.0.1'
   const protocol = forwarded?.proto ?? localProtocol(req)
   return `${protocol}://${host}${req.url ?? '/'}`
@@ -17,7 +18,9 @@ export function isTrustedProxy(
 ): boolean {
   const remoteAddress = normalizeAddress(req.socket.remoteAddress)
   if (remoteAddress === undefined) return false
-  return trustedProxies.some((proxy) => normalizeAddress(proxy) === remoteAddress)
+  return trustedProxies.some(
+    (proxy) => normalizeAddress(proxy) === remoteAddress
+  )
 }
 
 function forwardedOrigin(

@@ -14,13 +14,7 @@ export function unknownInputPaths(
       continue
     }
 
-    unknown.push(
-      ...unknownInputPaths(
-        value,
-        parsed[key],
-        [...path, key]
-      )
-    )
+    unknown.push(...unknownInputPaths(value, parsed[key], [...path, key]))
   }
 
   return unknown

@@ -1,8 +1,4 @@
-export {
-  createMcpApp,
-  type McpApp,
-  type McpAppOptions
-} from './app/app.js'
+export { createMcpApp, type McpApp, type McpAppOptions } from './app/app.js'
 export {
   definePrompt,
   defineRegistry,

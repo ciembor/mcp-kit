@@ -1,8 +1,6 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import type { McpApp } from '@mcp-kit/core'
-export {
-  runStreamableHttp
-} from './http-node.js'
+export { runStreamableHttp } from './http-node.js'
 export { createInMemorySessionStore } from './session-store.js'
 export type {
   DeploymentMode,

@@ -19,7 +19,7 @@ export function normalizeStreamableHttpOptions(
   const sessionMode = options.sessionMode ?? 'stateless'
   const sessionStore =
     sessionMode === 'stateful'
-      ? options.sessionStore ?? defaultSessionStore(mode)
+      ? (options.sessionStore ?? defaultSessionStore(mode))
       : undefined
   const auth = options.auth
   const trustedProxies = freeze(options.trustedProxies ?? [])
@@ -51,7 +51,9 @@ export function normalizeStreamableHttpOptions(
     )
   }
 
-  const allowedHosts = freeze(options.allowedHosts ?? defaultAllowedHosts(host, port))
+  const allowedHosts = freeze(
+    options.allowedHosts ?? defaultAllowedHosts(host, port)
+  )
 
   return {
     mode,
@@ -117,14 +119,8 @@ export function corsHeaders(
 
   headers.set('Vary', 'Origin')
   headers.set('Access-Control-Allow-Origin', origin)
-  headers.set(
-    'Access-Control-Allow-Methods',
-    'DELETE, GET, OPTIONS, POST'
-  )
-  headers.set(
-    'Access-Control-Allow-Headers',
-    cors.allowedHeaders.join(', ')
-  )
+  headers.set('Access-Control-Allow-Methods', 'DELETE, GET, OPTIONS, POST')
+  headers.set('Access-Control-Allow-Headers', cors.allowedHeaders.join(', '))
   headers.set('Access-Control-Max-Age', String(cors.maxAgeSeconds))
   if (cors.allowCredentials) {
     headers.set('Access-Control-Allow-Credentials', 'true')
@@ -137,14 +133,10 @@ export function isLoopbackHost(host: string): boolean {
 }
 
 function detectDeploymentMode(): 'development' | 'production' {
-  return process.env['NODE_ENV'] === 'production'
-    ? 'production'
-    : 'development'
+  return process.env['NODE_ENV'] === 'production' ? 'production' : 'development'
 }
 
-function defaultSessionStore(
-  mode: 'development' | 'production'
-) {
+function defaultSessionStore(mode: 'development' | 'production') {
   if (mode === 'development') {
     return createInMemorySessionStore()
   }

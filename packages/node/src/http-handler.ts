@@ -88,13 +88,10 @@ async function handleStatelessRequest<Services>(
 
   try {
     await app.connect(transport)
-    const response = await transport.handleRequest(
-      request,
-      {
-        ...(parsedBody === undefined ? {} : { parsedBody }),
-        ...(auth.authInfo === undefined ? {} : { authInfo: auth.authInfo })
-      }
-    )
+    const response = await transport.handleRequest(request, {
+      ...(parsedBody === undefined ? {} : { parsedBody }),
+      ...(auth.authInfo === undefined ? {} : { authInfo: auth.authInfo })
+    })
     return createClosableExchange(
       withCorsHeaders(response, request, options.cors),
       async () => {
@@ -152,7 +149,11 @@ async function handleStatefulRequest<Services>(
     closeSession
   )
   try {
-    const response = await nextSession.handleRequest(request, parsedBody, auth.auth)
+    const response = await nextSession.handleRequest(
+      request,
+      parsedBody,
+      auth.auth
+    )
     if (nextSession.transport.sessionId === undefined) {
       await nextSession.close()
     } else {
@@ -203,13 +204,10 @@ async function createStatefulSession<Services>(
     },
     handleRequest(request, parsedBody, auth) {
       activeAuth = auth
-      return transport.handleRequest(
-        request,
-        {
-          ...(parsedBody === undefined ? {} : { parsedBody }),
-          ...(auth === undefined ? {} : { authInfo: toAuthInfo(auth) })
-        }
-      )
+      return transport.handleRequest(request, {
+        ...(parsedBody === undefined ? {} : { parsedBody }),
+        ...(auth === undefined ? {} : { authInfo: toAuthInfo(auth) })
+      })
     }
   }
   let activeAuth: AuthContext | undefined

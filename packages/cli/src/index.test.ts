@@ -315,6 +315,33 @@ describe('mcp-kit cli', () => {
     await expect(runCli(['quality'], { cwd })).resolves.toBe(exitCodes.usage)
   })
 
+  it('supports release quality mode and rejects multiple mode flags', async () => {
+    const cwd = await makeTemp()
+    const output = createOutput()
+    await writeFile(resolve(cwd, 'package.json'), '{"type":"module"}')
+    await writeFile(
+      resolve(cwd, 'quality.config.js'),
+      "export default { preset: 'off', dependencyCruiser: { enabled: false, command: '' }, tests: { unit: { enabled: false, command: '' } }, build: { enabled: false, command: '' } }\n"
+    )
+
+    await expect(
+      runCli(['quality', '--release', '--json'], {
+        cwd,
+        stdout: output.stdout,
+        stderr: output.stderr
+      })
+    ).resolves.toBe(exitCodes.ok)
+    expect(JSON.parse(output.out)).toMatchObject({
+      ok: true,
+      command: 'quality',
+      quality: { mode: 'release', preset: 'off', status: 'passed' }
+    })
+
+    await expect(
+      runCli(['quality', '--full', '--release'], { cwd })
+    ).resolves.toBe(exitCodes.usage)
+  })
+
   it('prints quality diagnostics and coverage exclusions in text mode', async () => {
     const cwd = await makeTemp()
     await writeFile(

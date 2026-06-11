@@ -10,10 +10,15 @@ export async function qualityProject(
 ): Promise<CliResult> {
   const fast = getBoolean(parsed, 'fast')
   const full = getBoolean(parsed, 'full')
-  if (fast === full) {
-    throw new CliError('Usage: mcp-kit quality --fast|--full', exitCodes.usage)
+  const release = getBoolean(parsed, 'release')
+  const selectedModes = [fast, full, release].filter(Boolean).length
+  if (selectedModes !== 1) {
+    throw new CliError(
+      'Usage: mcp-kit quality --fast|--full|--release',
+      exitCodes.usage
+    )
   }
-  const mode: QualityMode = fast ? 'fast' : 'full'
+  const mode: QualityMode = fast ? 'fast' : full ? 'full' : 'release'
   const root = await detectProjectRoot(cwd, false)
   const controller = new AbortController()
   const interrupt = () => controller.abort()

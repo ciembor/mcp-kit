@@ -1,4 +1,8 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse
+} from 'node:http'
 import { Readable } from 'node:stream'
 
 import type {
@@ -18,11 +22,7 @@ export async function runStreamableHttp<Services>(
   const handler = createStreamableHttpHandler(createApp, normalized)
   let draining = false
   const server = createServer((req, res) => {
-    const controlResponse = controlEndpointResponse(
-      req,
-      normalized,
-      draining
-    )
+    const controlResponse = controlEndpointResponse(req, normalized, draining)
     if (controlResponse !== undefined) {
       void writeResponse(res, controlResponse)
       return
@@ -94,7 +94,9 @@ export async function runStreamableHttp<Services>(
   const onSignal = (): void => {
     void close().catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error)
-      process.stderr.write(`[error] Failed to close MCP HTTP server: ${message}\n`)
+      process.stderr.write(
+        `[error] Failed to close MCP HTTP server: ${message}\n`
+      )
       process.exitCode = 1
     })
   }
@@ -110,7 +112,9 @@ export async function runStreamableHttp<Services>(
   }
 }
 
-async function closeSessions(options: StreamableHttpRuntime['options']): Promise<void> {
+async function closeSessions(
+  options: StreamableHttpRuntime['options']
+): Promise<void> {
   const sessions = await options.sessionStore?.list()
   if (sessions === undefined) return
   await Promise.all(sessions.map((session) => session.close()))
@@ -232,7 +236,9 @@ function controlEndpointResponse(
   draining: boolean
 ): Response | undefined {
   if (req.method !== 'GET') return undefined
-  const requestUrl = new URL(requestUrlFromNodeRequest(req, options.trustedProxies))
+  const requestUrl = new URL(
+    requestUrlFromNodeRequest(req, options.trustedProxies)
+  )
   const pathname = requestUrl.pathname
 
   if (options.healthPath !== false && pathname === options.healthPath) {

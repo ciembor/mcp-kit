@@ -48,9 +48,9 @@ describe('project render', () => {
           language: 'typescript',
           packageManager: 'pnpm',
           git: false,
-        hooks: false,
-        ci: false,
-        install: false,
+          hooks: false,
+          ci: false,
+          install: false,
           agent: 'none',
           force: false,
           dryRun: false

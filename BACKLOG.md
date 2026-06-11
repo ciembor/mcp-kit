@@ -408,7 +408,7 @@ Cel: zapewnic powtarzalne budowanie i publikowanie pakietow bez omijania quality
 
 ### Quality release
 
-- [ ] Zaimplementowac `quality --release`.
+- [x] Zaimplementowac `quality --release`.
 - [ ] Sprawdzac clean git, wersje i changelog.
 - [ ] Sprawdzac package exports i liste publikowanych plikow.
 - [ ] Wykonywac build wszystkich publikowanych pakietow.

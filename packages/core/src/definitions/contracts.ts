@@ -37,9 +37,7 @@ export type Logger = {
 export type ToolPolicy = {
   effects: 'read' | 'write'
   requiredScopes?: readonly string[]
-  authorize?(
-    context: RequestContext<unknown>
-  ): Promise<void> | void
+  authorize?(context: RequestContext<unknown>): Promise<void> | void
   rateLimit?: {
     windowMs: number
     maxCalls: number
@@ -51,9 +49,7 @@ export type ToolPolicy = {
 
 export type CapabilityPolicy = {
   requiredScopes?: readonly string[]
-  authorize?(
-    context: RequestContext<unknown>
-  ): Promise<void> | void
+  authorize?(context: RequestContext<unknown>): Promise<void> | void
 }
 
 export type AuthContext = {

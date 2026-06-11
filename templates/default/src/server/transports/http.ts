@@ -4,7 +4,8 @@ import { createApp } from '../../app.js'
 
 export async function startHttp(): Promise<void> {
   await runStreamableHttp(createApp, {
-    mode: process.env['NODE_ENV'] === 'production' ? 'production' : 'development',
+    mode:
+      process.env['NODE_ENV'] === 'production' ? 'production' : 'development',
     host: process.env['MCP_HOST'],
     port: parsePort(process.env['MCP_PORT']),
     path: process.env['MCP_PATH'],

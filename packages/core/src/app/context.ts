@@ -44,7 +44,9 @@ export function requestContext<Services>(
     signal,
     services: runtime.services,
     logger: runtime.logger,
-    ...(extra.authInfo === undefined ? {} : { auth: authContext(extra.authInfo) }),
+    ...(extra.authInfo === undefined
+      ? {}
+      : { auth: authContext(extra.authInfo) }),
     client: clientContext(runtime.sdk, runtime.protocolVersion),
     ...(progressToken === undefined
       ? {}
@@ -63,11 +65,15 @@ function authContext(authInfo: ServerRequestContext['authInfo']): AuthContext {
     ...(typeof authInfo?.extra?.['tenantId'] === 'string'
       ? { tenantId: authInfo.extra['tenantId'] }
       : {}),
-    ...(authInfo?.clientId === undefined ? {} : { clientId: authInfo.clientId }),
+    ...(authInfo?.clientId === undefined
+      ? {}
+      : { clientId: authInfo.clientId }),
     ...(authInfo?.expiresAt === undefined
       ? {}
       : { expiresAt: authInfo.expiresAt }),
-    ...(authInfo?.resource === undefined ? {} : { resource: authInfo.resource }),
+    ...(authInfo?.resource === undefined
+      ? {}
+      : { resource: authInfo.resource }),
     ...(authInfo?.token === undefined ? {} : { token: authInfo.token }),
     ...(authInfo?.extra === undefined ? {} : { extra: authInfo.extra })
   }

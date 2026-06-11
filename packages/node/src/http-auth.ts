@@ -29,10 +29,7 @@ export async function authenticateRequest(
       return {}
     }
     return {
-      rejection: unauthorizedResponse(
-        auth.challenge,
-        'Missing bearer token.'
-      )
+      rejection: unauthorizedResponse(auth.challenge, 'Missing bearer token.')
     }
   }
 
@@ -69,7 +66,9 @@ function unauthorizedResponse(
   challenge: string | undefined,
   message: string
 ): Response {
-  const headers = new Headers({ 'content-type': 'application/json; charset=utf-8' })
+  const headers = new Headers({
+    'content-type': 'application/json; charset=utf-8'
+  })
   headers.set(
     'www-authenticate',
     challenge ?? 'Bearer realm="mcp-kit", error="invalid_token"'
@@ -93,7 +92,9 @@ function toAuthInfo(context: AuthContext, token: string): AuthInfo {
     token,
     clientId: context.clientId ?? 'mcp-kit',
     scopes: [...context.scopes],
-    ...(context.expiresAt === undefined ? {} : { expiresAt: context.expiresAt }),
+    ...(context.expiresAt === undefined
+      ? {}
+      : { expiresAt: context.expiresAt }),
     ...(context.resource === undefined ? {} : { resource: context.resource }),
     extra: {
       ...(context.extra ?? {}),

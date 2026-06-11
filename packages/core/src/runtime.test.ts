@@ -398,8 +398,10 @@ describe('runtime helpers', () => {
   })
 
   it('writes audit events for protected tool calls', async () => {
-    const auditEntries: Array<{ message: string; data?: Record<string, unknown> }> =
-      []
+    const auditEntries: Array<{
+      message: string
+      data?: Record<string, unknown>
+    }> = []
     const logger = {
       debug: () => undefined,
       info: (message: string, data?: Record<string, unknown>) => {

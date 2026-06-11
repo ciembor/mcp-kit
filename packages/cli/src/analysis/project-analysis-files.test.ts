@@ -42,24 +42,12 @@ describe('project analysis source file reader', () => {
       'src/view.tsx'
     ])
 
-    expect(scriptKind(byPath.get('src/feature.ts'))).toBe(
-      ts.ScriptKind.TS
-    )
-    expect(scriptKind(byPath.get('src/view.tsx'))).toBe(
-      ts.ScriptKind.TSX
-    )
-    expect(scriptKind(byPath.get('src/client.js'))).toBe(
-      ts.ScriptKind.JS
-    )
-    expect(scriptKind(byPath.get('src/client.jsx'))).toBe(
-      ts.ScriptKind.JSX
-    )
-    expect(scriptKind(byPath.get('src/module.mjs'))).toBe(
-      ts.ScriptKind.JS
-    )
-    expect(scriptKind(byPath.get('src/common.cjs'))).toBe(
-      ts.ScriptKind.JS
-    )
+    expect(scriptKind(byPath.get('src/feature.ts'))).toBe(ts.ScriptKind.TS)
+    expect(scriptKind(byPath.get('src/view.tsx'))).toBe(ts.ScriptKind.TSX)
+    expect(scriptKind(byPath.get('src/client.js'))).toBe(ts.ScriptKind.JS)
+    expect(scriptKind(byPath.get('src/client.jsx'))).toBe(ts.ScriptKind.JSX)
+    expect(scriptKind(byPath.get('src/module.mjs'))).toBe(ts.ScriptKind.JS)
+    expect(scriptKind(byPath.get('src/common.cjs'))).toBe(ts.ScriptKind.JS)
     expect(byPath.get('src/feature.ts')?.absolute).toBe(
       resolve(root, 'src/feature.ts')
     )

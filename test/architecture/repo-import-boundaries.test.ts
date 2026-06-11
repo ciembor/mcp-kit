@@ -75,10 +75,7 @@ describe('repo import boundaries', () => {
 
       if (file.startsWith('packages/create-mcp-kit/src/shared/')) {
         for (const specifier of imports) {
-          if (
-            specifier.includes('/scaffold/') ||
-            specifier.includes('/app/')
-          ) {
+          if (specifier.includes('/scaffold/') || specifier.includes('/app/')) {
             offenders.push(`${file} -> ${specifier}`)
           }
         }
@@ -159,7 +156,10 @@ async function relativeImports(file: string): Promise<string[]> {
       continue
     }
 
-    if (ts.isExportDeclaration(statement) && statement.moduleSpecifier !== undefined) {
+    if (
+      ts.isExportDeclaration(statement) &&
+      statement.moduleSpecifier !== undefined
+    ) {
       const specifier = moduleSpecifierText(statement.moduleSpecifier)
       if (specifier.startsWith('.')) {
         imports.push(normalizeSpecifier(file, specifier))

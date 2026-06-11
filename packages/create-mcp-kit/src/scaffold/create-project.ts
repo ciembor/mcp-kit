@@ -5,7 +5,10 @@ import {
   resolveDefaultTemplateCandidates
 } from './template-directory.js'
 import { assertEmptyOrMissing } from './target-directory.js'
-import { replaceTemplateTokens, templateReplacements } from './template-tokens.js'
+import {
+  replaceTemplateTokens,
+  templateReplacements
+} from './template-tokens.js'
 import { toPackageName } from '../shared/package-name.js'
 
 export type CreateMcpKitOptions = {
@@ -31,7 +34,9 @@ export async function createMcpKitProject(
 
   const template =
     options.templateDirectory ??
-    (await findTemplateDirectory(resolveDefaultTemplateCandidates(import.meta.url)))
+    (await findTemplateDirectory(
+      resolveDefaultTemplateCandidates(import.meta.url)
+    ))
   await cp(template, target, { recursive: true })
 
   const projectName = toPackageName(basename(target))

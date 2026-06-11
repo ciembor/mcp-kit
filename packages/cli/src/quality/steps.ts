@@ -38,7 +38,7 @@ export function fastSteps(
 
 export function fullSteps(
   config: ResolvedQualityConfig,
-  options: Pick<RunQualityOptions, 'fix'>
+  options: Pick<RunQualityOptions, 'fix' | 'mode'>
 ): Step[] {
   return [
     external(

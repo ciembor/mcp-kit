@@ -167,6 +167,37 @@ describe('quality runner', () => {
     })
   })
 
+  it('runs release mode through the full quality pipeline', async () => {
+    const root = await makeProject()
+    const commands: string[] = []
+    const report = await runQuality({
+      root,
+      mode: 'release',
+      config: configWithCommands(),
+      execute: (command) => {
+        commands.push(command)
+        return Promise.resolve(0)
+      }
+    })
+
+    expect(report.status).toBe('passed')
+    expect(commands).toEqual([
+      'format',
+      'lint',
+      'smells',
+      'typecheck',
+      'dead-code',
+      'dependencies',
+      'unit',
+      'integration',
+      'contract',
+      'architecture',
+      'coverage',
+      'build',
+      'smoke'
+    ])
+  })
+
   it('skips mutation by default', async () => {
     const root = await makeProject()
     const commands: string[] = []
