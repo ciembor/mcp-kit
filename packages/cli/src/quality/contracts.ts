@@ -114,6 +114,17 @@ export type ReleaseGitStatus = (
   signal: AbortSignal
 ) => Promise<ReleaseGitStatusResult>
 
+export type ReleaseNpmPackResult = {
+  exitCode: number
+  stdout: string
+  stderr: string
+}
+
+export type ReleaseNpmPack = (
+  packageRoot: string,
+  signal: AbortSignal
+) => Promise<ReleaseNpmPackResult>
+
 export type RunQualityOptions = {
   root: string
   mode: QualityMode
@@ -123,4 +134,5 @@ export type RunQualityOptions = {
   config?: QualityConfig
   execute?: QualityExecutor
   gitStatus?: ReleaseGitStatus
+  npmPack?: ReleaseNpmPack
 }

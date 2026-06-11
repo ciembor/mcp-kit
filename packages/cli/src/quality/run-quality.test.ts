@@ -208,6 +208,12 @@ describe('quality runner', () => {
           stdout: '',
           stderr: ''
         }),
+      npmPack: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '[{"filename":"mcp-kit-core.tgz"}]',
+          stderr: ''
+        }),
       config: configWithCommands(),
       execute: (command) => {
         commands.push(command)
@@ -231,12 +237,13 @@ describe('quality runner', () => {
       'build',
       'smoke'
     ])
-    expect(report.steps.map((step) => step.name).slice(-6)).toEqual([
+    expect(report.steps.map((step) => step.name).slice(-7)).toEqual([
       'clean-git',
       'version',
       'changelog',
       'package-exports',
       'package-files',
+      'npm-pack',
       'mutation'
     ])
   })

@@ -28,16 +28,18 @@ describe('release quality checks', () => {
           stdout: '',
           stderr: ''
         }),
+      npmPack: successfulNpmPack,
       config: releaseOnlyConfig()
     })
 
     expect(report.status).toBe('passed')
-    expect(report.steps.slice(-6)).toMatchObject([
+    expect(report.steps.slice(-7)).toMatchObject([
       { name: 'clean-git', status: 'passed' },
       { name: 'version', status: 'passed' },
       { name: 'changelog', status: 'passed' },
       { name: 'package-exports', status: 'passed' },
       { name: 'package-files', status: 'passed' },
+      { name: 'npm-pack', status: 'passed' },
       { name: 'mutation', status: 'skipped' }
     ])
   })
@@ -53,11 +55,12 @@ describe('release quality checks', () => {
           stdout: ' M packages/core/package.json\n',
           stderr: ''
         }),
+      npmPack: successfulNpmPack,
       config: releaseOnlyConfig()
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-6)).toMatchObject({
+    expect(report.steps.at(-7)).toMatchObject({
       name: 'clean-git',
       status: 'failed',
       diagnostics: [
@@ -67,7 +70,7 @@ describe('release quality checks', () => {
         })
       ]
     })
-    expect(report.steps.at(-5)).toMatchObject({
+    expect(report.steps.at(-6)).toMatchObject({
       name: 'version',
       status: 'skipped'
     })
@@ -86,11 +89,12 @@ describe('release quality checks', () => {
           stdout: '',
           stderr: ''
         }),
+      npmPack: successfulNpmPack,
       config: releaseOnlyConfig()
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-5)).toMatchObject({
+    expect(report.steps.at(-6)).toMatchObject({
       name: 'version',
       status: 'failed',
       diagnostics: [
@@ -100,7 +104,7 @@ describe('release quality checks', () => {
         })
       ]
     })
-    expect(report.steps.at(-4)).toMatchObject({
+    expect(report.steps.at(-5)).toMatchObject({
       name: 'changelog',
       status: 'skipped'
     })
@@ -117,11 +121,12 @@ describe('release quality checks', () => {
           stdout: '',
           stderr: ''
         }),
+      npmPack: successfulNpmPack,
       config: releaseOnlyConfig()
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-4)).toMatchObject({
+    expect(report.steps.at(-5)).toMatchObject({
       name: 'changelog',
       status: 'failed',
       diagnostics: [
@@ -146,11 +151,12 @@ describe('release quality checks', () => {
           stdout: '',
           stderr: ''
         }),
+      npmPack: successfulNpmPack,
       config: releaseOnlyConfig()
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-2)).toMatchObject({
+    expect(report.steps.at(-3)).toMatchObject({
       name: 'package-files',
       status: 'failed',
       diagnostics: expect.arrayContaining([
@@ -180,16 +186,50 @@ describe('release quality checks', () => {
           stdout: '',
           stderr: ''
         }),
+      npmPack: successfulNpmPack,
       config: releaseOnlyConfig()
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-3)).toMatchObject({
+    expect(report.steps.at(-4)).toMatchObject({
       name: 'package-exports',
       status: 'failed',
       diagnostics: [
         expect.objectContaining({
           rule: 'release-package-exports',
+          file: 'packages/core/package.json'
+        })
+      ]
+    })
+  })
+
+  it('fails release mode when npm pack does not succeed', async () => {
+    const root = await makeReleaseWorkspace()
+    const report = await runQuality({
+      root,
+      mode: 'release',
+      gitStatus: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
+      npmPack: () =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: '',
+          stderr: 'pack failed'
+        }),
+      config: releaseOnlyConfig()
+    })
+
+    expect(report.status).toBe('failed')
+    expect(report.steps.at(-2)).toMatchObject({
+      name: 'npm-pack',
+      status: 'failed',
+      diagnostics: [
+        expect.objectContaining({
+          rule: 'release-npm-pack',
           file: 'packages/core/package.json'
         })
       ]
@@ -234,6 +274,7 @@ async function makeReleaseWorkspace(
   const packageVersion = options.packageVersion ?? rootVersion
 
   await mkdir(resolve(root, 'packages/core/src'), { recursive: true })
+  await mkdir(resolve(root, 'packages/core/dist'), { recursive: true })
   await writeFile(
     resolve(root, 'package.json'),
     JSON.stringify({ name: 'repo', private: true, version: rootVersion })
@@ -258,6 +299,8 @@ async function makeReleaseWorkspace(
     })
   )
   await writeFile(resolve(root, 'packages/core/README.md'), '# core\n')
+  await writeFile(resolve(root, 'packages/core/dist/index.js'), 'export {}\n')
+  await writeFile(resolve(root, 'packages/core/dist/index.d.ts'), 'export {}\n')
   await writeFile(
     resolve(root, 'packages/core/src/index.ts'),
     `export const packageInfo = {
@@ -268,4 +311,12 @@ async function makeReleaseWorkspace(
   )
 
   return root
+}
+
+function successfulNpmPack() {
+  return Promise.resolve({
+    exitCode: 0,
+    stdout: '[{"filename":"mcp-kit-core.tgz"}]',
+    stderr: ''
+  })
 }

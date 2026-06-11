@@ -8,6 +8,8 @@ import { isJsonObject } from '../cli-utils.js'
 import type {
   ReleaseGitStatus,
   ReleaseGitStatusResult,
+  ReleaseNpmPack,
+  ReleaseNpmPackResult,
   RunQualityOptions
 } from './contracts.js'
 import type { ReleaseCheckName } from './steps.js'
@@ -18,6 +20,7 @@ export async function runReleaseCheck(
     root: string
     signal: AbortSignal
     gitStatus?: RunQualityOptions['gitStatus']
+    npmPack?: RunQualityOptions['npmPack']
   }
 ): Promise<readonly ProjectDiagnostic[]> {
   switch (check) {
@@ -31,6 +34,8 @@ export async function runReleaseCheck(
       return checkPackageExports(context.root)
     case 'package-files':
       return checkPackageFiles(context.root)
+    case 'npm-pack':
+      return checkNpmPack(context.root, context.signal, context.npmPack)
   }
 }
 
@@ -392,6 +397,57 @@ async function checkPackageFiles(
   return diagnostics
 }
 
+async function checkNpmPack(
+  root: string,
+  signal: AbortSignal,
+  npmPack: RunQualityOptions['npmPack']
+): Promise<readonly ProjectDiagnostic[]> {
+  const diagnostics: ProjectDiagnostic[] = []
+  const releasePackages = (await readWorkspacePackages(root)).filter(
+    (manifest) => manifest.private !== true
+  )
+
+  for (const manifest of releasePackages) {
+    const packageRoot = resolve(root, manifest.directory)
+    const result = await (npmPack ?? runNpmPack)(packageRoot, signal)
+    if (result.exitCode !== 0) {
+      diagnostics.push(
+        releaseDiagnostic(
+          'release-npm-pack',
+          manifest.path,
+          `npm pack failed for ${manifest.name}: ${sanitizeMessage(result.stderr, 'unknown error')}`
+        )
+      )
+      continue
+    }
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(result.stdout) as unknown
+    } catch {
+      diagnostics.push(
+        releaseDiagnostic(
+          'release-npm-pack',
+          manifest.path,
+          `npm pack must return JSON output for ${manifest.name}`
+        )
+      )
+      continue
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      diagnostics.push(
+        releaseDiagnostic(
+          'release-npm-pack',
+          manifest.path,
+          `npm pack must report at least one packed artifact for ${manifest.name}`
+        )
+      )
+      continue
+    }
+  }
+
+  return diagnostics
+}
+
 async function readPackageManifest(
   path: string
 ): Promise<PackageManifest | undefined> {
@@ -498,6 +554,46 @@ async function readGitStatus(
   return new Promise((resolvePromise) => {
     const child = spawn('git', ['status', '--short'], {
       cwd: root,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (chunk: Buffer | string) => {
+      stdout += String(chunk)
+    })
+    child.stderr.on('data', (chunk: Buffer | string) => {
+      stderr += String(chunk)
+    })
+    const abort = () => child.kill('SIGTERM')
+    signal.addEventListener('abort', abort, { once: true })
+    child.once('error', (error) => {
+      signal.removeEventListener('abort', abort)
+      resolvePromise({
+        exitCode: 70,
+        stdout,
+        stderr: error instanceof Error ? error.message : String(error)
+      })
+    })
+    child.once('exit', (code, exitSignal) => {
+      signal.removeEventListener('abort', abort)
+      resolvePromise({
+        exitCode:
+          code ??
+          (exitSignal === 'SIGINT' ? 130 : exitSignal === 'SIGTERM' ? 143 : 70),
+        stdout,
+        stderr
+      })
+    })
+  })
+}
+
+async function runNpmPack(
+  packageRoot: string,
+  signal: AbortSignal
+): Promise<ReleaseNpmPackResult> {
+  return new Promise((resolvePromise) => {
+    const child = spawn('npm', ['pack', '--json', '--dry-run'], {
+      cwd: packageRoot,
       stdio: ['ignore', 'pipe', 'pipe']
     })
     let stdout = ''

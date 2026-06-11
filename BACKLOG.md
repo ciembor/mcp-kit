@@ -412,7 +412,7 @@ Cel: zapewnic powtarzalne budowanie i publikowanie pakietow bez omijania quality
 - [x] Sprawdzac clean git, wersje i changelog.
 - [x] Sprawdzac package exports i liste publikowanych plikow.
 - [ ] Wykonywac build wszystkich publikowanych pakietow.
-- [ ] Wykonywac `npm pack` dla kazdego pakietu.
+- [x] Wykonywac `npm pack` dla kazdego pakietu.
 - [ ] Instalowac paczki w izolowanym katalogu tymczasowym.
 - [ ] Testowac root imports, subpath exports, typy i CLI.
 - [ ] Uruchamiac stdio smoke test z opublikowanego tarballa.

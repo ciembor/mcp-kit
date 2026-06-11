@@ -16,6 +16,7 @@ export type ReleaseCheckName =
   | 'changelog'
   | 'package-exports'
   | 'package-files'
+  | 'npm-pack'
 
 export function fastSteps(
   config: ResolvedQualityConfig,
@@ -89,6 +90,7 @@ export function fullSteps(
     releaseCheck('changelog', 'changelog'),
     releaseCheck('package-exports', 'package-exports'),
     releaseCheck('package-files', 'package-files'),
+    releaseCheck('npm-pack', 'npm-pack'),
     external('mutation', config.mutation)
   ]
 }
