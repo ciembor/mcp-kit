@@ -310,7 +310,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Zdefiniowac port `SessionStore`.
 - [x] Dodac in-memory `SessionStore` wylacznie dla testow i development.
 - [x] Dodac referencyjny adapter Redis lub udokumentowany kontrakt integracyjny.
-- [ ] Dodac resumability, jesli wspiera ja przypieta wersja SDK.
+- [x] Dodac resumability, jesli wspiera ja przypieta wersja SDK.
 - [x] Dodac graceful shutdown i drain aktywnych polaczen.
 - [x] Nie wlaczac legacy HTTP+SSE bez jawnego adaptera.
 

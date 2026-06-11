@@ -1,5 +1,6 @@
 import type { AuthContext, McpApp } from '@mcp-kit/core'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
+import type { EventStore } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 
 export type DeploymentMode = 'development' | 'production'
 export type SessionMode = 'stateless' | 'stateful'
@@ -19,6 +20,8 @@ export type StreamableHttpOptions = {
   readinessPath?: string | false
   sessionMode?: SessionMode
   sessionStore?: SessionStore
+  eventStore?: StreamableHttpEventStore
+  retryIntervalMs?: number
   auth?: false | StreamableHttpAuthOptions
   trustedProxies?: readonly string[]
   allowedHosts?: readonly string[]
@@ -38,6 +41,8 @@ export type NormalizedStreamableHttpOptions = {
   readinessPath: string | false
   sessionMode: SessionMode
   sessionStore?: SessionStore
+  eventStore?: StreamableHttpEventStore
+  retryIntervalMs?: number
   auth?: false | StreamableHttpAuthOptions
   trustedProxies: readonly string[]
   allowedHosts: readonly string[]
@@ -70,6 +75,8 @@ export type StreamableHttpRuntime = {
 }
 
 export type McpAppFactory<Services> = () => McpApp<Services>
+
+export type StreamableHttpEventStore = EventStore
 
 export type ManagedSession = {
   readonly id: string

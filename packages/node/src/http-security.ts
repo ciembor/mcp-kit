@@ -64,6 +64,12 @@ export function normalizeStreamableHttpOptions(
     readinessPath,
     sessionMode,
     ...(sessionStore === undefined ? {} : { sessionStore }),
+    ...(options.eventStore === undefined
+      ? {}
+      : { eventStore: options.eventStore }),
+    ...(options.retryIntervalMs === undefined
+      ? {}
+      : { retryIntervalMs: options.retryIntervalMs }),
     ...(auth === undefined ? {} : { auth }),
     trustedProxies,
     allowedHosts,
@@ -154,6 +160,7 @@ function normalizeCors(
     allowedHeaders: freeze(
       options.allowedHeaders ?? [
         'Content-Type',
+        'Last-Event-ID',
         'MCP-Protocol-Version',
         'Mcp-Session-Id',
         'Authorization'

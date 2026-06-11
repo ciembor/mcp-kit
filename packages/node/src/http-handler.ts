@@ -84,7 +84,9 @@ async function handleStatelessRequest<Services>(
   }
 
   const app = createConfiguredApp(createApp)
-  const transport = new WebStandardStreamableHTTPServerTransport()
+  const transport = new WebStandardStreamableHTTPServerTransport(
+    createTransportOptions(options)
+  )
 
   try {
     await app.connect(transport)
@@ -181,6 +183,7 @@ async function createStatefulSession<Services>(
 
   const app = createConfiguredApp(createApp)
   const transport = new WebStandardStreamableHTTPServerTransport({
+    ...createTransportOptions(options),
     sessionIdGenerator: randomUUID,
     onsessionclosed: async (sessionId) => {
       await closeSession(sessionId)
@@ -228,6 +231,19 @@ function createConfiguredApp<Services>(
   const app = createApp()
   app.setLogger(createStderrLogger())
   return app
+}
+
+function createTransportOptions(
+  options: NormalizedStreamableHttpOptions
+): ConstructorParameters<typeof WebStandardStreamableHTTPServerTransport>[0] {
+  return {
+    ...(options.eventStore === undefined
+      ? {}
+      : { eventStore: options.eventStore }),
+    ...(options.retryIntervalMs === undefined
+      ? {}
+      : { retryInterval: options.retryIntervalMs })
+  }
 }
 
 function rejectRequest(

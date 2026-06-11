@@ -71,6 +71,20 @@ For multi-replica deployments:
 - bind session reuse to the same `subject` and `tenant`
 - avoid sticky sessions as a correctness requirement
 
+## Resumability
+
+The pinned SDK version `@modelcontextprotocol/sdk@1.29.0` supports resumable
+Streamable HTTP through an `eventStore`. In `@mcp-kit/node`, enabling
+resumability means:
+
+- pass `eventStore` in `StreamableHttpOptions`
+- optionally set `retryIntervalMs` to control client reconnect timing
+- allow `Last-Event-ID` through CORS when browsers reconnect
+
+Use `createInMemoryEventStore()` only for tests and local development. A
+production deployment should persist replayable events outside process memory,
+or reconnection after a restart will lose resumability.
+
 ## Recommended production shape
 
 1. TLS terminates at the gateway or a trusted internal proxy.

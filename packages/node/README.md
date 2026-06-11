@@ -8,6 +8,8 @@ Node.js transport and process lifecycle integration for mcp-kit.
 - Public production HTTP requires an explicit auth decision.
 - Trusted proxy configuration is mandatory for `0.0.0.0`.
 - Stateful HTTP is opt-in and should use an external `SessionStore`.
+- Resumability is opt-in through `eventStore` and requires clients that support
+  the MCP `2025-11-25` empty-SSE priming fix.
 
 Deployment guidance and the `SessionStore` integration contract live in
 [docs/http-deployment.md](../../docs/http-deployment.md).
@@ -35,3 +37,10 @@ registerFastifyStreamableHttp(
   { mode: 'development' }
 )
 ```
+
+## Resumability
+
+Pass an `eventStore` to `runStreamableHttp()` or
+`registerFastifyStreamableHttp()` to enable `Last-Event-ID` replay support.
+`createInMemoryEventStore()` is suitable for tests and development; production
+deployments should keep replayable events in external storage.

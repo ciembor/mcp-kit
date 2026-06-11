@@ -5,6 +5,7 @@ import type { McpApp } from '@mcp-kit/core'
 import { createInMemorySessionStore } from './session-store.js'
 
 type MockTransport = {
+  readonly options: MockTransportOptions | undefined
   readonly sessionId: string | undefined
   close: ReturnType<typeof vi.fn<() => Promise<void>>>
   handleRequest: ReturnType<
@@ -25,6 +26,19 @@ type MockTransport = {
 }
 
 type MockTransportOptions = {
+  eventStore?: {
+    storeEvent: (streamId: string, message: unknown) => Promise<string> | string
+    replayEventsAfter: (
+      lastEventId: string,
+      options: {
+        send: (eventId: string, message: unknown) => Promise<void>
+      }
+    ) => Promise<string> | string
+    getStreamIdForEventId?: (
+      eventId: string
+    ) => Promise<string | undefined> | string | undefined
+  }
+  retryInterval?: number
   sessionIdGenerator?: () => string
   onsessionclosed?: (sessionId: string) => Promise<void> | void
 }
@@ -205,6 +219,9 @@ describe('@mcp-kit/node streamable http', () => {
     expect(preflight.headers['access-control-allow-origin']).toBe(
       'https://client.example'
     )
+    expect(preflight.headers['access-control-allow-headers']).toContain(
+      'Last-Event-ID'
+    )
 
     const rejected = await sendNodeRequest(runtime.url, {
       method: 'POST',
@@ -220,6 +237,33 @@ describe('@mcp-kit/node streamable http', () => {
       error: { message: 'Origin "https://evil.example" is not allowed.' }
     })
     expect(apps.instances).toHaveLength(0)
+  })
+
+  it('passes resumability settings through to the SDK transport', async () => {
+    const apps = createAppFactory()
+    const eventStore = {
+      storeEvent: vi.fn(() => Promise.resolve('event-1')),
+      replayEventsAfter: vi.fn(() => Promise.resolve('stream-1')),
+      getStreamIdForEventId: vi.fn(() => Promise.resolve('stream-1'))
+    }
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      eventStore,
+      retryIntervalMs: 2_500
+    })
+    runtimes.push(runtime)
+
+    const response = await fetch(runtime.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ hello: 'world' })
+    })
+
+    expect(response.status).toBe(200)
+    expect(transportInstances[0]?.options).toMatchObject({
+      eventStore,
+      retryInterval: 2_500
+    })
   })
 
   it('returns 413 when the body exceeds the configured limit', async () => {
