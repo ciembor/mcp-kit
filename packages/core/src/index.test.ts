@@ -2,6 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import {
   CreateMessageRequestSchema,
+  ElicitRequestSchema,
   ListRootsRequestSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
@@ -608,6 +609,215 @@ describe('@mcp-kit/core', () => {
     })
     await clientWithoutSampling.close()
     await secondApp.close()
+  })
+
+  it('exposes capability-aware client elicitation through request context', async () => {
+    const app = createMcpApp({
+      name: 'elicitation-server',
+      version: '1.0.0',
+      services: {}
+    })
+    app.tools([
+      defineTool({
+        name: 'elicit-form',
+        inputSchema: z.object({}),
+        handler: async ({ context }) => {
+          const result = await context.client.elicitation.create({
+            message: 'Share your name',
+            requestedSchema: {
+              type: 'object',
+              properties: { name: { type: 'string' } },
+              required: ['name']
+            }
+          })
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  supported: context.client.elicitation.supported,
+                  form: context.client.elicitation.form,
+                  url: context.client.elicitation.url,
+                  result
+                })
+              }
+            ]
+          }
+        }
+      }),
+      defineTool({
+        name: 'elicit-url',
+        inputSchema: z.object({}),
+        handler: async ({ context }) => {
+          const result = await context.client.elicitation.create({
+            mode: 'url',
+            message: 'Open the link',
+            url: 'https://example.com/confirm',
+            elicitationId: 'el-1'
+          })
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  supported: context.client.elicitation.supported,
+                  form: context.client.elicitation.form,
+                  url: context.client.elicitation.url,
+                  result
+                })
+              }
+            ]
+          }
+        }
+      }),
+      defineTool({
+        name: 'elicit-form-without-support',
+        inputSchema: z.object({}),
+        handler: async ({ context }) => {
+          await context.client.elicitation.create({
+            message: 'Share your name',
+            requestedSchema: {
+              type: 'object',
+              properties: { name: { type: 'string' } },
+              required: ['name']
+            }
+          })
+          return { content: [] }
+        }
+      })
+    ])
+
+    const [formClientTransport, formServerTransport] =
+      InMemoryTransport.createLinkedPair()
+    const formClient = new Client(
+      { name: 'elicitation-form-test', version: '1.0.0' },
+      { capabilities: { elicitation: {} } }
+    )
+    formClient.setRequestHandler(ElicitRequestSchema, () => ({
+      action: 'accept',
+      content: { name: 'Ada' }
+    }))
+
+    await Promise.all([
+      app.connect(formServerTransport),
+      formClient.connect(formClientTransport)
+    ])
+
+    await expect(
+      formClient.callTool({ name: 'elicit-form', arguments: {} })
+    ).resolves.toMatchObject({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            supported: true,
+            form: true,
+            url: false,
+            result: {
+              action: 'accept',
+              content: { name: 'Ada' }
+            }
+          })
+        }
+      ]
+    })
+    await formClient.close()
+    await app.close()
+
+    const urlApp = createMcpApp({
+      name: 'elicitation-url-server',
+      version: '1.0.0',
+      services: {}
+    })
+    urlApp.tools([
+      defineTool({
+        name: 'elicit-url',
+        inputSchema: z.object({}),
+        handler: async ({ context }) => {
+          const result = await context.client.elicitation.create({
+            mode: 'url',
+            message: 'Open the link',
+            url: 'https://example.com/confirm',
+            elicitationId: 'el-1'
+          })
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  supported: context.client.elicitation.supported,
+                  form: context.client.elicitation.form,
+                  url: context.client.elicitation.url,
+                  result
+                })
+              }
+            ]
+          }
+        }
+      }),
+      defineTool({
+        name: 'elicit-form-without-support',
+        inputSchema: z.object({}),
+        handler: async ({ context }) => {
+          await context.client.elicitation.create({
+            message: 'Share your name',
+            requestedSchema: {
+              type: 'object',
+              properties: { name: { type: 'string' } },
+              required: ['name']
+            }
+          })
+          return { content: [] }
+        }
+      })
+    ])
+
+    const [urlClientTransport, urlServerTransport] =
+      InMemoryTransport.createLinkedPair()
+    const urlClient = new Client(
+      { name: 'elicitation-url-test', version: '1.0.0' },
+      { capabilities: { elicitation: { url: {} } } }
+    )
+    urlClient.setRequestHandler(ElicitRequestSchema, () => ({
+      action: 'accept'
+    }))
+
+    await Promise.all([
+      urlApp.connect(urlServerTransport),
+      urlClient.connect(urlClientTransport)
+    ])
+
+    await expect(
+      urlClient.callTool({ name: 'elicit-url', arguments: {} })
+    ).resolves.toMatchObject({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            supported: true,
+            form: false,
+            url: true,
+            result: { action: 'accept' }
+          })
+        }
+      ]
+    })
+    await expect(
+      urlClient.callTool({ name: 'elicit-form-without-support', arguments: {} })
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: 'Client does not support form elicitation requests.'
+        }
+      ]
+    })
+    await urlClient.close()
+    await urlApp.close()
   })
 
   it('handles remaining tool protocol and middleware failures', async () => {

@@ -491,6 +491,17 @@ function makeContext(
         supported: false,
         createMessage: () =>
           Promise.reject(new Error('sampling is not available in this test'))
+      },
+      elicitation: {
+        supported: false,
+        form: false,
+        url: false,
+        create: () =>
+          Promise.reject(
+            new Error('elicitation is not available in this test')
+          ),
+        complete: () =>
+          Promise.reject(new Error('elicitation is not available in this test'))
       }
     },
     sdk: {} as never,

@@ -5,6 +5,9 @@ import type {
   CreateMessageRequest,
   CreateMessageResult,
   CreateMessageResultWithTools,
+  ElicitRequestFormParams,
+  ElicitRequestURLParams,
+  ElicitResult,
   Implementation,
   ProgressNotificationParams,
   Root
@@ -115,10 +118,24 @@ export function clientContext(
       params: CreateMessageRequest['params']
     ): Promise<CreateMessageResult | CreateMessageResultWithTools>
   }
+  elicitation: {
+    supported: boolean
+    form: boolean
+    url: boolean
+    create(
+      params: ElicitRequestFormParams | ElicitRequestURLParams
+    ): Promise<ElicitResult>
+    complete(elicitationId: string): Promise<void>
+  }
 } {
   const capabilities = sdk.server.getClientCapabilities() ?? {}
   const supportsRoots = capabilities.roots !== undefined
   const supportsSampling = capabilities.sampling !== undefined
+  const {
+    supportsElicitation,
+    supportsFormElicitation,
+    supportsUrlElicitation
+  } = elicitationSupport(capabilities)
   return {
     info: sdk.server.getClientVersion() ?? { name: '', version: '' },
     capabilities,
@@ -144,6 +161,74 @@ export function clientContext(
         }
         return sdk.server.createMessage(params)
       }
+    },
+    elicitation: {
+      supported: supportsElicitation,
+      form: supportsFormElicitation,
+      url: supportsUrlElicitation,
+      async create(params) {
+        if (!supportsElicitation) {
+          throw new McpKitError({
+            code: 'UNSUPPORTED_CAPABILITY',
+            message: 'Client does not support elicitation/create',
+            safeMessage: 'Client does not support elicitation requests.'
+          })
+        }
+
+        const mode = params.mode ?? 'form'
+        if (mode === 'form' && !supportsFormElicitation) {
+          throw new McpKitError({
+            code: 'UNSUPPORTED_CAPABILITY',
+            message: 'Client does not support form elicitation requests',
+            safeMessage: 'Client does not support form elicitation requests.'
+          })
+        }
+        if (mode === 'url' && !supportsUrlElicitation) {
+          throw new McpKitError({
+            code: 'UNSUPPORTED_CAPABILITY',
+            message: 'Client does not support URL elicitation requests',
+            safeMessage: 'Client does not support URL elicitation requests.'
+          })
+        }
+
+        return sdk.server.elicitInput(params)
+      },
+      async complete(elicitationId) {
+        if (!supportsElicitation) {
+          throw new McpKitError({
+            code: 'UNSUPPORTED_CAPABILITY',
+            message:
+              'Client does not support notifications/elicitation/complete',
+            safeMessage: 'Client does not support elicitation requests.'
+          })
+        }
+        await sdk.server.createElicitationCompletionNotifier(elicitationId)()
+      }
     }
+  }
+}
+
+function elicitationSupport(capabilities: ClientCapabilities): {
+  supportsElicitation: boolean
+  supportsFormElicitation: boolean
+  supportsUrlElicitation: boolean
+} {
+  const elicitation = capabilities.elicitation
+  if (elicitation === undefined) {
+    return {
+      supportsElicitation: false,
+      supportsFormElicitation: false,
+      supportsUrlElicitation: false
+    }
+  }
+
+  const supportsUrlElicitation = elicitation.url !== undefined
+  const supportsFormElicitation =
+    elicitation.form !== undefined || supportsUrlElicitation === false
+
+  return {
+    supportsElicitation: true,
+    supportsFormElicitation,
+    supportsUrlElicitation
   }
 }

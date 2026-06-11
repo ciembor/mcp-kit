@@ -11,6 +11,9 @@ import type {
   CreateMessageRequest,
   CreateMessageResult,
   CreateMessageResultWithTools,
+  ElicitRequestFormParams,
+  ElicitRequestURLParams,
+  ElicitResult,
   GetPromptResult,
   Implementation,
   Root,
@@ -93,6 +96,16 @@ export type ClientSampling = {
   ): Promise<CreateMessageResult | CreateMessageResultWithTools>
 }
 
+export type ClientElicitation = {
+  supported: boolean
+  form: boolean
+  url: boolean
+  create(
+    params: ElicitRequestFormParams | ElicitRequestURLParams
+  ): Promise<ElicitResult>
+  complete(elicitationId: string): Promise<void>
+}
+
 export type RequestContext<Services> = {
   requestId: string
   signal: AbortSignal
@@ -105,6 +118,7 @@ export type RequestContext<Services> = {
     protocolVersion: string
     roots: ClientRoots
     sampling: ClientSampling
+    elicitation: ClientElicitation
   }
   progress?: ProgressReporter
   sdk: ServerRequestContext

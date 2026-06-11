@@ -5,6 +5,7 @@ export {
   type CapabilityPolicy,
   type ClientRoots,
   type ClientSampling,
+  type ClientElicitation,
   type InferSchemaOutput,
   type Logger,
   type ProgressReporter,

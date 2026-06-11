@@ -53,6 +53,19 @@ export function sdkResourceListCallback<Services>(
               Promise.reject(
                 new Error('sampling is not available in resource runtime')
               )
+          },
+          elicitation: {
+            supported: false,
+            form: false,
+            url: false,
+            create: () =>
+              Promise.reject(
+                new Error('elicitation is not available in resource runtime')
+              ),
+            complete: () =>
+              Promise.reject(
+                new Error('elicitation is not available in resource runtime')
+              )
           }
         },
         sdk: extra
