@@ -194,6 +194,12 @@ describe('quality runner', () => {
       })
     )
     await writeFile(resolve(root, 'packages/core/README.md'), '# core\n')
+    await mkdir(resolve(root, 'packages/core/dist'), { recursive: true })
+    await writeFile(resolve(root, 'packages/core/dist/index.js'), 'export {}\n')
+    await writeFile(
+      resolve(root, 'packages/core/dist/index.d.ts'),
+      'export {}\n'
+    )
     await writeFile(
       resolve(root, 'packages/core/src/index.ts'),
       "export const packageInfo = {\n  name: '@mcp-kit/core',\n  version: '1.2.3'\n} as const\n"
@@ -212,6 +218,12 @@ describe('quality runner', () => {
         Promise.resolve({
           exitCode: 0,
           stdout: '[{"filename":"mcp-kit-core.tgz"}]',
+          stderr: ''
+        }),
+      npmInstall: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
           stderr: ''
         }),
       config: configWithCommands(),
@@ -237,13 +249,14 @@ describe('quality runner', () => {
       'build',
       'smoke'
     ])
-    expect(report.steps.map((step) => step.name).slice(-7)).toEqual([
+    expect(report.steps.map((step) => step.name).slice(-8)).toEqual([
       'clean-git',
       'version',
       'changelog',
       'package-exports',
       'package-files',
       'npm-pack',
+      'install-packages',
       'mutation'
     ])
   })

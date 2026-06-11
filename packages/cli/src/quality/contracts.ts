@@ -125,6 +125,18 @@ export type ReleaseNpmPack = (
   signal: AbortSignal
 ) => Promise<ReleaseNpmPackResult>
 
+export type ReleaseNpmInstallResult = {
+  exitCode: number
+  stdout: string
+  stderr: string
+}
+
+export type ReleaseNpmInstall = (
+  installRoot: string,
+  tarballs: readonly string[],
+  signal: AbortSignal
+) => Promise<ReleaseNpmInstallResult>
+
 export type RunQualityOptions = {
   root: string
   mode: QualityMode
@@ -135,4 +147,5 @@ export type RunQualityOptions = {
   execute?: QualityExecutor
   gitStatus?: ReleaseGitStatus
   npmPack?: ReleaseNpmPack
+  npmInstall?: ReleaseNpmInstall
 }

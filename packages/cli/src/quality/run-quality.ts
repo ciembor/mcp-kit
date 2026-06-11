@@ -33,7 +33,8 @@ export async function runQuality(
         execute,
         previousFailed,
         gitStatus: options.gitStatus,
-        npmPack: options.npmPack
+        npmPack: options.npmPack,
+        npmInstall: options.npmInstall
       })
     )
   }
@@ -63,6 +64,7 @@ async function executeStep(
     previousFailed: boolean
     gitStatus?: RunQualityOptions['gitStatus']
     npmPack?: RunQualityOptions['npmPack']
+    npmInstall?: RunQualityOptions['npmInstall']
   }
 ): Promise<QualityStepResult> {
   if (context.previousFailed) return skippedStep(step.name)
@@ -121,6 +123,7 @@ async function executeReleaseCheck(
     signal: AbortSignal
     gitStatus?: RunQualityOptions['gitStatus']
     npmPack?: RunQualityOptions['npmPack']
+    npmInstall?: RunQualityOptions['npmInstall']
   }
 ): Promise<QualityStepResult> {
   const started = performance.now()

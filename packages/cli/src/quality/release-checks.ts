@@ -1,18 +1,50 @@
-import type { Dirent } from 'node:fs'
-import { readdir, readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
 import { spawn } from 'node:child_process'
+import type { Dirent } from 'node:fs'
+import {
+  cp,
+  mkdtemp,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  writeFile
+} from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { resolve } from 'node:path'
 
 import type { ProjectDiagnostic } from '../analysis/project-analysis.js'
 import { isJsonObject } from '../cli-utils.js'
 import type {
-  ReleaseGitStatus,
   ReleaseGitStatusResult,
-  ReleaseNpmPack,
+  ReleaseNpmInstallResult,
   ReleaseNpmPackResult,
   RunQualityOptions
 } from './contracts.js'
 import type { ReleaseCheckName } from './steps.js'
+
+type WorkspacePackageManifest = {
+  name: string
+  version: string
+  private?: boolean
+  path: string
+  directory: string
+  exports?: unknown
+  bin?: unknown
+  files?: unknown
+}
+
+type PackageManifest = {
+  name?: unknown
+  version?: unknown
+  private?: unknown
+  exports?: unknown
+  bin?: unknown
+  files?: unknown
+  dependencies?: unknown
+  devDependencies?: unknown
+  peerDependencies?: unknown
+  optionalDependencies?: unknown
+}
 
 export async function runReleaseCheck(
   check: ReleaseCheckName,
@@ -21,6 +53,7 @@ export async function runReleaseCheck(
     signal: AbortSignal
     gitStatus?: RunQualityOptions['gitStatus']
     npmPack?: RunQualityOptions['npmPack']
+    npmInstall?: RunQualityOptions['npmInstall']
   }
 ): Promise<readonly ProjectDiagnostic[]> {
   switch (check) {
@@ -36,6 +69,12 @@ export async function runReleaseCheck(
       return checkPackageFiles(context.root)
     case 'npm-pack':
       return checkNpmPack(context.root, context.signal, context.npmPack)
+    case 'install-packages':
+      return checkPackedInstall(
+        context.root,
+        context.signal,
+        context.npmInstall
+      )
   }
 }
 
@@ -93,11 +132,7 @@ async function checkVersions(
     )
   }
 
-  const workspacePackages = await readWorkspacePackages(root)
-  const releasePackages = workspacePackages.filter(
-    (manifest) => manifest.private !== true
-  )
-
+  const releasePackages = await releasePackageManifests(root)
   for (const manifest of releasePackages) {
     if (!isSemver(manifest.version)) {
       diagnostics.push(
@@ -170,116 +205,11 @@ async function checkChangelog(
   ]
 }
 
-async function packageInfoDiagnostics(
-  root: string,
-  manifest: WorkspacePackageManifest
-): Promise<readonly ProjectDiagnostic[]> {
-  const sourceRoot = resolve(root, manifest.directory, 'src')
-  const packageInfoFile = await findPackageInfoFile(sourceRoot)
-  if (packageInfoFile === undefined) {
-    return [
-      releaseDiagnostic(
-        'release-version',
-        manifest.path,
-        `Package ${manifest.name} must export packageInfo with name and version`
-      )
-    ]
-  }
-  const source = await readFile(packageInfoFile, 'utf8')
-  const match = source.match(
-    /export const packageInfo\s*=\s*{\s*name:\s*'([^']+)',\s*version:\s*'([^']+)'/s
-  )
-  if (match === null) {
-    return [
-      releaseDiagnostic(
-        'release-version',
-        relativePath(root, packageInfoFile),
-        'packageInfo must declare literal name and version fields'
-      )
-    ]
-  }
-  const [, sourceName, sourceVersion] = match
-  const diagnostics: ProjectDiagnostic[] = []
-  if (sourceName !== manifest.name) {
-    diagnostics.push(
-      releaseDiagnostic(
-        'release-version',
-        relativePath(root, packageInfoFile),
-        `packageInfo name ${sourceName} must match package.json name ${manifest.name}`
-      )
-    )
-  }
-  if (sourceVersion !== manifest.version) {
-    diagnostics.push(
-      releaseDiagnostic(
-        'release-version',
-        relativePath(root, packageInfoFile),
-        `packageInfo version ${sourceVersion} must match package.json version ${manifest.version}`
-      )
-    )
-  }
-  return diagnostics
-}
-
-type WorkspacePackageManifest = {
-  name: string
-  version: string
-  private?: boolean
-  path: string
-  directory: string
-  exports?: unknown
-  bin?: unknown
-  files?: unknown
-}
-
-type PackageManifest = {
-  name?: unknown
-  version?: unknown
-  private?: unknown
-  exports?: unknown
-  bin?: unknown
-  files?: unknown
-}
-
-async function readWorkspacePackages(
-  root: string
-): Promise<readonly WorkspacePackageManifest[]> {
-  const directory = resolve(root, 'packages')
-  let entries: string[]
-  try {
-    entries = await readdir(directory)
-  } catch {
-    return []
-  }
-  const manifests = await Promise.all(
-    entries.map(async (entry) => {
-      const path = resolve(directory, entry, 'package.json')
-      const manifest = await readPackageManifest(path)
-      if (manifest === undefined || typeof manifest.name !== 'string') {
-        return undefined
-      }
-      return {
-        name: manifest.name,
-        version: String(manifest.version ?? ''),
-        private: manifest.private === true,
-        path: relativePath(root, path),
-        directory: `packages/${entry}`,
-        exports: manifest.exports,
-        bin: manifest.bin,
-        files: manifest.files
-      } satisfies WorkspacePackageManifest
-    })
-  )
-  return manifests.filter((manifest) => manifest !== undefined)
-}
-
 async function checkPackageExports(
   root: string
 ): Promise<readonly ProjectDiagnostic[]> {
   const diagnostics: ProjectDiagnostic[] = []
-  const releasePackages = (await readWorkspacePackages(root)).filter(
-    (manifest) => manifest.private !== true
-  )
+  const releasePackages = await releasePackageManifests(root)
 
   for (const manifest of releasePackages) {
     if (!isJsonObject(manifest.exports)) {
@@ -292,6 +222,7 @@ async function checkPackageExports(
       )
       continue
     }
+
     const rootExport = manifest.exports['.']
     if (!isJsonObject(rootExport)) {
       diagnostics.push(
@@ -303,6 +234,7 @@ async function checkPackageExports(
       )
       continue
     }
+
     if (
       typeof rootExport['import'] !== 'string' ||
       typeof rootExport['types'] !== 'string'
@@ -316,6 +248,7 @@ async function checkPackageExports(
       )
       continue
     }
+
     for (const target of exportTargets(manifest.exports)) {
       if (!target.startsWith('./dist/')) {
         diagnostics.push(
@@ -327,6 +260,7 @@ async function checkPackageExports(
         )
       }
     }
+
     for (const target of binTargets(manifest.bin)) {
       if (!target.startsWith('./dist/')) {
         diagnostics.push(
@@ -347,9 +281,7 @@ async function checkPackageFiles(
   root: string
 ): Promise<readonly ProjectDiagnostic[]> {
   const diagnostics: ProjectDiagnostic[] = []
-  const releasePackages = (await readWorkspacePackages(root)).filter(
-    (manifest) => manifest.private !== true
-  )
+  const releasePackages = await releasePackageManifests(root)
 
   for (const manifest of releasePackages) {
     if (
@@ -365,9 +297,11 @@ async function checkPackageFiles(
       )
       continue
     }
+
     const files = manifest.files
       .filter((entry): entry is string => typeof entry === 'string')
       .map((entry) => normalizePublishPath(entry))
+
     if (!files.includes('README.md')) {
       diagnostics.push(
         releaseDiagnostic(
@@ -377,10 +311,12 @@ async function checkPackageFiles(
         )
       )
     }
+
     const targets = [
       ...exportTargets(manifest.exports),
       ...binTargets(manifest.bin)
     ].map((target) => normalizePublishPath(target))
+
     for (const target of targets) {
       if (!files.some((entry) => coversPublishedPath(entry, target))) {
         diagnostics.push(
@@ -403,9 +339,7 @@ async function checkNpmPack(
   npmPack: RunQualityOptions['npmPack']
 ): Promise<readonly ProjectDiagnostic[]> {
   const diagnostics: ProjectDiagnostic[] = []
-  const releasePackages = (await readWorkspacePackages(root)).filter(
-    (manifest) => manifest.private !== true
-  )
+  const releasePackages = await releasePackageManifests(root)
 
   for (const manifest of releasePackages) {
     const packageRoot = resolve(root, manifest.directory)
@@ -441,11 +375,423 @@ async function checkNpmPack(
           `npm pack must report at least one packed artifact for ${manifest.name}`
         )
       )
-      continue
     }
   }
 
   return diagnostics
+}
+
+async function checkPackedInstall(
+  root: string,
+  signal: AbortSignal,
+  npmInstall: RunQualityOptions['npmInstall']
+): Promise<readonly ProjectDiagnostic[]> {
+  const releasePackages = await releasePackageManifests(root)
+  const tempRoot = await mkdtemp(resolve(tmpdir(), 'mcp-kit-release-install-'))
+
+  try {
+    const tarballDirectory = resolve(tempRoot, 'tarballs')
+    const stagingDirectory = resolve(tempRoot, 'staged')
+    const installDirectory = resolve(tempRoot, 'install')
+    await mkdir(tarballDirectory, { recursive: true })
+    await mkdir(stagingDirectory, { recursive: true })
+    await mkdir(installDirectory, { recursive: true })
+
+    const packed = await packReleasePackages(
+      root,
+      releasePackages,
+      tarballDirectory,
+      stagingDirectory,
+      signal
+    )
+    if (packed.diagnostics.length > 0) return packed.diagnostics
+
+    await writeFile(
+      resolve(installDirectory, 'package.json'),
+      `${JSON.stringify({ name: 'mcp-kit-release-install', private: true }, null, 2)}\n`
+    )
+
+    const result = await (npmInstall ?? runNpmInstall)(
+      installDirectory,
+      packed.tarballs,
+      signal
+    )
+    if (result.exitCode !== 0) {
+      return [
+        releaseDiagnostic(
+          'release-install-packages',
+          'package.json',
+          `npm install failed for packed release tarballs: ${sanitizeMessage(result.stderr, 'unknown error')}`
+        )
+      ]
+    }
+
+    return []
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true })
+  }
+}
+
+async function packReleasePackages(
+  root: string,
+  manifests: readonly WorkspacePackageManifest[],
+  tarballDirectory: string,
+  stagingDirectory: string,
+  signal: AbortSignal
+): Promise<{
+  tarballs: readonly string[]
+  diagnostics: readonly ProjectDiagnostic[]
+}> {
+  const tarballs: string[] = []
+  const diagnostics: ProjectDiagnostic[] = []
+  const versions = new Map(
+    manifests.map((manifest) => [manifest.name, manifest.version])
+  )
+
+  for (const manifest of manifests) {
+    const stagedRoot = resolve(
+      stagingDirectory,
+      manifest.name.replaceAll('/', '__')
+    )
+    const staged = await createPackStage(root, manifest, stagedRoot, versions)
+    if (staged.diagnostics.length > 0) {
+      diagnostics.push(...staged.diagnostics)
+      continue
+    }
+
+    const packed = await packDirectory(stagedRoot, tarballDirectory, signal)
+    if (packed.diagnostics.length > 0) {
+      diagnostics.push(
+        ...packed.diagnostics.map((diagnostic) => ({
+          ...diagnostic,
+          file: manifest.path
+        }))
+      )
+      continue
+    }
+
+    tarballs.push(...packed.tarballs)
+  }
+
+  return { tarballs, diagnostics }
+}
+
+async function createPackStage(
+  root: string,
+  manifest: WorkspacePackageManifest,
+  targetRoot: string,
+  versions: ReadonlyMap<string, string>
+): Promise<{ diagnostics: readonly ProjectDiagnostic[] }> {
+  const packageRoot = resolve(root, manifest.directory)
+  await mkdir(targetRoot, { recursive: true })
+
+  if (
+    !Array.isArray(manifest.files) ||
+    manifest.files.some((entry) => typeof entry !== 'string')
+  ) {
+    return {
+      diagnostics: [
+        releaseDiagnostic(
+          'release-install-packages',
+          manifest.path,
+          `Package ${manifest.name} must define a string files array before packing`
+        )
+      ]
+    }
+  }
+
+  for (const entry of manifest.files) {
+    const relative = String(entry)
+    try {
+      await cp(resolve(packageRoot, relative), resolve(targetRoot, relative), {
+        recursive: true
+      })
+    } catch (error) {
+      return {
+        diagnostics: [
+          releaseDiagnostic(
+            'release-install-packages',
+            manifest.path,
+            `Cannot stage ${relative} for ${manifest.name}: ${sanitizeMessage(String(error), 'copy failed')}`
+          )
+        ]
+      }
+    }
+  }
+
+  const packageJson = await readPackageManifest(
+    resolve(packageRoot, 'package.json')
+  )
+  if (packageJson === undefined) {
+    return {
+      diagnostics: [
+        releaseDiagnostic(
+          'release-install-packages',
+          manifest.path,
+          'package.json is missing or invalid'
+        )
+      ]
+    }
+  }
+
+  const rewritten = rewriteWorkspaceManifest(
+    packageJson,
+    versions,
+    manifest.path
+  )
+  if (rewritten.diagnostics.length > 0) return rewritten
+
+  await writeFile(
+    resolve(targetRoot, 'package.json'),
+    `${JSON.stringify(rewritten.manifest, null, 2)}\n`
+  )
+  return { diagnostics: [] }
+}
+
+function rewriteWorkspaceManifest(
+  manifest: PackageManifest,
+  versions: ReadonlyMap<string, string>,
+  manifestPath: string
+): { manifest: PackageManifest; diagnostics: readonly ProjectDiagnostic[] } {
+  const diagnostics: ProjectDiagnostic[] = []
+  const rewritten: PackageManifest = { ...manifest }
+
+  for (const field of [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies'
+  ] as const) {
+    const resolved = rewriteDependencyMap(
+      rewritten[field],
+      versions,
+      manifestPath
+    )
+    rewritten[field] = resolved.map
+    diagnostics.push(...resolved.diagnostics)
+  }
+
+  return { manifest: rewritten, diagnostics }
+}
+
+function rewriteDependencyMap(
+  input: unknown,
+  versions: ReadonlyMap<string, string>,
+  manifestPath: string
+): { map: unknown; diagnostics: readonly ProjectDiagnostic[] } {
+  if (!isJsonObject(input)) {
+    return { map: input, diagnostics: [] }
+  }
+
+  const rewritten: Record<string, unknown> = {}
+  const diagnostics: ProjectDiagnostic[] = []
+
+  for (const [dependency, range] of Object.entries(input)) {
+    if (typeof range !== 'string' || !range.startsWith('workspace:')) {
+      rewritten[dependency] = range
+      continue
+    }
+
+    const resolved = resolveWorkspaceRange(range, dependency, versions)
+    if (resolved === undefined) {
+      diagnostics.push(
+        releaseDiagnostic(
+          'release-install-packages',
+          manifestPath,
+          `Cannot rewrite workspace dependency ${dependency} from ${range}`
+        )
+      )
+      rewritten[dependency] = range
+      continue
+    }
+    rewritten[dependency] = resolved
+  }
+
+  return { map: rewritten, diagnostics }
+}
+
+function resolveWorkspaceRange(
+  range: string,
+  dependency: string,
+  versions: ReadonlyMap<string, string>
+): string | undefined {
+  const version = versions.get(dependency)
+  if (version === undefined) return undefined
+  const suffix = range.slice('workspace:'.length)
+  if (suffix === '' || suffix === '*') return version
+  if (suffix === '^' || suffix === '~') return `${suffix}${version}`
+  if (isSemver(suffix)) return suffix
+  return version
+}
+
+async function packDirectory(
+  packageRoot: string,
+  tarballDirectory: string,
+  signal: AbortSignal
+): Promise<{
+  tarballs: readonly string[]
+  diagnostics: readonly ProjectDiagnostic[]
+}> {
+  const result = await runNpmPackArchive(packageRoot, tarballDirectory, signal)
+  if (result.exitCode !== 0) {
+    return {
+      tarballs: [],
+      diagnostics: [
+        releaseDiagnostic(
+          'release-install-packages',
+          'package.json',
+          `npm pack failed while preparing install tarballs: ${sanitizeMessage(result.stderr, 'unknown error')}`
+        )
+      ]
+    }
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(result.stdout) as unknown
+  } catch {
+    return {
+      tarballs: [],
+      diagnostics: [
+        releaseDiagnostic(
+          'release-install-packages',
+          'package.json',
+          'npm pack must return JSON output while preparing install tarballs'
+        )
+      ]
+    }
+  }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    return {
+      tarballs: [],
+      diagnostics: [
+        releaseDiagnostic(
+          'release-install-packages',
+          'package.json',
+          'npm pack must report at least one packed tarball'
+        )
+      ]
+    }
+  }
+
+  const tarballs = parsed.flatMap((entry) => {
+    if (!isJsonObject(entry) || typeof entry['filename'] !== 'string') {
+      return []
+    }
+    return [resolve(tarballDirectory, entry['filename'])]
+  })
+
+  if (tarballs.length === 0) {
+    return {
+      tarballs: [],
+      diagnostics: [
+        releaseDiagnostic(
+          'release-install-packages',
+          'package.json',
+          'npm pack JSON output did not contain filenames'
+        )
+      ]
+    }
+  }
+
+  return { tarballs, diagnostics: [] }
+}
+
+async function packageInfoDiagnostics(
+  root: string,
+  manifest: WorkspacePackageManifest
+): Promise<readonly ProjectDiagnostic[]> {
+  const sourceRoot = resolve(root, manifest.directory, 'src')
+  const packageInfoFile = await findPackageInfoFile(sourceRoot)
+  if (packageInfoFile === undefined) {
+    return [
+      releaseDiagnostic(
+        'release-version',
+        manifest.path,
+        `Package ${manifest.name} must export packageInfo with name and version`
+      )
+    ]
+  }
+
+  const source = await readFile(packageInfoFile, 'utf8')
+  const match = source.match(
+    /export const packageInfo\s*=\s*{\s*name:\s*'([^']+)',\s*version:\s*'([^']+)'/s
+  )
+  if (match === null) {
+    return [
+      releaseDiagnostic(
+        'release-version',
+        relativePath(root, packageInfoFile),
+        'packageInfo must declare literal name and version fields'
+      )
+    ]
+  }
+
+  const [, sourceName, sourceVersion] = match
+  const diagnostics: ProjectDiagnostic[] = []
+  if (sourceName !== manifest.name) {
+    diagnostics.push(
+      releaseDiagnostic(
+        'release-version',
+        relativePath(root, packageInfoFile),
+        `packageInfo name ${sourceName} must match package.json name ${manifest.name}`
+      )
+    )
+  }
+  if (sourceVersion !== manifest.version) {
+    diagnostics.push(
+      releaseDiagnostic(
+        'release-version',
+        relativePath(root, packageInfoFile),
+        `packageInfo version ${sourceVersion} must match package.json version ${manifest.version}`
+      )
+    )
+  }
+  return diagnostics
+}
+
+async function releasePackageManifests(
+  root: string
+): Promise<readonly WorkspacePackageManifest[]> {
+  return (await readWorkspacePackages(root)).filter(
+    (manifest) => manifest.private !== true
+  )
+}
+
+async function readWorkspacePackages(
+  root: string
+): Promise<readonly WorkspacePackageManifest[]> {
+  const directory = resolve(root, 'packages')
+  let entries: string[]
+  try {
+    entries = await readdir(directory)
+  } catch {
+    return []
+  }
+
+  const manifests = await Promise.all(
+    entries.map(async (entry) => {
+      const path = resolve(directory, entry, 'package.json')
+      const manifest = await readPackageManifest(path)
+      if (manifest === undefined || typeof manifest.name !== 'string') {
+        return undefined
+      }
+
+      return {
+        name: manifest.name,
+        version: String(manifest.version ?? ''),
+        private: manifest.private === true,
+        path: relativePath(root, path),
+        directory: `packages/${entry}`,
+        exports: manifest.exports,
+        bin: manifest.bin,
+        files: manifest.files
+      } satisfies WorkspacePackageManifest
+    })
+  )
+
+  return manifests.filter((manifest) => manifest !== undefined)
 }
 
 async function readPackageManifest(
@@ -480,6 +826,7 @@ async function findPackageInfoFile(
     const source = await readFile(absolute, 'utf8')
     if (source.includes('export const packageInfo')) return absolute
   }
+
   return undefined
 }
 
@@ -551,49 +898,51 @@ async function readGitStatus(
   root: string,
   signal: AbortSignal
 ): Promise<ReleaseGitStatusResult> {
-  return new Promise((resolvePromise) => {
-    const child = spawn('git', ['status', '--short'], {
-      cwd: root,
-      stdio: ['ignore', 'pipe', 'pipe']
-    })
-    let stdout = ''
-    let stderr = ''
-    child.stdout.on('data', (chunk: Buffer | string) => {
-      stdout += String(chunk)
-    })
-    child.stderr.on('data', (chunk: Buffer | string) => {
-      stderr += String(chunk)
-    })
-    const abort = () => child.kill('SIGTERM')
-    signal.addEventListener('abort', abort, { once: true })
-    child.once('error', (error) => {
-      signal.removeEventListener('abort', abort)
-      resolvePromise({
-        exitCode: 70,
-        stdout,
-        stderr: error instanceof Error ? error.message : String(error)
-      })
-    })
-    child.once('exit', (code, exitSignal) => {
-      signal.removeEventListener('abort', abort)
-      resolvePromise({
-        exitCode:
-          code ??
-          (exitSignal === 'SIGINT' ? 130 : exitSignal === 'SIGTERM' ? 143 : 70),
-        stdout,
-        stderr
-      })
-    })
-  })
+  return runCommand('git', ['status', '--short'], root, signal)
 }
 
 async function runNpmPack(
   packageRoot: string,
   signal: AbortSignal
 ): Promise<ReleaseNpmPackResult> {
+  return runCommand('npm', ['pack', '--json', '--dry-run'], packageRoot, signal)
+}
+
+async function runNpmPackArchive(
+  packageRoot: string,
+  tarballDirectory: string,
+  signal: AbortSignal
+): Promise<ReleaseNpmPackResult> {
+  return runCommand(
+    'npm',
+    ['pack', '--json', '--pack-destination', tarballDirectory],
+    packageRoot,
+    signal
+  )
+}
+
+async function runNpmInstall(
+  installRoot: string,
+  tarballs: readonly string[],
+  signal: AbortSignal
+): Promise<ReleaseNpmInstallResult> {
+  return runCommand(
+    'npm',
+    ['install', '--ignore-scripts', '--no-package-lock', ...tarballs],
+    installRoot,
+    signal
+  )
+}
+
+async function runCommand(
+  program: string,
+  args: readonly string[],
+  cwd: string,
+  signal: AbortSignal
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   return new Promise((resolvePromise) => {
-    const child = spawn('npm', ['pack', '--json', '--dry-run'], {
-      cwd: packageRoot,
+    const child = spawn(program, [...args], {
+      cwd,
       stdio: ['ignore', 'pipe', 'pipe']
     })
     let stdout = ''
