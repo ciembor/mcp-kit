@@ -387,7 +387,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Przetestowac izolacje tenantow.
 - [x] Przetestowac session fixation/hijacking i ponowne uzycie session id.
 - [x] Przetestowac zly Host, Origin i konfiguracje CORS.
-- [ ] Przetestowac DNS rebinding protections.
+- [x] Przetestowac DNS rebinding protections.
 - [ ] Przetestowac path traversal, symlink escape i SSRF.
 - [x] Przetestowac forged proxy headers i bledna konfiguracje trusted proxy.
 - [x] Przetestowac brak sticky sessions i zewnetrzny session store.

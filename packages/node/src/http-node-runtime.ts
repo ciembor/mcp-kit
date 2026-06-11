@@ -13,7 +13,10 @@ import type {
 } from './http-contracts.js'
 import { createStreamableHttpHandler } from './http-handler.js'
 import { requestUrlFromNodeRequest } from './proxy-resolution.js'
-import { normalizeStreamableHttpOptions } from './http-security.js'
+import {
+  normalizeStreamableHttpOptions,
+  validateHostHeader
+} from './http-security.js'
 
 export type NodeHttpRuntime = {
   readonly options: StreamableHttpRuntime['options']
@@ -198,6 +201,14 @@ function controlEndpointResponse(
   const requestUrl = new URL(
     requestUrlFromNodeRequest(req, options.trustedProxies)
   )
+  const request = new Request(requestUrl, {
+    method: req.method,
+    headers: toHeaders(req)
+  })
+  const hostError = validateHostHeader(request, options.allowedHosts)
+  if (hostError !== undefined) {
+    return jsonErrorResponse(403, hostError)
+  }
   const pathname = requestUrl.pathname
 
   if (options.healthPath !== false && pathname === options.healthPath) {
@@ -263,6 +274,20 @@ function controlEndpointResponse(
   }
 
   return undefined
+}
+
+function jsonErrorResponse(status: number, message: string): Response {
+  return new Response(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      error: { code: -32000, message },
+      id: null
+    }),
+    {
+      status,
+      headers: { 'content-type': 'application/json; charset=utf-8' }
+    }
+  )
 }
 
 export function protectedResourceMetadataPath(path: string): string {

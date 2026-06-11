@@ -872,6 +872,35 @@ describe('@mcp-kit/node streamable http', () => {
     })
   })
 
+  it('rejects DNS-rebinding style Host headers on the protected resource metadata endpoint', async () => {
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      auth: {
+        verifyBearerToken: createVerifier(),
+        metadata: {
+          authorizationServers: ['https://auth.example/.well-known/oauth']
+        }
+      }
+    })
+    runtimes.push(runtime)
+
+    const response = await sendNodeRequest(
+      `http://127.0.0.1:${runtime.options.port}/.well-known/oauth-protected-resource/mcp`,
+      {
+        method: 'GET',
+        headers: {
+          host: 'evil.example'
+        }
+      }
+    )
+
+    expect(response.status).toBe(403)
+    expect(JSON.parse(response.body)).toMatchObject({
+      error: { message: 'Host "evil.example" is not allowed.' }
+    })
+  })
+
   it('rejects invalid bearer tokens', async () => {
     const apps = createAppFactory()
     const runtime = await runStreamableHttp(apps.createApp, {
