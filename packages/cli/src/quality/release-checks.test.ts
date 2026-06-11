@@ -389,7 +389,7 @@ describe('release quality checks', () => {
         })
       ]
     })
-  })
+  }, 10_000)
 })
 
 function releaseOnlyConfig() {

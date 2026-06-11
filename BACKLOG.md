@@ -382,7 +382,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 
 ### Testy security
 
-- [ ] Przetestowac brak tokenu i niewlasciwy scope.
+- [x] Przetestowac brak tokenu i niewlasciwy scope.
 - [ ] Przetestowac zly issuer, audience, podpis i wygasniecie.
 - [ ] Przetestowac izolacje tenantow.
 - [ ] Przetestowac session fixation/hijacking i ponowne uzycie session id.
