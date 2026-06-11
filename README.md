@@ -11,6 +11,8 @@ servers.
     <a href="#requirements">Requirements</a>
     ·
     <a href="#development">Development</a>
+    ·
+    <a href="#release">Release</a>
   </p>
 </div>
 
@@ -26,3 +28,7 @@ corepack enable
 pnpm install --frozen-lockfile
 pnpm quality
 ```
+
+## Release
+
+The standard release and rollback procedure lives in [docs/release.md](./docs/release.md).

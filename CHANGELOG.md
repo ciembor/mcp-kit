@@ -9,3 +9,4 @@
 - Added a manual GitHub Actions release workflow that installs dependencies, builds the CLI, and runs `mcp-kit release --publish`.
 - Added npm provenance to release publishing and switched the release workflow to GitHub OIDC trusted publishing instead of an npm token.
 - Added release publish guards that refuse publishing outside `main` or while the root package version is still the `0.0.0` placeholder.
+- Documented the standard release and rollback procedure, including the GitHub Actions workflow, trusted publisher setup, and npm deprecate-first rollback guidance.

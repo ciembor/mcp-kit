@@ -411,7 +411,7 @@ Cel: zapewnic powtarzalne budowanie i publikowanie pakietow bez omijania quality
 - [x] Zaimplementowac `quality --release`.
 - [x] Sprawdzac clean git, wersje i changelog.
 - [x] Sprawdzac package exports i liste publikowanych plikow.
-- [ ] Wykonywac build wszystkich publikowanych pakietow.
+- [x] Wykonywac build wszystkich publikowanych pakietow.
 - [x] Wykonywac `npm pack` dla kazdego pakietu.
 - [x] Instalowac paczki w izolowanym katalogu tymczasowym.
 - [x] Testowac root imports, subpath exports, typy i CLI.
@@ -426,13 +426,13 @@ Cel: zapewnic powtarzalne budowanie i publikowanie pakietow bez omijania quality
 - [x] Dodac GitHub Actions release workflow.
 - [x] Dodac provenance i rekomendowane npm trusted publishing.
 - [x] Dodac ochrone przed publikacja z niewlasciwej galezi lub wersji.
-- [ ] Udokumentowac standardowa procedure release i rollback.
+- [x] Udokumentowac standardowa procedure release i rollback.
 
 ### Definition of Done
 
-- [ ] Standardowa sciezka publikacji zawsze wykonuje `quality --release`.
-- [ ] Opublikowane tarballe przechodza smoke test w czystym projekcie.
-- [ ] CLI dziala po instalacji z wygenerowanego tarballa.
+- [x] Standardowa sciezka publikacji zawsze wykonuje `quality --release`.
+- [x] Opublikowane tarballe przechodza smoke test w czystym projekcie.
+- [x] CLI dziala po instalacji z wygenerowanego tarballa.
 
 ## Milestone 7: Mutation testing
 
