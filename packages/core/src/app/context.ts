@@ -3,7 +3,8 @@ import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import type {
   ClientCapabilities,
   Implementation,
-  ProgressNotificationParams
+  ProgressNotificationParams,
+  Root
 } from '@modelcontextprotocol/sdk/types.js'
 
 import type {
@@ -99,10 +100,26 @@ export function clientContext(
   info?: Implementation
   capabilities: ClientCapabilities
   protocolVersion: string
+  roots: {
+    supported: boolean
+    listChanged: boolean
+    list(): Promise<readonly Root[] | undefined>
+  }
 } {
+  const capabilities = sdk.server.getClientCapabilities() ?? {}
+  const supportsRoots = capabilities.roots !== undefined
   return {
     info: sdk.server.getClientVersion() ?? { name: '', version: '' },
-    capabilities: sdk.server.getClientCapabilities() ?? {},
-    protocolVersion: protocolVersion || LATEST_PROTOCOL_VERSION
+    capabilities,
+    protocolVersion: protocolVersion || LATEST_PROTOCOL_VERSION,
+    roots: {
+      supported: supportsRoots,
+      listChanged: capabilities.roots?.listChanged === true,
+      async list() {
+        if (!supportsRoots) return undefined
+        const result = await sdk.server.listRoots()
+        return result.roots
+      }
+    }
   }
 }

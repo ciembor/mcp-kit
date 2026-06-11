@@ -41,7 +41,12 @@ export function sdkResourceListCallback<Services>(
         logger: silentLogger,
         client: {
           capabilities: {},
-          protocolVersion: LATEST_PROTOCOL_VERSION
+          protocolVersion: LATEST_PROTOCOL_VERSION,
+          roots: {
+            supported: false,
+            listChanged: false,
+            list: () => Promise.resolve(undefined)
+          }
         },
         sdk: extra
       }

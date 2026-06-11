@@ -1,5 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { describe, expect, it } from 'vitest'
 
@@ -334,6 +335,133 @@ describe('@mcp-kit/core', () => {
     })
 
     await client.close()
+  })
+
+  it('exposes capability-aware client roots through request context', async () => {
+    const app = createMcpApp({
+      name: 'roots-server',
+      version: '1.0.0',
+      services: {}
+    })
+    app.tools([
+      defineTool({
+        name: 'inspect-roots',
+        inputSchema: z.object({}),
+        handler: async ({ context }) => {
+          const roots = await context.client.roots.list()
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  supported: context.client.roots.supported,
+                  listChanged: context.client.roots.listChanged,
+                  roots
+                })
+              }
+            ]
+          }
+        }
+      }),
+      defineTool({
+        name: 'inspect-roots-without-capability',
+        inputSchema: z.object({}),
+        handler: async ({ context }) => ({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                supported: context.client.roots.supported,
+                roots: await context.client.roots.list()
+              })
+            }
+          ]
+        })
+      })
+    ])
+
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
+    const client = new Client(
+      { name: 'roots-test', version: '1.0.0' },
+      { capabilities: { roots: { listChanged: true } } }
+    )
+    client.setRequestHandler(ListRootsRequestSchema, () => ({
+      roots: [{ uri: 'file:///workspace', name: 'workspace' }]
+    }))
+
+    await Promise.all([
+      app.connect(serverTransport),
+      client.connect(clientTransport)
+    ])
+
+    await expect(
+      client.callTool({ name: 'inspect-roots', arguments: {} })
+    ).resolves.toMatchObject({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            supported: true,
+            listChanged: true,
+            roots: [{ uri: 'file:///workspace', name: 'workspace' }]
+          })
+        }
+      ]
+    })
+    await client.close()
+    await app.close()
+
+    const secondApp = createMcpApp({
+      name: 'roots-server-missing-capability',
+      version: '1.0.0',
+      services: {}
+    })
+    secondApp.tools([
+      defineTool({
+        name: 'inspect-roots-without-capability',
+        inputSchema: z.object({}),
+        handler: async ({ context }) => ({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                supported: context.client.roots.supported,
+                roots: await context.client.roots.list()
+              })
+            }
+          ]
+        })
+      })
+    ])
+
+    const [secondClientTransport, secondServerTransport] =
+      InMemoryTransport.createLinkedPair()
+    const clientWithoutRoots = new Client(
+      { name: 'roots-test-missing', version: '1.0.0' },
+      { capabilities: {} }
+    )
+
+    await Promise.all([
+      secondApp.connect(secondServerTransport),
+      clientWithoutRoots.connect(secondClientTransport)
+    ])
+
+    await expect(
+      clientWithoutRoots.callTool({
+        name: 'inspect-roots-without-capability',
+        arguments: {}
+      })
+    ).resolves.toMatchObject({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ supported: false, roots: undefined })
+        }
+      ]
+    })
+    await clientWithoutRoots.close()
+    await secondApp.close()
   })
 
   it('handles remaining tool protocol and middleware failures', async () => {

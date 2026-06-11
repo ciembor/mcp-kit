@@ -2,7 +2,6 @@ import type {
   AnySchema,
   SchemaOutput
 } from '@modelcontextprotocol/sdk/server/zod-compat.js'
-import type { CompleteCallback } from '@modelcontextprotocol/sdk/server/completable.js'
 import type { CompleteResourceTemplateCallback } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
@@ -11,6 +10,7 @@ import type {
   ClientCapabilities,
   GetPromptResult,
   Implementation,
+  Root,
   ListResourcesResult,
   ProgressNotificationParams,
   ReadResourceResult,
@@ -77,6 +77,12 @@ export type ProgressReporter = {
   ): Promise<void>
 }
 
+export type ClientRoots = {
+  supported: boolean
+  listChanged: boolean
+  list(): Promise<readonly Root[] | undefined>
+}
+
 export type RequestContext<Services> = {
   requestId: string
   signal: AbortSignal
@@ -87,6 +93,7 @@ export type RequestContext<Services> = {
     info?: Implementation
     capabilities: ClientCapabilities
     protocolVersion: string
+    roots: ClientRoots
   }
   progress?: ProgressReporter
   sdk: ServerRequestContext

@@ -3,6 +3,7 @@ export {
   type AnyResourceDefinition,
   type AuthContext,
   type CapabilityPolicy,
+  type ClientRoots,
   type InferSchemaOutput,
   type Logger,
   type ProgressReporter,
