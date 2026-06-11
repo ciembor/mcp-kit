@@ -493,5 +493,5 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 - [ ] Gateway deployment zachowuje walidacje tokenu, autoryzacje, limity i audit w serwerze.
 - [ ] Dlugie operacje uzywaja job/task pattern i przezywaja restart workera.
 - [ ] CLI jest idempotentne, transakcyjne i bezpieczne dla niezarzadzanych plikow.
-- [ ] Dokumentacja zawiera tutorial, API reference, security guide i migration guide.
+- [x] Dokumentacja zawiera tutorial, API reference, security guide i migration guide.
 - [ ] Release tarball smoke tests przechodza dla wszystkich publikowanych pakietow.

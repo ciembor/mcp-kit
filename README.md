@@ -37,6 +37,8 @@ pnpm quality
 
 - Core API reference: [docs/api-core.md](./docs/api-core.md)
 - Compatibility matrix: [docs/compatibility.md](./docs/compatibility.md)
+- Tutorial: [docs/tutorial.md](./docs/tutorial.md)
+- Security guide: [docs/security-guide.md](./docs/security-guide.md)
 - Semver policy: [docs/semver-policy.md](./docs/semver-policy.md)
 - Migration guide: [docs/migration-guide.md](./docs/migration-guide.md)
 
