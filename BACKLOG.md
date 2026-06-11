@@ -458,7 +458,7 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 
 ### Capabilities
 
-- [ ] Dodac completions.
+- [x] Dodac completions.
 - [ ] Dodac roots z kontrola capabilities klienta.
 - [ ] Dodac sampling z kontrolowanym bledem przy braku wsparcia klienta.
 - [ ] Dodac form i URL elicitation.

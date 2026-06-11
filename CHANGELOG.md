@@ -14,3 +14,4 @@
 - Added typed mutation config with reasoned exclusions and explicit release opt-in for mutation runs.
 - Added a nightly/manual GitHub Actions mutation workflow that delegates to `pnpm quality:mutation`.
 - Added optional release mutation enforcement via `mutation.runInRelease`, while keeping mutation opt-in outside explicitly configured release paths.
+- Added prompt and resource-template completions in `@mcp-kit/core`, including a public `completable(...)` export aligned with the pinned MCP SDK.

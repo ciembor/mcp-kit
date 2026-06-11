@@ -4,6 +4,9 @@ export {
   defineRegistry,
   defineResource,
   defineTool,
+  completable,
+  getCompleter,
+  isCompletable,
   McpKitError,
   packageInfo,
   type AnyResourceDefinition,
@@ -13,6 +16,8 @@ export {
   type Logger,
   type ProgressReporter,
   type PromptDefinition,
+  type CompleteCallback,
+  type CompletableSchema,
   type RegistryItem,
   type RequestContext,
   type ResourceDefinition,
@@ -23,7 +28,8 @@ export {
   type ToolDefinition,
   type ToolHandlerArgs,
   type ToolOptions,
-  type ToolPolicy
+  type ToolPolicy,
+  unwrapCompletable
 } from './definitions.js'
 export {
   silentLogger,

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import {
+  completable,
   definePrompt,
   defineRegistry,
   defineResource,
@@ -82,5 +83,26 @@ describe('definition contracts', () => {
       safeMessage: 'Operation failed.',
       cause
     })
+
+    const prompt = definePrompt({
+      name: 'complete-me',
+      argsSchema: z.object({
+        city: completable(z.string(), () => ['Warsaw'])
+      }),
+      render: () => ({ messages: [] })
+    })
+    expect(prompt.argsSchema.shape.city).toBeDefined()
+
+    const resource = defineResource({
+      name: 'templated',
+      uriTemplate: 'thing://{id}',
+      complete: {
+        id: () => ['42']
+      },
+      read: ({ params }) => ({
+        contents: [{ uri: `thing://${params.id}`, text: params.id }]
+      })
+    })
+    expect(resource.complete?.id).toBeTypeOf('function')
   })
 })

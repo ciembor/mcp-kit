@@ -2,6 +2,8 @@ import type {
   AnySchema,
   SchemaOutput
 } from '@modelcontextprotocol/sdk/server/zod-compat.js'
+import type { CompleteCallback } from '@modelcontextprotocol/sdk/server/completable.js'
+import type { CompleteResourceTemplateCallback } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type {
@@ -147,6 +149,12 @@ export type TemplateResourceDefinition<
   uriTemplate: Template
   policy?: CapabilityPolicy
   subscriptions?: boolean
+  complete?: Partial<
+    Record<
+      keyof UriTemplateParams<Template> & string,
+      CompleteResourceTemplateCallback
+    >
+  >
   list?(args: {
     cursor?: string
     context: RequestContext<Services>
@@ -171,6 +179,7 @@ export type AnyResourceDefinition<Services = unknown> =
       uriTemplate: string
       policy?: CapabilityPolicy
       subscriptions?: boolean
+      complete?: Partial<Record<string, CompleteResourceTemplateCallback>>
       list?(args: {
         cursor?: string
         context: RequestContext<Services>

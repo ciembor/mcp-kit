@@ -27,3 +27,11 @@ export {
 } from './definitions/capability-definitions.js'
 export { defineRegistry } from './definitions/registry.js'
 export { McpKitError } from './definitions/error.js'
+export {
+  completable,
+  getCompleter,
+  isCompletable,
+  unwrapCompletable,
+  type CompleteCallback,
+  type CompletableSchema
+} from '@modelcontextprotocol/sdk/server/completable.js'

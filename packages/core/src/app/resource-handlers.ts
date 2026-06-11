@@ -1,4 +1,5 @@
 import {
+  type CompleteResourceTemplateCallback,
   McpServer,
   ResourceTemplate
 } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -46,6 +47,9 @@ export function registerResources<Services>(
       sdk.registerResource(
         resource.name,
         new ResourceTemplate(resource.uriTemplate, {
+          ...(resource.complete === undefined
+            ? {}
+            : { complete: resourceCompletionCallbacks(resource.complete) }),
           list:
             resource.list === undefined
               ? undefined
@@ -62,6 +66,18 @@ export function registerResources<Services>(
       )
     }
   }
+}
+
+function resourceCompletionCallbacks(
+  callbacks: Partial<Record<string, CompleteResourceTemplateCallback>>
+): Record<string, CompleteResourceTemplateCallback> {
+  const complete: Record<string, CompleteResourceTemplateCallback> = {}
+  for (const [name, callback] of Object.entries(callbacks)) {
+    if (callback !== undefined) {
+      complete[name] = callback
+    }
+  }
+  return complete
 }
 
 export function installResourceHandlers<Services>(

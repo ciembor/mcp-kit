@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { describe, expect, it } from 'vitest'
 
 import {
+  completable,
   createMcpApp,
   definePrompt,
   defineResource,
@@ -263,6 +264,75 @@ describe('@mcp-kit/core', () => {
     expect(logs).toContain('error:Unexpected tool execution error')
 
     await app.close()
+    await client.close()
+  })
+
+  it('supports prompt and resource completions through the SDK completion surface', async () => {
+    const app = createMcpApp({
+      name: 'completion-server',
+      version: '1.0.0',
+      services: {}
+    })
+    app.prompts([
+      definePrompt({
+        name: 'travel',
+        argsSchema: z.object({
+          city: completable(z.string(), (value) =>
+            ['Warsaw', 'Wroclaw'].filter((entry) =>
+              entry.toLowerCase().startsWith(value.toLowerCase())
+            )
+          )
+        }),
+        render: ({ input }) => ({
+          messages: [
+            { role: 'user', content: { type: 'text', text: input.city } }
+          ]
+        })
+      })
+    ])
+    app.resources([
+      defineResource({
+        name: 'cities',
+        uriTemplate: 'city://{id}',
+        complete: {
+          id: (value) =>
+            ['warsaw', 'wroclaw'].filter((entry) => entry.startsWith(value))
+        },
+        read: ({ params }) => ({
+          contents: [{ uri: `city://${params.id}`, text: params.id }]
+        })
+      })
+    ])
+
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
+    const client = new Client(
+      { name: 'completion-test', version: '1.0.0' },
+      { capabilities: {} }
+    )
+
+    await Promise.all([
+      app.connect(serverTransport),
+      client.connect(clientTransport)
+    ])
+
+    await expect(
+      client.complete({
+        ref: { type: 'ref/prompt', name: 'travel' },
+        argument: { name: 'city', value: 'wr' }
+      })
+    ).resolves.toMatchObject({
+      completion: { values: ['Wroclaw'] }
+    })
+    await expect(
+      client.complete({
+        ref: { type: 'ref/resource', uri: 'city://{id}' },
+        argument: { name: 'id', value: 'wr' }
+      })
+    ).resolves.toMatchObject({
+      completion: { values: ['wroclaw'] }
+    })
+
     await client.close()
   })
 

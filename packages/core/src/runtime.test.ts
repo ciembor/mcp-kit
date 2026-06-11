@@ -405,7 +405,14 @@ describe('runtime helpers', () => {
     const logger = {
       debug: () => undefined,
       info: (message: string, data?: Record<string, unknown>) => {
-        auditEntries.push({ message, data })
+        auditEntries.push(
+          data === undefined
+            ? { message }
+            : {
+                message,
+                data
+              }
+        )
       },
       warn: () => undefined,
       error: () => undefined
