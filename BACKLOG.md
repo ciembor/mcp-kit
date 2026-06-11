@@ -323,8 +323,8 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Dodac propagacje correlation id odporna na podszywanie.
 - [x] Rozdzielic edge rate limits od limitow per subject/tenant/tool.
 - [x] Dodac health, readiness i graceful drain endpoints/hooks.
-- [ ] Dodac test wieloreplikowy bez sticky sessions.
-- [ ] Przetestowac requesty jednej sesji kierowane naprzemiennie do dwoch workerow.
+- [x] Dodac test wieloreplikowy bez sticky sessions.
+- [x] Przetestowac requesty jednej sesji kierowane naprzemiennie do dwoch workerow.
 - [x] Udokumentowac deployment za API gateway/reverse proxy.
 
 ### Auth i policy

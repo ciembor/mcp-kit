@@ -557,6 +557,121 @@ describe('@mcp-kit/node streamable http', () => {
     expect(transportInstances[0]?.handleRequest).toHaveBeenCalledTimes(2)
   })
 
+  it('supports stateful sessions across workers without sticky routing', async () => {
+    const primaryApps = createAppFactory()
+    const secondaryApps = createAppFactory()
+    const sessionStore = createInMemorySessionStore()
+    const primary = await runStreamableHttp(primaryApps.createApp, {
+      port: 0,
+      sessionMode: 'stateful',
+      sessionStore
+    })
+    const secondary = await runStreamableHttp(secondaryApps.createApp, {
+      port: 0,
+      sessionMode: 'stateful',
+      sessionStore
+    })
+    runtimes.push(primary, secondary)
+
+    const initialize = await fetch(primary.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {}
+      })
+    })
+    const sessionId = initialize.headers.get('mcp-session-id') ?? ''
+
+    expect(initialize.status).toBe(200)
+    expect(sessionId).toBeTruthy()
+    expect(primaryApps.instances).toHaveLength(1)
+    expect(secondaryApps.instances).toHaveLength(0)
+
+    const followUp = await fetch(secondary.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'mcp-session-id': sessionId
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' })
+    })
+
+    expect(followUp.status).toBe(200)
+    expect(primaryApps.instances).toHaveLength(1)
+    expect(secondaryApps.instances).toHaveLength(0)
+    expect(transportInstances).toHaveLength(1)
+    expect(transportInstances[0]?.handleRequest).toHaveBeenCalledTimes(2)
+  })
+
+  it('handles alternating requests for one session across two workers', async () => {
+    const primaryApps = createAppFactory()
+    const secondaryApps = createAppFactory()
+    const sessionStore = createInMemorySessionStore()
+    const primary = await runStreamableHttp(primaryApps.createApp, {
+      port: 0,
+      sessionMode: 'stateful',
+      sessionStore
+    })
+    const secondary = await runStreamableHttp(secondaryApps.createApp, {
+      port: 0,
+      sessionMode: 'stateful',
+      sessionStore
+    })
+    runtimes.push(primary, secondary)
+
+    const initialize = await fetch(primary.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {}
+      })
+    })
+    const sessionId = initialize.headers.get('mcp-session-id') ?? ''
+
+    const responses = await Promise.all([
+      fetch(secondary.url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'mcp-session-id': sessionId
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' })
+      }),
+      fetch(primary.url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'mcp-session-id': sessionId
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/list' })
+      }),
+      fetch(secondary.url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'mcp-session-id': sessionId
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'tools/list' })
+      })
+    ])
+
+    expect(initialize.status).toBe(200)
+    expect(responses.map((response) => response.status)).toEqual([
+      200, 200, 200
+    ])
+    expect(primaryApps.instances).toHaveLength(1)
+    expect(secondaryApps.instances).toHaveLength(0)
+    expect(transportInstances).toHaveLength(1)
+    expect(transportInstances[0]?.handleRequest).toHaveBeenCalledTimes(4)
+    expect(await sessionStore.get(sessionId)).toBeDefined()
+  })
+
   it('removes stateful sessions on DELETE', async () => {
     const apps = createAppFactory()
     const sessionStore = createInMemorySessionStore()
