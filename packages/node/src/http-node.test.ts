@@ -946,6 +946,47 @@ describe('@mcp-kit/node streamable http', () => {
       }
     })
   })
+
+  it('rejects stateful session reuse for the same subject in a different tenant', async () => {
+    const apps = createAppFactory()
+    const sessionStore = createInMemorySessionStore()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      sessionMode: 'stateful',
+      sessionStore,
+      auth: {
+        verifyBearerToken: createVerifier()
+      }
+    })
+    runtimes.push(runtime)
+
+    const initialize = await fetch(runtime.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer alice-token'
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize' })
+    })
+    const sessionId = initialize.headers.get('mcp-session-id') ?? ''
+
+    const crossTenantReplay = await fetch(runtime.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer alice-tenant-b-token',
+        'mcp-session-id': sessionId
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' })
+    })
+
+    expect(crossTenantReplay.status).toBe(403)
+    expect(JSON.parse(await crossTenantReplay.text())).toMatchObject({
+      error: {
+        message: 'Session subject or tenant does not match this request.'
+      }
+    })
+  })
 })
 
 function createAppFactory() {
@@ -1040,6 +1081,14 @@ function createVerifier() {
           source: 'oauth' as const,
           clientId: 'client-2',
           subject: 'bob',
+          tenantId: 'tenant-b',
+          scopes: ['users:read']
+        }
+      case 'alice-tenant-b-token':
+        return {
+          source: 'oauth' as const,
+          clientId: 'client-3',
+          subject: 'alice',
           tenantId: 'tenant-b',
           scopes: ['users:read']
         }

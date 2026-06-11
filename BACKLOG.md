@@ -384,8 +384,8 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 
 - [x] Przetestowac brak tokenu i niewlasciwy scope.
 - [ ] Przetestowac zly issuer, audience, podpis i wygasniecie.
-- [ ] Przetestowac izolacje tenantow.
-- [ ] Przetestowac session fixation/hijacking i ponowne uzycie session id.
+- [x] Przetestowac izolacje tenantow.
+- [x] Przetestowac session fixation/hijacking i ponowne uzycie session id.
 - [x] Przetestowac zly Host, Origin i konfiguracje CORS.
 - [ ] Przetestowac DNS rebinding protections.
 - [ ] Przetestowac path traversal, symlink escape i SSRF.
