@@ -344,10 +344,13 @@ describe('mcp-kit cli', () => {
       })
     )
     await writeFile(resolve(cwd, 'packages/core/README.md'), '# core\n')
-    await writeFile(resolve(cwd, 'packages/core/dist/index.js'), 'export {}\n')
+    await writeFile(
+      resolve(cwd, 'packages/core/dist/index.js'),
+      "export const packageInfo = { name: '@mcp-kit/core', version: '1.2.3' }\n"
+    )
     await writeFile(
       resolve(cwd, 'packages/core/dist/index.d.ts'),
-      'export {}\n'
+      "export declare const packageInfo: { readonly name: '@mcp-kit/core'; readonly version: '1.2.3' }\n"
     )
     await writeFile(
       resolve(cwd, 'packages/core/src/index.ts'),

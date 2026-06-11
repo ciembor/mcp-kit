@@ -18,6 +18,7 @@ export type ReleaseCheckName =
   | 'package-files'
   | 'npm-pack'
   | 'install-packages'
+  | 'package-usage'
 
 export function fastSteps(
   config: ResolvedQualityConfig,
@@ -93,6 +94,7 @@ export function fullSteps(
     releaseCheck('package-files', 'package-files'),
     releaseCheck('npm-pack', 'npm-pack'),
     releaseCheck('install-packages', 'install-packages'),
+    releaseCheck('package-usage', 'package-usage'),
     external('mutation', config.mutation)
   ]
 }

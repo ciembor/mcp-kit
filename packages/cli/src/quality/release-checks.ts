@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { createRequire } from 'node:module'
 import type { Dirent } from 'node:fs'
 import {
   cp,
@@ -46,6 +47,21 @@ type PackageManifest = {
   optionalDependencies?: unknown
 }
 
+type PreparedRelease =
+  | {
+      tempRoot: string
+      diagnostics: readonly ProjectDiagnostic[]
+    }
+  | {
+      tempRoot: string
+      installDirectory: string
+      manifests: readonly WorkspacePackageManifest[]
+      diagnostics: readonly ProjectDiagnostic[]
+    }
+
+const require = createRequire(import.meta.url)
+const typescriptCli = require.resolve('typescript/bin/tsc')
+
 export async function runReleaseCheck(
   check: ReleaseCheckName,
   context: {
@@ -75,6 +91,8 @@ export async function runReleaseCheck(
         context.signal,
         context.npmInstall
       )
+    case 'package-usage':
+      return checkPackageUsage(context.root, context.signal)
   }
 }
 
@@ -354,6 +372,7 @@ async function checkNpmPack(
       )
       continue
     }
+
     let parsed: unknown
     try {
       parsed = JSON.parse(result.stdout) as unknown
@@ -367,6 +386,7 @@ async function checkNpmPack(
       )
       continue
     }
+
     if (!Array.isArray(parsed) || parsed.length === 0) {
       diagnostics.push(
         releaseDiagnostic(
@@ -386,38 +406,90 @@ async function checkPackedInstall(
   signal: AbortSignal,
   npmInstall: RunQualityOptions['npmInstall']
 ): Promise<readonly ProjectDiagnostic[]> {
-  const releasePackages = await releasePackageManifests(root)
-  const tempRoot = await mkdtemp(resolve(tmpdir(), 'mcp-kit-release-install-'))
-
+  const prepared = await prepareInstalledReleasePackages(
+    root,
+    signal,
+    npmInstall
+  )
   try {
-    const tarballDirectory = resolve(tempRoot, 'tarballs')
-    const stagingDirectory = resolve(tempRoot, 'staged')
-    const installDirectory = resolve(tempRoot, 'install')
-    await mkdir(tarballDirectory, { recursive: true })
-    await mkdir(stagingDirectory, { recursive: true })
-    await mkdir(installDirectory, { recursive: true })
+    return prepared.diagnostics
+  } finally {
+    await cleanupPreparedRelease(prepared)
+  }
+}
 
-    const packed = await packReleasePackages(
-      root,
-      releasePackages,
-      tarballDirectory,
-      stagingDirectory,
+async function checkPackageUsage(
+  root: string,
+  signal: AbortSignal
+): Promise<readonly ProjectDiagnostic[]> {
+  const prepared = await prepareInstalledReleasePackages(root, signal)
+  try {
+    if (prepared.diagnostics.length > 0) return prepared.diagnostics
+    if (!('installDirectory' in prepared)) return prepared.diagnostics
+
+    const importDiagnostics = await runInstalledImportSmoke(
+      prepared.installDirectory,
+      prepared.manifests,
       signal
     )
-    if (packed.diagnostics.length > 0) return packed.diagnostics
+    if (importDiagnostics.length > 0) return importDiagnostics
 
-    await writeFile(
-      resolve(installDirectory, 'package.json'),
-      `${JSON.stringify({ name: 'mcp-kit-release-install', private: true }, null, 2)}\n`
-    )
-
-    const result = await (npmInstall ?? runNpmInstall)(
-      installDirectory,
-      packed.tarballs,
+    const typeDiagnostics = await runInstalledTypeSmoke(
+      prepared.installDirectory,
+      prepared.manifests,
       signal
     )
-    if (result.exitCode !== 0) {
-      return [
+    if (typeDiagnostics.length > 0) return typeDiagnostics
+
+    return runInstalledCliSmoke(
+      prepared.installDirectory,
+      prepared.manifests,
+      signal
+    )
+  } finally {
+    await cleanupPreparedRelease(prepared)
+  }
+}
+
+async function prepareInstalledReleasePackages(
+  root: string,
+  signal: AbortSignal,
+  npmInstall?: RunQualityOptions['npmInstall']
+): Promise<PreparedRelease> {
+  const manifests = await releasePackageManifests(root)
+  const tempRoot = await mkdtemp(resolve(tmpdir(), 'mcp-kit-release-install-'))
+  const tarballDirectory = resolve(tempRoot, 'tarballs')
+  const stagingDirectory = resolve(tempRoot, 'staged')
+  const installDirectory = resolve(tempRoot, 'install')
+  await mkdir(tarballDirectory, { recursive: true })
+  await mkdir(stagingDirectory, { recursive: true })
+  await mkdir(installDirectory, { recursive: true })
+
+  const packed = await packReleasePackages(
+    root,
+    manifests,
+    tarballDirectory,
+    stagingDirectory,
+    signal
+  )
+  if (packed.diagnostics.length > 0) {
+    return { tempRoot, diagnostics: packed.diagnostics }
+  }
+
+  await writeFile(
+    resolve(installDirectory, 'package.json'),
+    `${JSON.stringify({ name: 'mcp-kit-release-install', private: true }, null, 2)}\n`
+  )
+
+  const result = await (npmInstall ?? runNpmInstall)(
+    installDirectory,
+    packed.tarballs,
+    signal
+  )
+  if (result.exitCode !== 0) {
+    return {
+      tempRoot,
+      diagnostics: [
         releaseDiagnostic(
           'release-install-packages',
           'package.json',
@@ -425,11 +497,15 @@ async function checkPackedInstall(
         )
       ]
     }
-
-    return []
-  } finally {
-    await rm(tempRoot, { recursive: true, force: true })
   }
+
+  return { tempRoot, installDirectory, manifests, diagnostics: [] }
+}
+
+async function cleanupPreparedRelease(
+  prepared: PreparedRelease
+): Promise<void> {
+  await rm(prepared.tempRoot, { recursive: true, force: true })
 }
 
 async function packReleasePackages(
@@ -698,6 +774,129 @@ async function packDirectory(
   return { tarballs, diagnostics: [] }
 }
 
+async function runInstalledImportSmoke(
+  installDirectory: string,
+  manifests: readonly WorkspacePackageManifest[],
+  signal: AbortSignal
+): Promise<readonly ProjectDiagnostic[]> {
+  const specifiers = manifests.flatMap(exportSpecifiers)
+  if (specifiers.length === 0) return []
+
+  const source = specifiers
+    .map((specifier) => `await import(${JSON.stringify(specifier)})`)
+    .join('\n')
+  const scriptPath = resolve(installDirectory, 'imports.mjs')
+  await writeFile(scriptPath, `${source}\n`)
+  const result = await runCommand(
+    'node',
+    [scriptPath],
+    installDirectory,
+    signal
+  )
+
+  return result.exitCode === 0
+    ? []
+    : [
+        releaseDiagnostic(
+          'release-package-usage',
+          'imports.mjs',
+          `Installed package imports failed: ${sanitizeMessage(result.stderr, 'node import failed')}`
+        )
+      ]
+}
+
+async function runInstalledTypeSmoke(
+  installDirectory: string,
+  manifests: readonly WorkspacePackageManifest[],
+  signal: AbortSignal
+): Promise<readonly ProjectDiagnostic[]> {
+  const specifiers = manifests.flatMap(exportSpecifiers)
+  if (specifiers.length === 0) return []
+
+  const source = specifiers
+    .map(
+      (specifier, index) =>
+        `import { packageInfo as packageInfo${index} } from ${JSON.stringify(specifier)}\n` +
+        `const packageName${index}: string = packageInfo${index}.name\n` +
+        `void packageName${index}\n`
+    )
+    .join('\n')
+  const configPath = resolve(installDirectory, 'tsconfig.json')
+  const sourcePath = resolve(installDirectory, 'types-smoke.ts')
+  await writeFile(
+    configPath,
+    `${JSON.stringify(
+      {
+        compilerOptions: {
+          module: 'NodeNext',
+          moduleResolution: 'NodeNext',
+          target: 'ES2022',
+          strict: true,
+          noEmit: true
+        },
+        include: ['types-smoke.ts']
+      },
+      null,
+      2
+    )}\n`
+  )
+  await writeFile(sourcePath, source)
+  const result = await runCommand(
+    'node',
+    [typescriptCli, '--project', configPath],
+    installDirectory,
+    signal
+  )
+
+  return result.exitCode === 0
+    ? []
+    : [
+        releaseDiagnostic(
+          'release-package-usage',
+          'types-smoke.ts',
+          `Installed package types failed: ${sanitizeMessage(result.stderr || result.stdout, 'tsc failed')}`
+        )
+      ]
+}
+
+async function runInstalledCliSmoke(
+  installDirectory: string,
+  manifests: readonly WorkspacePackageManifest[],
+  signal: AbortSignal
+): Promise<readonly ProjectDiagnostic[]> {
+  const diagnostics: ProjectDiagnostic[] = []
+
+  for (const manifest of manifests) {
+    for (const target of binTargets(manifest.bin)) {
+      const result = await runCommand(
+        'node',
+        [
+          resolve(
+            installDirectory,
+            'node_modules',
+            manifest.name,
+            normalizePublishPath(target)
+          ),
+          '--help'
+        ],
+        installDirectory,
+        signal
+      )
+      if (result.exitCode !== 0) {
+        diagnostics.push(
+          releaseDiagnostic(
+            'release-package-usage',
+            manifest.path,
+            `Installed CLI smoke failed for ${manifest.name}: ${sanitizeMessage(result.stderr || result.stdout, 'cli failed')}`
+          )
+        )
+      }
+    }
+  }
+
+  return diagnostics
+}
+
 async function packageInfoDiagnostics(
   root: string,
   manifest: WorkspacePackageManifest
@@ -864,6 +1063,18 @@ function exportTargets(exportsField: unknown): readonly string[] {
 
 function binTargets(binField: unknown): readonly string[] {
   return collectPathTargets(binField)
+}
+
+function exportSpecifiers(
+  manifest: WorkspacePackageManifest
+): readonly string[] {
+  if (!isJsonObject(manifest.exports)) return [manifest.name]
+
+  return Object.keys(manifest.exports)
+    .filter((key) => key === '.' || key.startsWith('./'))
+    .map((key) =>
+      key === '.' ? manifest.name : `${manifest.name}/${key.slice(2)}`
+    )
 }
 
 function collectPathTargets(value: unknown): readonly string[] {

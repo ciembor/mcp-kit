@@ -195,10 +195,13 @@ describe('quality runner', () => {
     )
     await writeFile(resolve(root, 'packages/core/README.md'), '# core\n')
     await mkdir(resolve(root, 'packages/core/dist'), { recursive: true })
-    await writeFile(resolve(root, 'packages/core/dist/index.js'), 'export {}\n')
+    await writeFile(
+      resolve(root, 'packages/core/dist/index.js'),
+      "export const packageInfo = { name: '@mcp-kit/core', version: '1.2.3' }\n"
+    )
     await writeFile(
       resolve(root, 'packages/core/dist/index.d.ts'),
-      'export {}\n'
+      "export declare const packageInfo: { readonly name: '@mcp-kit/core'; readonly version: '1.2.3' }\n"
     )
     await writeFile(
       resolve(root, 'packages/core/src/index.ts'),
@@ -249,7 +252,7 @@ describe('quality runner', () => {
       'build',
       'smoke'
     ])
-    expect(report.steps.map((step) => step.name).slice(-8)).toEqual([
+    expect(report.steps.map((step) => step.name).slice(-9)).toEqual([
       'clean-git',
       'version',
       'changelog',
@@ -257,6 +260,7 @@ describe('quality runner', () => {
       'package-files',
       'npm-pack',
       'install-packages',
+      'package-usage',
       'mutation'
     ])
   })

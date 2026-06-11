@@ -34,7 +34,7 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('passed')
-    expect(report.steps.slice(-8)).toMatchObject([
+    expect(report.steps.slice(-9)).toMatchObject([
       { name: 'clean-git', status: 'passed' },
       { name: 'version', status: 'passed' },
       { name: 'changelog', status: 'passed' },
@@ -42,6 +42,7 @@ describe('release quality checks', () => {
       { name: 'package-files', status: 'passed' },
       { name: 'npm-pack', status: 'passed' },
       { name: 'install-packages', status: 'passed' },
+      { name: 'package-usage', status: 'passed' },
       { name: 'mutation', status: 'skipped' }
     ])
   })
@@ -63,7 +64,7 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-8)).toMatchObject({
+    expect(step(report, 'clean-git')).toMatchObject({
       name: 'clean-git',
       status: 'failed',
       diagnostics: [
@@ -73,7 +74,7 @@ describe('release quality checks', () => {
         })
       ]
     })
-    expect(report.steps.at(-7)).toMatchObject({
+    expect(step(report, 'version')).toMatchObject({
       name: 'version',
       status: 'skipped'
     })
@@ -98,7 +99,7 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-7)).toMatchObject({
+    expect(step(report, 'version')).toMatchObject({
       name: 'version',
       status: 'failed',
       diagnostics: [
@@ -108,7 +109,7 @@ describe('release quality checks', () => {
         })
       ]
     })
-    expect(report.steps.at(-6)).toMatchObject({
+    expect(step(report, 'changelog')).toMatchObject({
       name: 'changelog',
       status: 'skipped'
     })
@@ -131,7 +132,7 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-6)).toMatchObject({
+    expect(step(report, 'changelog')).toMatchObject({
       name: 'changelog',
       status: 'failed',
       diagnostics: [
@@ -162,7 +163,7 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-4)).toMatchObject({
+    expect(step(report, 'package-files')).toMatchObject({
       name: 'package-files',
       status: 'failed',
       diagnostics: expect.arrayContaining([
@@ -198,7 +199,7 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-5)).toMatchObject({
+    expect(step(report, 'package-exports')).toMatchObject({
       name: 'package-exports',
       status: 'failed',
       diagnostics: [
@@ -232,7 +233,7 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-3)).toMatchObject({
+    expect(step(report, 'npm-pack')).toMatchObject({
       name: 'npm-pack',
       status: 'failed',
       diagnostics: [
@@ -266,7 +267,7 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-2)).toMatchObject({
+    expect(step(report, 'install-packages')).toMatchObject({
       name: 'install-packages',
       status: 'failed',
       diagnostics: [
@@ -341,8 +342,22 @@ async function makeReleaseWorkspace(
     })
   )
   await writeFile(resolve(root, 'packages/core/README.md'), '# core\n')
-  await writeFile(resolve(root, 'packages/core/dist/index.js'), 'export {}\n')
-  await writeFile(resolve(root, 'packages/core/dist/index.d.ts'), 'export {}\n')
+  await writeFile(
+    resolve(root, 'packages/core/dist/index.js'),
+    `export const packageInfo = {
+  name: '@mcp-kit/core',
+  version: '${packageVersion}'
+}
+`
+  )
+  await writeFile(
+    resolve(root, 'packages/core/dist/index.d.ts'),
+    `export declare const packageInfo: {
+  readonly name: '@mcp-kit/core'
+  readonly version: '${packageVersion}'
+}
+`
+  )
   await writeFile(
     resolve(root, 'packages/core/src/index.ts'),
     `export const packageInfo = {
@@ -369,4 +384,8 @@ function successfulNpmInstall() {
     stdout: '',
     stderr: ''
   })
+}
+
+function step(report: Awaited<ReturnType<typeof runQuality>>, name: string) {
+  return report.steps.find((candidate) => candidate.name === name)
 }
