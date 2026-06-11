@@ -169,10 +169,37 @@ describe('quality runner', () => {
 
   it('runs release mode through the full quality pipeline', async () => {
     const root = await makeProject()
+    await writeFile(
+      resolve(root, 'package.json'),
+      JSON.stringify({ name: 'repo', private: true, version: '1.2.3' })
+    )
+    await writeFile(
+      resolve(root, 'CHANGELOG.md'),
+      '# Changelog\n\n## [Unreleased]\n'
+    )
+    await mkdir(resolve(root, 'packages/core/src'), { recursive: true })
+    await writeFile(
+      resolve(root, 'packages/core/package.json'),
+      JSON.stringify({
+        name: '@mcp-kit/core',
+        version: '1.2.3',
+        type: 'module'
+      })
+    )
+    await writeFile(
+      resolve(root, 'packages/core/src/index.ts'),
+      "export const packageInfo = {\n  name: '@mcp-kit/core',\n  version: '1.2.3'\n} as const\n"
+    )
     const commands: string[] = []
     const report = await runQuality({
       root,
       mode: 'release',
+      gitStatus: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
       config: configWithCommands(),
       execute: (command) => {
         commands.push(command)
@@ -195,6 +222,12 @@ describe('quality runner', () => {
       'coverage',
       'build',
       'smoke'
+    ])
+    expect(report.steps.map((step) => step.name).slice(-4)).toEqual([
+      'clean-git',
+      'version',
+      'changelog',
+      'mutation'
     ])
   })
 

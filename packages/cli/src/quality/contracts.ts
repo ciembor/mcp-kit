@@ -103,6 +103,17 @@ export type QualityExecutor = (
   options: { cwd: string; signal: AbortSignal }
 ) => Promise<number>
 
+export type ReleaseGitStatusResult = {
+  exitCode: number
+  stdout: string
+  stderr: string
+}
+
+export type ReleaseGitStatus = (
+  root: string,
+  signal: AbortSignal
+) => Promise<ReleaseGitStatusResult>
+
 export type RunQualityOptions = {
   root: string
   mode: QualityMode
@@ -111,4 +122,5 @@ export type RunQualityOptions = {
   signal?: AbortSignal
   config?: QualityConfig
   execute?: QualityExecutor
+  gitStatus?: ReleaseGitStatus
 }

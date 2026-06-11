@@ -1,0 +1,196 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { resolve } from 'node:path'
+
+import { afterEach, describe, expect, it } from 'vitest'
+
+import { runQuality } from '../quality.js'
+
+const temporaryDirectories: string[] = []
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { recursive: true, force: true }))
+  )
+})
+
+describe('release quality checks', () => {
+  it('passes clean git, version, and changelog checks for a consistent workspace', async () => {
+    const root = await makeReleaseWorkspace()
+    const report = await runQuality({
+      root,
+      mode: 'release',
+      gitStatus: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
+      config: releaseOnlyConfig()
+    })
+
+    expect(report.status).toBe('passed')
+    expect(report.steps.slice(-4)).toMatchObject([
+      { name: 'clean-git', status: 'passed' },
+      { name: 'version', status: 'passed' },
+      { name: 'changelog', status: 'passed' },
+      { name: 'mutation', status: 'skipped' }
+    ])
+  })
+
+  it('fails release mode on a dirty git worktree and skips later release checks', async () => {
+    const root = await makeReleaseWorkspace()
+    const report = await runQuality({
+      root,
+      mode: 'release',
+      gitStatus: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: ' M packages/core/package.json\n',
+          stderr: ''
+        }),
+      config: releaseOnlyConfig()
+    })
+
+    expect(report.status).toBe('failed')
+    expect(report.steps.at(-4)).toMatchObject({
+      name: 'clean-git',
+      status: 'failed',
+      diagnostics: [
+        expect.objectContaining({
+          rule: 'release-clean-git',
+          file: 'packages/core/package.json'
+        })
+      ]
+    })
+    expect(report.steps.at(-3)).toMatchObject({
+      name: 'version',
+      status: 'skipped'
+    })
+  })
+
+  it('fails release mode when workspace package versions diverge', async () => {
+    const root = await makeReleaseWorkspace({
+      packageVersion: '1.2.4'
+    })
+    const report = await runQuality({
+      root,
+      mode: 'release',
+      gitStatus: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
+      config: releaseOnlyConfig()
+    })
+
+    expect(report.status).toBe('failed')
+    expect(report.steps.at(-3)).toMatchObject({
+      name: 'version',
+      status: 'failed',
+      diagnostics: [
+        expect.objectContaining({
+          rule: 'release-version',
+          file: 'packages/core/package.json'
+        })
+      ]
+    })
+    expect(report.steps.at(-2)).toMatchObject({
+      name: 'changelog',
+      status: 'skipped'
+    })
+  })
+
+  it('fails release mode when changelog is missing a release section', async () => {
+    const root = await makeReleaseWorkspace({ changelog: '# Changelog\n' })
+    const report = await runQuality({
+      root,
+      mode: 'release',
+      gitStatus: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
+      config: releaseOnlyConfig()
+    })
+
+    expect(report.status).toBe('failed')
+    expect(report.steps.at(-2)).toMatchObject({
+      name: 'changelog',
+      status: 'failed',
+      diagnostics: [
+        expect.objectContaining({
+          rule: 'release-changelog',
+          file: 'CHANGELOG.md'
+        })
+      ]
+    })
+  })
+})
+
+function releaseOnlyConfig() {
+  return {
+    preset: 'off' as const,
+    dependencyCruiser: { enabled: false, command: '' },
+    formatting: { enabled: false, command: '' },
+    lint: { enabled: false, command: '', typed: false },
+    smells: { enabled: false, command: '' },
+    typecheck: { enabled: false, command: '' },
+    deadCode: { enabled: false, command: '' },
+    tests: {
+      unit: { enabled: false, command: '' },
+      integration: { enabled: false, command: '' },
+      contract: { enabled: false, command: '' },
+      architecture: { enabled: false, command: '' }
+    },
+    coverage: { enabled: false, command: '' },
+    build: { enabled: false, command: '' },
+    packageSmoke: { enabled: false, command: '' },
+    mutation: { enabled: false, command: '' }
+  }
+}
+
+async function makeReleaseWorkspace(
+  options: {
+    rootVersion?: string
+    packageVersion?: string
+    changelog?: string
+  } = {}
+): Promise<string> {
+  const root = await mkdtemp(resolve(tmpdir(), 'mcp-kit-release-quality-'))
+  temporaryDirectories.push(root)
+  const rootVersion = options.rootVersion ?? '1.2.3'
+  const packageVersion = options.packageVersion ?? rootVersion
+
+  await mkdir(resolve(root, 'packages/core/src'), { recursive: true })
+  await writeFile(
+    resolve(root, 'package.json'),
+    JSON.stringify({ name: 'repo', private: true, version: rootVersion })
+  )
+  await writeFile(
+    resolve(root, 'CHANGELOG.md'),
+    options.changelog ?? '# Changelog\n\n## [Unreleased]\n\n- Pending.\n'
+  )
+  await writeFile(
+    resolve(root, 'packages/core/package.json'),
+    JSON.stringify({
+      name: '@mcp-kit/core',
+      version: packageVersion,
+      type: 'module'
+    })
+  )
+  await writeFile(
+    resolve(root, 'packages/core/src/index.ts'),
+    `export const packageInfo = {
+  name: '@mcp-kit/core',
+  version: '${packageVersion}'
+} as const
+`
+  )
+
+  return root
+}

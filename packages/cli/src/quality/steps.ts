@@ -7,7 +7,10 @@ import type {
 
 export type Step =
   | { name: string; kind: 'analysis' }
+  | { name: string; kind: 'release-check'; check: ReleaseCheckName }
   | { name: string; kind: 'external'; enabled: boolean; command: string }
+
+export type ReleaseCheckName = 'clean-git' | 'version' | 'changelog'
 
 export function fastSteps(
   config: ResolvedQualityConfig,
@@ -40,7 +43,7 @@ export function fullSteps(
   config: ResolvedQualityConfig,
   options: Pick<RunQualityOptions, 'fix' | 'mode'>
 ): Step[] {
-  return [
+  const full: Step[] = [
     external(
       'format',
       config.formatting,
@@ -67,7 +70,18 @@ export function fullSteps(
       command: config.coverage.command
     },
     external('build', config.build),
-    external('package-smoke', config.packageSmoke),
+    external('package-smoke', config.packageSmoke)
+  ]
+
+  if (options.mode !== 'release') {
+    return [...full, external('mutation', config.mutation)]
+  }
+
+  return [
+    ...full,
+    releaseCheck('clean-git', 'clean-git'),
+    releaseCheck('version', 'version'),
+    releaseCheck('changelog', 'changelog'),
     external('mutation', config.mutation)
   ]
 }
@@ -83,4 +97,8 @@ function external(
     enabled: config.enabled !== false,
     command: commandOverride ?? config.command
   }
+}
+
+function releaseCheck(name: string, check: ReleaseCheckName): Step {
+  return { name, kind: 'release-check', check }
 }

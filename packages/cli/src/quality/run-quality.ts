@@ -1,6 +1,7 @@
 import { analyzeProject } from '../analysis/project-analysis.js'
 import { loadQualityConfig, resolveQualityConfig } from './quality-config.js'
 import { executeCommand } from './quality-execute.js'
+import { runReleaseCheck } from './release-checks.js'
 import type {
   QualityExecutor,
   QualityReport,
@@ -30,7 +31,8 @@ export async function runQuality(
         root: config.project.root,
         signal,
         execute,
-        previousFailed
+        previousFailed,
+        gitStatus: options.gitStatus
       })
     )
   }
@@ -58,6 +60,7 @@ async function executeStep(
     signal: AbortSignal
     execute: QualityExecutor
     previousFailed: boolean
+    gitStatus?: RunQualityOptions['gitStatus']
   }
 ): Promise<QualityStepResult> {
   if (context.previousFailed) return skippedStep(step.name)
@@ -65,6 +68,9 @@ async function executeStep(
     return { name: step.name, status: 'failed', durationMs: 0, exitCode: 130 }
   }
   if (step.kind === 'analysis') return executeAnalysis(step.name, context.root)
+  if (step.kind === 'release-check') {
+    return executeReleaseCheck(step.name, step.check, context)
+  }
   if (!step.enabled || step.command.trim() === '') return skippedStep(step.name)
   return executeExternal(step, context)
 }
@@ -102,6 +108,25 @@ async function executeExternal(
     status: exitCode === 0 ? 'passed' : 'failed',
     durationMs: elapsed(started),
     exitCode
+  }
+}
+
+async function executeReleaseCheck(
+  name: string,
+  check: Extract<Step, { kind: 'release-check' }>['check'],
+  context: {
+    root: string
+    signal: AbortSignal
+    gitStatus?: RunQualityOptions['gitStatus']
+  }
+): Promise<QualityStepResult> {
+  const started = performance.now()
+  const diagnostics = await runReleaseCheck(check, context)
+  return {
+    name,
+    status: diagnostics.length === 0 ? 'passed' : 'failed',
+    durationMs: elapsed(started),
+    diagnostics
   }
 }
 

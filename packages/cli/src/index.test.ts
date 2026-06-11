@@ -318,11 +318,32 @@ describe('mcp-kit cli', () => {
   it('supports release quality mode and rejects multiple mode flags', async () => {
     const cwd = await makeTemp()
     const output = createOutput()
-    await writeFile(resolve(cwd, 'package.json'), '{"type":"module"}')
+    await mkdir(resolve(cwd, 'packages/core/src'), { recursive: true })
+    await writeFile(
+      resolve(cwd, 'package.json'),
+      JSON.stringify({ name: 'repo', private: true, version: '1.2.3' })
+    )
+    await writeFile(
+      resolve(cwd, 'CHANGELOG.md'),
+      '# Changelog\n\n## [Unreleased]\n'
+    )
+    await writeFile(
+      resolve(cwd, 'packages/core/package.json'),
+      JSON.stringify({
+        name: '@mcp-kit/core',
+        version: '1.2.3',
+        type: 'module'
+      })
+    )
+    await writeFile(
+      resolve(cwd, 'packages/core/src/index.ts'),
+      "export const packageInfo = {\n  name: '@mcp-kit/core',\n  version: '1.2.3'\n} as const\n"
+    )
     await writeFile(
       resolve(cwd, 'quality.config.js'),
       "export default { preset: 'off', dependencyCruiser: { enabled: false, command: '' }, tests: { unit: { enabled: false, command: '' } }, build: { enabled: false, command: '' } }\n"
     )
+    await initializeGitRepository(cwd)
 
     await expect(
       runCli(['quality', '--release', '--json'], {
@@ -737,4 +758,19 @@ function createOutput(): {
     }
   }
   return output
+}
+
+async function initializeGitRepository(root: string): Promise<void> {
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  const execFileAsync = promisify(execFile)
+  await execFileAsync('git', ['init'], { cwd: root })
+  await execFileAsync('git', ['config', 'user.name', 'Test User'], {
+    cwd: root
+  })
+  await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+    cwd: root
+  })
+  await execFileAsync('git', ['add', '.'], { cwd: root })
+  await execFileAsync('git', ['commit', '-m', 'init'], { cwd: root })
 }
