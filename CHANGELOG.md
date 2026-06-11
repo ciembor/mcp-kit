@@ -12,3 +12,4 @@
 - Documented the standard release and rollback procedure, including the GitHub Actions workflow, trusted publisher setup, and npm deprecate-first rollback guidance.
 - Added a baseline `stryker.config.json`, a dedicated `mcp-kit quality --mutation` mode, default text/HTML mutation reports, and an 80% default break threshold with 90% guidance for mature projects.
 - Added typed mutation config with reasoned exclusions and explicit release opt-in for mutation runs.
+- Added a nightly/manual GitHub Actions mutation workflow that delegates to `pnpm quality:mutation`.
