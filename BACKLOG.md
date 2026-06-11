@@ -410,7 +410,7 @@ Cel: zapewnic powtarzalne budowanie i publikowanie pakietow bez omijania quality
 
 - [x] Zaimplementowac `quality --release`.
 - [x] Sprawdzac clean git, wersje i changelog.
-- [ ] Sprawdzac package exports i liste publikowanych plikow.
+- [x] Sprawdzac package exports i liste publikowanych plikow.
 - [ ] Wykonywac build wszystkich publikowanych pakietow.
 - [ ] Wykonywac `npm pack` dla kazdego pakietu.
 - [ ] Instalowac paczki w izolowanym katalogu tymczasowym.

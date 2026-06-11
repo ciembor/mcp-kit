@@ -27,6 +27,10 @@ export async function runReleaseCheck(
       return checkVersions(context.root)
     case 'changelog':
       return checkChangelog(context.root)
+    case 'package-exports':
+      return checkPackageExports(context.root)
+    case 'package-files':
+      return checkPackageFiles(context.root)
   }
 }
 
@@ -218,6 +222,18 @@ type WorkspacePackageManifest = {
   private?: boolean
   path: string
   directory: string
+  exports?: unknown
+  bin?: unknown
+  files?: unknown
+}
+
+type PackageManifest = {
+  name?: unknown
+  version?: unknown
+  private?: unknown
+  exports?: unknown
+  bin?: unknown
+  files?: unknown
 }
 
 async function readWorkspacePackages(
@@ -242,21 +258,146 @@ async function readWorkspacePackages(
         version: String(manifest.version ?? ''),
         private: manifest.private === true,
         path: relativePath(root, path),
-        directory: `packages/${entry}`
+        directory: `packages/${entry}`,
+        exports: manifest.exports,
+        bin: manifest.bin,
+        files: manifest.files
       } satisfies WorkspacePackageManifest
     })
   )
   return manifests.filter((manifest) => manifest !== undefined)
 }
 
+async function checkPackageExports(
+  root: string
+): Promise<readonly ProjectDiagnostic[]> {
+  const diagnostics: ProjectDiagnostic[] = []
+  const releasePackages = (await readWorkspacePackages(root)).filter(
+    (manifest) => manifest.private !== true
+  )
+
+  for (const manifest of releasePackages) {
+    if (!isJsonObject(manifest.exports)) {
+      diagnostics.push(
+        releaseDiagnostic(
+          'release-package-exports',
+          manifest.path,
+          `Package ${manifest.name} must define an exports map`
+        )
+      )
+      continue
+    }
+    const rootExport = manifest.exports['.']
+    if (!isJsonObject(rootExport)) {
+      diagnostics.push(
+        releaseDiagnostic(
+          'release-package-exports',
+          manifest.path,
+          `Package ${manifest.name} must define a root "." export with import and types`
+        )
+      )
+      continue
+    }
+    if (
+      typeof rootExport['import'] !== 'string' ||
+      typeof rootExport['types'] !== 'string'
+    ) {
+      diagnostics.push(
+        releaseDiagnostic(
+          'release-package-exports',
+          manifest.path,
+          `Package ${manifest.name} root export must define string import and types targets`
+        )
+      )
+      continue
+    }
+    for (const target of exportTargets(manifest.exports)) {
+      if (!target.startsWith('./dist/')) {
+        diagnostics.push(
+          releaseDiagnostic(
+            'release-package-exports',
+            manifest.path,
+            `Package ${manifest.name} export target ${target} must stay under ./dist/`
+          )
+        )
+      }
+    }
+    for (const target of binTargets(manifest.bin)) {
+      if (!target.startsWith('./dist/')) {
+        diagnostics.push(
+          releaseDiagnostic(
+            'release-package-exports',
+            manifest.path,
+            `Package ${manifest.name} bin target ${target} must stay under ./dist/`
+          )
+        )
+      }
+    }
+  }
+
+  return diagnostics
+}
+
+async function checkPackageFiles(
+  root: string
+): Promise<readonly ProjectDiagnostic[]> {
+  const diagnostics: ProjectDiagnostic[] = []
+  const releasePackages = (await readWorkspacePackages(root)).filter(
+    (manifest) => manifest.private !== true
+  )
+
+  for (const manifest of releasePackages) {
+    if (
+      !Array.isArray(manifest.files) ||
+      manifest.files.some((entry) => typeof entry !== 'string')
+    ) {
+      diagnostics.push(
+        releaseDiagnostic(
+          'release-package-files',
+          manifest.path,
+          `Package ${manifest.name} must define a files array`
+        )
+      )
+      continue
+    }
+    const files = manifest.files
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => normalizePublishPath(entry))
+    if (!files.includes('README.md')) {
+      diagnostics.push(
+        releaseDiagnostic(
+          'release-package-files',
+          manifest.path,
+          `Package ${manifest.name} files must include README.md`
+        )
+      )
+    }
+    const targets = [
+      ...exportTargets(manifest.exports),
+      ...binTargets(manifest.bin)
+    ].map((target) => normalizePublishPath(target))
+    for (const target of targets) {
+      if (!files.some((entry) => coversPublishedPath(entry, target))) {
+        diagnostics.push(
+          releaseDiagnostic(
+            'release-package-files',
+            manifest.path,
+            `Package ${manifest.name} files must include ${target}`
+          )
+        )
+      }
+    }
+  }
+
+  return diagnostics
+}
+
 async function readPackageManifest(
   path: string
-): Promise<
-  { name?: unknown; version?: unknown; private?: unknown } | undefined
-> {
+): Promise<PackageManifest | undefined> {
   try {
     const value = JSON.parse(await readFile(path, 'utf8')) as unknown
-    return isJsonObject(value) ? value : undefined
+    return isJsonObject(value) ? (value as PackageManifest) : undefined
   } catch {
     return undefined
   }
@@ -312,6 +453,35 @@ function relativePath(root: string, absolute: string): string {
 function sanitizeMessage(message: string, fallback: string): string {
   const normalized = message.trim()
   return normalized === '' ? fallback : normalized
+}
+
+function exportTargets(exportsField: unknown): readonly string[] {
+  return collectPathTargets(exportsField)
+}
+
+function binTargets(binField: unknown): readonly string[] {
+  return collectPathTargets(binField)
+}
+
+function collectPathTargets(value: unknown): readonly string[] {
+  if (typeof value === 'string') return [value]
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectPathTargets(entry))
+  }
+  if (!isJsonObject(value)) return []
+  return Object.values(value).flatMap((entry) => collectPathTargets(entry))
+}
+
+function normalizePublishPath(value: string): string {
+  return value.startsWith('./') ? value.slice(2) : value
+}
+
+function coversPublishedPath(entry: string, target: string): boolean {
+  return entry === target || target.startsWith(`${trimTrailingSlash(entry)}/`)
+}
+
+function trimTrailingSlash(value: string): string {
+  return value.endsWith('/') ? value.slice(0, -1) : value
 }
 
 function isSemver(value: unknown): value is string {

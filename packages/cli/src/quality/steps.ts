@@ -10,7 +10,12 @@ export type Step =
   | { name: string; kind: 'release-check'; check: ReleaseCheckName }
   | { name: string; kind: 'external'; enabled: boolean; command: string }
 
-export type ReleaseCheckName = 'clean-git' | 'version' | 'changelog'
+export type ReleaseCheckName =
+  | 'clean-git'
+  | 'version'
+  | 'changelog'
+  | 'package-exports'
+  | 'package-files'
 
 export function fastSteps(
   config: ResolvedQualityConfig,
@@ -82,6 +87,8 @@ export function fullSteps(
     releaseCheck('clean-git', 'clean-git'),
     releaseCheck('version', 'version'),
     releaseCheck('changelog', 'changelog'),
+    releaseCheck('package-exports', 'package-exports'),
+    releaseCheck('package-files', 'package-files'),
     external('mutation', config.mutation)
   ]
 }

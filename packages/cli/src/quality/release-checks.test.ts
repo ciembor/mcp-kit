@@ -32,10 +32,12 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('passed')
-    expect(report.steps.slice(-4)).toMatchObject([
+    expect(report.steps.slice(-6)).toMatchObject([
       { name: 'clean-git', status: 'passed' },
       { name: 'version', status: 'passed' },
       { name: 'changelog', status: 'passed' },
+      { name: 'package-exports', status: 'passed' },
+      { name: 'package-files', status: 'passed' },
       { name: 'mutation', status: 'skipped' }
     ])
   })
@@ -55,7 +57,7 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-4)).toMatchObject({
+    expect(report.steps.at(-6)).toMatchObject({
       name: 'clean-git',
       status: 'failed',
       diagnostics: [
@@ -65,7 +67,7 @@ describe('release quality checks', () => {
         })
       ]
     })
-    expect(report.steps.at(-3)).toMatchObject({
+    expect(report.steps.at(-5)).toMatchObject({
       name: 'version',
       status: 'skipped'
     })
@@ -88,7 +90,7 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-3)).toMatchObject({
+    expect(report.steps.at(-5)).toMatchObject({
       name: 'version',
       status: 'failed',
       diagnostics: [
@@ -98,7 +100,7 @@ describe('release quality checks', () => {
         })
       ]
     })
-    expect(report.steps.at(-2)).toMatchObject({
+    expect(report.steps.at(-4)).toMatchObject({
       name: 'changelog',
       status: 'skipped'
     })
@@ -119,13 +121,76 @@ describe('release quality checks', () => {
     })
 
     expect(report.status).toBe('failed')
-    expect(report.steps.at(-2)).toMatchObject({
+    expect(report.steps.at(-4)).toMatchObject({
       name: 'changelog',
       status: 'failed',
       diagnostics: [
         expect.objectContaining({
           rule: 'release-changelog',
           file: 'CHANGELOG.md'
+        })
+      ]
+    })
+  })
+
+  it('fails release mode when files do not cover the exported entrypoints', async () => {
+    const root = await makeReleaseWorkspace({
+      files: ['README.md']
+    })
+    const report = await runQuality({
+      root,
+      mode: 'release',
+      gitStatus: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
+      config: releaseOnlyConfig()
+    })
+
+    expect(report.status).toBe('failed')
+    expect(report.steps.at(-2)).toMatchObject({
+      name: 'package-files',
+      status: 'failed',
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({
+          rule: 'release-package-files',
+          file: 'packages/core/package.json'
+        })
+      ])
+    })
+  })
+
+  it('fails release mode when exports point outside dist', async () => {
+    const root = await makeReleaseWorkspace({
+      exports: {
+        '.': {
+          types: './dist/index.d.ts',
+          import: './src/index.ts'
+        }
+      }
+    })
+    const report = await runQuality({
+      root,
+      mode: 'release',
+      gitStatus: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
+      config: releaseOnlyConfig()
+    })
+
+    expect(report.status).toBe('failed')
+    expect(report.steps.at(-3)).toMatchObject({
+      name: 'package-exports',
+      status: 'failed',
+      diagnostics: [
+        expect.objectContaining({
+          rule: 'release-package-exports',
+          file: 'packages/core/package.json'
         })
       ]
     })
@@ -159,6 +224,8 @@ async function makeReleaseWorkspace(
     rootVersion?: string
     packageVersion?: string
     changelog?: string
+    exports?: unknown
+    files?: readonly string[]
   } = {}
 ): Promise<string> {
   const root = await mkdtemp(resolve(tmpdir(), 'mcp-kit-release-quality-'))
@@ -180,9 +247,17 @@ async function makeReleaseWorkspace(
     JSON.stringify({
       name: '@mcp-kit/core',
       version: packageVersion,
-      type: 'module'
+      type: 'module',
+      exports: options.exports ?? {
+        '.': {
+          types: './dist/index.d.ts',
+          import: './dist/index.js'
+        }
+      },
+      files: options.files ?? ['dist', 'README.md']
     })
   )
+  await writeFile(resolve(root, 'packages/core/README.md'), '# core\n')
   await writeFile(
     resolve(root, 'packages/core/src/index.ts'),
     `export const packageInfo = {

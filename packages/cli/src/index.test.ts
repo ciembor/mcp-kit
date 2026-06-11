@@ -332,9 +332,17 @@ describe('mcp-kit cli', () => {
       JSON.stringify({
         name: '@mcp-kit/core',
         version: '1.2.3',
-        type: 'module'
+        type: 'module',
+        exports: {
+          '.': {
+            types: './dist/index.d.ts',
+            import: './dist/index.js'
+          }
+        },
+        files: ['dist', 'README.md']
       })
     )
+    await writeFile(resolve(cwd, 'packages/core/README.md'), '# core\n')
     await writeFile(
       resolve(cwd, 'packages/core/src/index.ts'),
       "export const packageInfo = {\n  name: '@mcp-kit/core',\n  version: '1.2.3'\n} as const\n"
