@@ -416,7 +416,7 @@ Cel: zapewnic powtarzalne budowanie i publikowanie pakietow bez omijania quality
 - [x] Instalowac paczki w izolowanym katalogu tymczasowym.
 - [x] Testowac root imports, subpath exports, typy i CLI.
 - [x] Uruchamiac stdio smoke test z opublikowanego tarballa.
-- [ ] Uruchamiac HTTP smoke test, gdy transport jest wlaczony.
+- [x] Uruchamiac HTTP smoke test, gdy transport jest wlaczony.
 
 ### Release command i CI
 

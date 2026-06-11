@@ -95,6 +95,8 @@ export async function runReleaseCheck(
       return checkPackageUsage(context.root, context.signal)
     case 'stdio-smoke':
       return checkStdioSmoke(context.root, context.signal)
+    case 'http-smoke':
+      return checkHttpSmoke(context.root, context.signal)
   }
 }
 
@@ -482,6 +484,40 @@ async function checkStdioSmoke(
             'release-stdio-smoke',
             'stdio-smoke.mjs',
             `Packaged stdio smoke failed: ${sanitizeMessage(result.stderr || result.stdout, 'stdio smoke failed')}`
+          )
+        ]
+  } finally {
+    await cleanupPreparedRelease(prepared)
+  }
+}
+
+async function checkHttpSmoke(
+  root: string,
+  signal: AbortSignal
+): Promise<readonly ProjectDiagnostic[]> {
+  const releasePackages = await releasePackageManifests(root)
+  if (!supportsHttpSmoke(releasePackages)) return []
+
+  const prepared = await prepareInstalledReleasePackages(root, signal)
+  try {
+    if (prepared.diagnostics.length > 0) return prepared.diagnostics
+    if (!('installDirectory' in prepared)) return prepared.diagnostics
+
+    const scriptPath = resolve(prepared.installDirectory, 'http-smoke.mjs')
+    await writeFile(scriptPath, httpSmokeSource())
+    const result = await runCommand(
+      'node',
+      [scriptPath],
+      prepared.installDirectory,
+      signal
+    )
+    return result.exitCode === 0
+      ? []
+      : [
+          releaseDiagnostic(
+            'release-http-smoke',
+            'http-smoke.mjs',
+            `Packaged HTTP smoke failed: ${sanitizeMessage(result.stderr || result.stdout, 'http smoke failed')}`
           )
         ]
   } finally {
@@ -1126,6 +1162,13 @@ function supportsStdioSmoke(
   )
 }
 
+function supportsHttpSmoke(
+  manifests: readonly WorkspacePackageManifest[]
+): boolean {
+  const names = new Set(manifests.map((manifest) => manifest.name))
+  return names.has('@mcp-kit/core') && names.has('@mcp-kit/node')
+}
+
 function stdioServerSource(): string {
   return `import { z } from 'zod'
 import { createMcpApp, defineTool } from '@mcp-kit/core'
@@ -1168,6 +1211,37 @@ try {
   }
 } finally {
   await client.close()
+}
+`
+}
+
+function httpSmokeSource(): string {
+  return `import { createMcpApp } from '@mcp-kit/core'
+import { runStreamableHttp } from '@mcp-kit/node'
+
+function createApp() {
+  return createMcpApp({
+    name: 'packaged-http-smoke',
+    version: '1.0.0',
+    services: {}
+  })
+}
+
+const runtime = await runStreamableHttp(createApp, { port: 0 })
+
+try {
+  const health = await fetch(\`http://127.0.0.1:\${runtime.options.port}\${runtime.options.healthPath}\`)
+  const ready = await fetch(\`http://127.0.0.1:\${runtime.options.port}\${runtime.options.readinessPath}\`)
+  const healthJson = await health.json()
+  const readyJson = await ready.json()
+  if (!health.ok || healthJson.status !== 'ok') {
+    throw new Error('unexpected health response')
+  }
+  if (!ready.ok || readyJson.status !== 'ready') {
+    throw new Error('unexpected readiness response')
+  }
+} finally {
+  await runtime.close()
 }
 `
 }

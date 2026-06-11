@@ -20,6 +20,7 @@ export type ReleaseCheckName =
   | 'install-packages'
   | 'package-usage'
   | 'stdio-smoke'
+  | 'http-smoke'
 
 export function fastSteps(
   config: ResolvedQualityConfig,
@@ -97,6 +98,7 @@ export function fullSteps(
     releaseCheck('install-packages', 'install-packages'),
     releaseCheck('package-usage', 'package-usage'),
     releaseCheck('stdio-smoke', 'stdio-smoke'),
+    releaseCheck('http-smoke', 'http-smoke'),
     external('mutation', config.mutation)
   ]
 }

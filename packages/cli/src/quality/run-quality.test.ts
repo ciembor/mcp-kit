@@ -252,7 +252,7 @@ describe('quality runner', () => {
       'build',
       'smoke'
     ])
-    expect(report.steps.map((step) => step.name).slice(-10)).toEqual([
+    expect(report.steps.map((step) => step.name).slice(-11)).toEqual([
       'clean-git',
       'version',
       'changelog',
@@ -262,6 +262,7 @@ describe('quality runner', () => {
       'install-packages',
       'package-usage',
       'stdio-smoke',
+      'http-smoke',
       'mutation'
     ])
   })
