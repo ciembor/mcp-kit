@@ -467,12 +467,12 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 
 ### Runtime i ekosystem
 
-- [ ] Ocenic adapter Web Standard dla Deno, Bun i edge runtimes.
-- [ ] Ocenic integracje Express i Hono bez duplikowania oficjalnego SDK.
-- [ ] Ocenic wydzielenie `@mcp-kit/security`.
-- [ ] Ocenic wydzielenie `@mcp-kit/quality`.
-- [ ] Ocenic wydzielenie `@mcp-kit/architecture`.
-- [ ] Dodac migration guides dla breaking changes.
+- [x] Ocenic adapter Web Standard dla Deno, Bun i edge runtimes.
+- [x] Ocenic integracje Express i Hono bez duplikowania oficjalnego SDK.
+- [x] Ocenic wydzielenie `@mcp-kit/security`.
+- [x] Ocenic wydzielenie `@mcp-kit/quality`.
+- [x] Ocenic wydzielenie `@mcp-kit/architecture`.
+- [x] Dodac migration guides dla breaking changes.
 
 ### Definition of Done
 
