@@ -483,7 +483,7 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 ## Globalne kryteria wydania 1.0
 
 - [x] Publiczne API core jest udokumentowane i ma polityke kompatybilnosci semver.
-- [ ] Macierz SDK/protokol/Node jest opublikowana i testowana.
+- [x] Macierz SDK/protokol/Node jest opublikowana i testowana.
 - [ ] Wszystkie oficjalne warianty jednego template przechodza E2E.
 - [ ] Stdio i Streamable HTTP przechodza wspierany zakres conformance.
 - [ ] Wszystkie projekty uzywaja jednej architektury feature-first.
