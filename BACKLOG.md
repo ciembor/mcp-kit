@@ -492,6 +492,6 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 - [ ] Stateful sessions oraz joby uzywaja zewnetrznych store przez frameworkowe porty.
 - [ ] Gateway deployment zachowuje walidacje tokenu, autoryzacje, limity i audit w serwerze.
 - [ ] Dlugie operacje uzywaja job/task pattern i przezywaja restart workera.
-- [ ] CLI jest idempotentne, transakcyjne i bezpieczne dla niezarzadzanych plikow.
+- [x] CLI jest idempotentne, transakcyjne i bezpieczne dla niezarzadzanych plikow.
 - [x] Dokumentacja zawiera tutorial, API reference, security guide i migration guide.
 - [x] Release tarball smoke tests przechodza dla wszystkich publikowanych pakietow.
