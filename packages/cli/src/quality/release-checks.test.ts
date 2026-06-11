@@ -300,7 +300,12 @@ function releaseOnlyConfig() {
     coverage: { enabled: false, command: '' },
     build: { enabled: false, command: '' },
     packageSmoke: { enabled: false, command: '' },
-    mutation: { enabled: false, command: '' }
+    mutation: {
+      enabled: false,
+      command: '',
+      runInRelease: false,
+      threshold: 80
+    }
   }
 }
 

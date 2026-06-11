@@ -35,6 +35,8 @@ describe('quality config', () => {
       statements: 90,
       branches: 85
     })
+    expect(standard.mutation.threshold).toBe(80)
+    expect(standard.mutation.runInRelease).toBe(false)
 
     const off = resolveQualityConfig({ preset: 'off' }, '/project')
     expect(off.formatting.enabled).toBe(false)
@@ -93,6 +95,21 @@ describe('quality config', () => {
         coverage: { thresholds: { lines: 101 } }
       })
     ).toThrow('Coverage threshold lines must be between 0 and 100')
+    expect(() =>
+      defineQualityConfig({
+        preset: 'standard',
+        mutation: { command: 'stryker run', threshold: 101 }
+      })
+    ).toThrow('Mutation threshold must be between 0 and 100')
+    expect(() =>
+      defineQualityConfig({
+        preset: 'standard',
+        mutation: {
+          command: 'stryker run',
+          exclude: [{ pattern: '', reason: 'generated' }]
+        }
+      })
+    ).toThrow('Mutation exclusions require a pattern and a reason')
   })
 
   it('builds coverage commands for standard and strict presets', () => {
@@ -153,6 +170,32 @@ describe('quality config', () => {
 
   it('shell-quotes values for CLI flags', () => {
     expect(shellQuote("a'b")).toBe("'a'\\''b'")
+  })
+
+  it('builds mutation commands with explained exclusions', () => {
+    const config = resolveQualityConfig(
+      {
+        preset: 'standard',
+        mutation: {
+          command: 'stryker run',
+          exclude: [
+            {
+              pattern: "packages/*/src/**/it's-generated.ts",
+              reason: 'generated'
+            }
+          ],
+          runInRelease: true,
+          threshold: 90
+        }
+      },
+      '/project'
+    )
+
+    expect(config.mutation.command).toContain(
+      "--mutate '!packages/*/src/**/it'\\''s-generated.ts'"
+    )
+    expect(config.mutation.runInRelease).toBe(true)
+    expect(config.mutation.threshold).toBe(90)
   })
 })
 

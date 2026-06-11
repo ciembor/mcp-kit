@@ -442,10 +442,10 @@ Cel: dodac opcjonalna walidacje skutecznosci testow bez obciazania podstawowego 
 - [x] Dodac `mcp-kit quality --mutation`.
 - [x] Ustawic domyslny prog 80%.
 - [x] Udokumentowac rekomendowany prog 90% dla dojrzalych projektow.
-- [ ] Dodac konfigurowalne wykluczenia z uzasadnieniem.
+- [x] Dodac konfigurowalne wykluczenia z uzasadnieniem.
 - [ ] Dodac nightly GitHub Actions workflow.
 - [ ] Dodac opcjonalne egzekwowanie mutation score w release.
-- [ ] Dodac raport tekstowy i HTML.
+- [x] Dodac raport tekstowy i HTML.
 
 ### Definition of Done
 

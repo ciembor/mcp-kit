@@ -95,24 +95,30 @@ export function fullSteps(
     ]
   }
 
-  if (options.mode !== 'release') {
-    return [...full, external('mutation', config.mutation)]
+  if (options.mode === 'release') {
+    return [
+      ...full,
+      releaseCheck('clean-git', 'clean-git'),
+      releaseCheck('version', 'version'),
+      releaseCheck('changelog', 'changelog'),
+      releaseCheck('package-exports', 'package-exports'),
+      releaseCheck('package-files', 'package-files'),
+      releaseCheck('npm-pack', 'npm-pack'),
+      releaseCheck('install-packages', 'install-packages'),
+      releaseCheck('package-usage', 'package-usage'),
+      releaseCheck('stdio-smoke', 'stdio-smoke'),
+      releaseCheck('http-smoke', 'http-smoke'),
+      {
+        name: 'mutation',
+        kind: 'external',
+        enabled:
+          config.mutation.enabled === true && config.mutation.runInRelease,
+        command: config.mutation.command
+      }
+    ]
   }
 
-  return [
-    ...full,
-    releaseCheck('clean-git', 'clean-git'),
-    releaseCheck('version', 'version'),
-    releaseCheck('changelog', 'changelog'),
-    releaseCheck('package-exports', 'package-exports'),
-    releaseCheck('package-files', 'package-files'),
-    releaseCheck('npm-pack', 'npm-pack'),
-    releaseCheck('install-packages', 'install-packages'),
-    releaseCheck('package-usage', 'package-usage'),
-    releaseCheck('stdio-smoke', 'stdio-smoke'),
-    releaseCheck('http-smoke', 'http-smoke'),
-    external('mutation', config.mutation)
-  ]
+  return [...full, external('mutation', config.mutation)]
 }
 
 function external(

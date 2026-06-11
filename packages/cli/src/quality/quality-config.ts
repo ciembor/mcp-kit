@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 
 import type {
   CoverageThresholds,
+  MutationConfig,
   QualityCommand,
   QualityConfig,
   ResolvedQualityConfig
@@ -74,7 +75,7 @@ export function resolveQualityConfig(
       'dependency-cruiser src --config dependency-cruiser.config.cjs',
       true
     ),
-    mutation: command(config.mutation, 'stryker run', false),
+    mutation: resolveMutation(config),
     tests: resolveTests(config),
     coverage: resolveCoverage(config, thresholds, coverageEnabled),
     build: command(config.build, 'npm run build --if-present', true),
@@ -114,6 +115,19 @@ function resolveTests(config: QualityConfig) {
     contract: command(config.tests?.contract, '', false),
     architecture: command(config.tests?.architecture, '', false)
   }
+}
+
+function resolveMutation(config: QualityConfig) {
+  const mutation: MutationConfig = {
+    command: config.mutation?.command ?? 'stryker run',
+    ...(config.mutation ?? {})
+  }
+  return command(mutation, 'stryker run', false, {
+    command: mutationCommand(mutation),
+    threshold: mutation.threshold ?? 80,
+    runInRelease: mutation.runInRelease ?? false,
+    exclude: mutation.exclude ?? []
+  })
 }
 
 function resolveCoverage(
@@ -185,6 +199,7 @@ function validateQualityConfig(config: QualityConfig): void {
   }
   validateCoverageExclusions(config)
   validateCoverageThresholds(config)
+  validateMutationConfig(config)
   validateStrictCoverage(config)
 }
 
@@ -204,6 +219,32 @@ function validateCoverageThresholds(config: QualityConfig): void {
       throw new Error(`Coverage threshold ${name} must be between 0 and 100`)
     }
   }
+}
+
+function validateMutationConfig(config: QualityConfig): void {
+  const mutation = config.mutation
+  if (
+    mutation?.threshold !== undefined &&
+    (mutation.threshold < 0 || mutation.threshold > 100)
+  ) {
+    throw new Error('Mutation threshold must be between 0 and 100')
+  }
+  for (const exclusion of mutation?.exclude ?? []) {
+    if (exclusion.pattern.trim() === '' || exclusion.reason.trim() === '') {
+      throw new Error('Mutation exclusions require a pattern and a reason')
+    }
+  }
+}
+
+function mutationCommand(config: MutationConfig): string {
+  const exclusions = config.exclude ?? []
+  if (exclusions.length === 0) return config.command ?? 'stryker run'
+  return [
+    config.command ?? 'stryker run',
+    ...exclusions.map(
+      (exclusion) => `--mutate ${shellQuote(`!${exclusion.pattern}`)}`
+    )
+  ].join(' ')
 }
 
 function validateStrictCoverage(config: QualityConfig): void {

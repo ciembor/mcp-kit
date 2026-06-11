@@ -306,6 +306,90 @@ describe('quality runner', () => {
     })
   })
 
+  it('runs mutation during release only when explicitly enabled', async () => {
+    const root = await makeProject()
+    await writeFile(
+      resolve(root, 'package.json'),
+      JSON.stringify({ name: 'repo', private: true, version: '1.2.3' })
+    )
+    await writeFile(
+      resolve(root, 'CHANGELOG.md'),
+      '# Changelog\n\n## [Unreleased]\n'
+    )
+    await mkdir(resolve(root, 'packages/core/src'), { recursive: true })
+    await mkdir(resolve(root, 'packages/core/dist'), { recursive: true })
+    await writeFile(
+      resolve(root, 'packages/core/package.json'),
+      JSON.stringify({
+        name: '@mcp-kit/core',
+        version: '1.2.3',
+        type: 'module',
+        exports: {
+          '.': {
+            types: './dist/index.d.ts',
+            import: './dist/index.js'
+          }
+        },
+        files: ['dist', 'README.md']
+      })
+    )
+    await writeFile(resolve(root, 'packages/core/README.md'), '# core\n')
+    await writeFile(
+      resolve(root, 'packages/core/dist/index.js'),
+      "export const packageInfo = { name: '@mcp-kit/core', version: '1.2.3' }\n"
+    )
+    await writeFile(
+      resolve(root, 'packages/core/dist/index.d.ts'),
+      "export declare const packageInfo: { readonly name: '@mcp-kit/core'; readonly version: '1.2.3' }\n"
+    )
+    await writeFile(
+      resolve(root, 'packages/core/src/index.ts'),
+      "export const packageInfo = {\n  name: '@mcp-kit/core',\n  version: '1.2.3'\n} as const\n"
+    )
+    const commands: string[] = []
+    const report = await runQuality({
+      root,
+      mode: 'release',
+      gitStatus: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
+      npmPack: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '[{\"filename\":\"mcp-kit-core.tgz\"}]',
+          stderr: ''
+        }),
+      npmInstall: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
+      config: {
+        ...configWithCommands(),
+        mutation: {
+          enabled: true,
+          command: 'mutation',
+          runInRelease: true
+        }
+      },
+      execute: (command) => {
+        commands.push(command)
+        return Promise.resolve(0)
+      }
+    })
+
+    expect(report.status).toBe('passed')
+    expect(commands.at(-1)).toBe('mutation')
+    expect(report.steps.at(-1)).toMatchObject({
+      name: 'mutation',
+      status: 'passed'
+    })
+  })
+
   it('skips mutation by default', async () => {
     const root = await makeProject()
     const commands: string[] = []

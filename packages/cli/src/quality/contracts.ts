@@ -12,9 +12,18 @@ export type CoverageExclusion = {
   pattern: string
   reason: string
 }
+export type MutationExclusion = {
+  pattern: string
+  reason: string
+}
 export type QualityCommand = {
   enabled?: boolean
   command: string
+}
+export type MutationConfig = QualityCommand & {
+  threshold?: number
+  runInRelease?: boolean
+  exclude?: readonly MutationExclusion[]
 }
 export type QualityConfig = {
   preset: QualityPreset
@@ -29,7 +38,7 @@ export type QualityConfig = {
   typecheck?: QualityCommand
   deadCode?: QualityCommand
   dependencyCruiser?: QualityCommand
-  mutation?: QualityCommand
+  mutation?: MutationConfig
   tests?: {
     unit?: QualityCommand
     integration?: QualityCommand
@@ -60,7 +69,7 @@ export type ResolvedQualityConfig = {
   typecheck: QualityCommand
   deadCode: QualityCommand
   dependencyCruiser: QualityCommand
-  mutation: QualityCommand
+  mutation: MutationConfig & { threshold: number; runInRelease: boolean }
   tests: {
     unit: QualityCommand
     integration: QualityCommand
