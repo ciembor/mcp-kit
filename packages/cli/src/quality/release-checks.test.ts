@@ -322,6 +322,74 @@ describe('release quality checks', () => {
       ]
     })
   })
+
+  it('checks tarball usage for every published workspace package', async () => {
+    const root = await makeReleaseWorkspace()
+    await mkdir(resolve(root, 'packages/testing/src'), { recursive: true })
+    await mkdir(resolve(root, 'packages/testing/dist'), { recursive: true })
+    await writeFile(
+      resolve(root, 'packages/testing/package.json'),
+      JSON.stringify({
+        name: '@mcp-kit/testing',
+        version: '1.2.3',
+        type: 'module',
+        exports: {
+          '.': {
+            types: './dist/index.d.ts',
+            import: './dist/index.js'
+          }
+        },
+        files: ['dist', 'README.md']
+      })
+    )
+    await writeFile(resolve(root, 'packages/testing/README.md'), '# testing\n')
+    await writeFile(
+      resolve(root, 'packages/testing/src/index.ts'),
+      `export const packageInfo = {
+  name: '@mcp-kit/testing',
+  version: '1.2.3'
+} as const
+`
+    )
+    await writeFile(
+      resolve(root, 'packages/testing/dist/index.d.ts'),
+      `export declare const packageInfo: {
+  readonly name: '@mcp-kit/testing'
+  readonly version: '1.2.3'
+}
+`
+    )
+    await writeFile(
+      resolve(root, 'packages/testing/dist/index.js'),
+      "throw new Error('broken published package')\n"
+    )
+
+    const report = await runQuality({
+      root,
+      mode: 'release',
+      gitStatus: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '',
+          stderr: ''
+        }),
+      npmPack: successfulNpmPack,
+      npmInstall: successfulNpmInstall,
+      config: releaseOnlyConfig()
+    })
+
+    expect(report.status).toBe('failed')
+    expect(step(report, 'package-usage')).toMatchObject({
+      name: 'package-usage',
+      status: 'failed',
+      diagnostics: [
+        expect.objectContaining({
+          rule: 'release-package-usage',
+          file: 'imports.mjs'
+        })
+      ]
+    })
+  })
 })
 
 function releaseOnlyConfig() {

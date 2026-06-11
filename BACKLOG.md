@@ -494,4 +494,4 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 - [ ] Dlugie operacje uzywaja job/task pattern i przezywaja restart workera.
 - [ ] CLI jest idempotentne, transakcyjne i bezpieczne dla niezarzadzanych plikow.
 - [x] Dokumentacja zawiera tutorial, API reference, security guide i migration guide.
-- [ ] Release tarball smoke tests przechodza dla wszystkich publikowanych pakietow.
+- [x] Release tarball smoke tests przechodza dla wszystkich publikowanych pakietow.
