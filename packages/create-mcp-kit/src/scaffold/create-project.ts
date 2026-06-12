@@ -1,4 +1,4 @@
-import { cp, mkdir } from 'node:fs/promises'
+import { cp, mkdir, readdir, rename } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
 import {
   findTemplateDirectory,
@@ -43,6 +43,7 @@ export async function createMcpKitProject(
       resolveDefaultTemplateCandidates(import.meta.url)
     ))
   await cp(template, target, { recursive: true })
+  await restoreBundledTemplateTests(target)
 
   const projectName = toPackageName(basename(target))
   await replaceTemplateTokens(
@@ -51,4 +52,43 @@ export async function createMcpKitProject(
   )
 
   return target
+}
+
+async function restoreBundledTemplateTests(root: string): Promise<void> {
+  await restoreBundledTemplateTestsIn(resolve(root, 'test'))
+}
+
+async function restoreBundledTemplateTestsIn(directory: string): Promise<void> {
+  let entries
+  try {
+    entries = await readdir(directory, { withFileTypes: true })
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      return
+    }
+    throw error
+  }
+
+  for (const entry of entries) {
+    const absolute = resolve(directory, entry.name)
+    if (entry.isDirectory()) {
+      await restoreBundledTemplateTestsIn(absolute)
+      continue
+    }
+
+    const restored = restoredTemplateTestName(entry.name)
+    if (restored !== entry.name) {
+      await rename(absolute, resolve(directory, restored))
+    }
+  }
+}
+
+function restoredTemplateTestName(name: string): string {
+  if (name.endsWith('.test.template.ts')) {
+    return name.replace(/\.test\.template\.ts$/u, '.test.ts')
+  }
+  if (name.endsWith('.test.template.js')) {
+    return name.replace(/\.test\.template\.js$/u, '.test.js')
+  }
+  return name
 }

@@ -142,6 +142,40 @@ describe('create-mcp-kit', () => {
     ).resolves.toContain("name: 'server'")
   })
 
+  it('restores bundled template test filenames when copying from a bundled template', async () => {
+    const cwd = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-'))
+    const template = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-template-'))
+    temporaryDirectories.push(cwd, template)
+
+    await mkdir(resolve(template, 'test/contracts'), { recursive: true })
+    await writeFile(
+      resolve(template, 'package.json'),
+      '{"name":"{{packageName}}","version":"0.0.0"}\n'
+    )
+    await writeFile(
+      resolve(template, 'test/contracts/health.contract.test.template.ts'),
+      'export {}\n'
+    )
+
+    const target = await createMcpKitProject('server', {
+      cwd,
+      templateDirectory: template
+    })
+
+    await expect(
+      readFile(
+        resolve(target, 'test/contracts/health.contract.test.ts'),
+        'utf8'
+      )
+    ).resolves.toContain('export {}')
+    await expect(
+      readFile(
+        resolve(target, 'test/contracts/health.contract.test.template.ts'),
+        'utf8'
+      )
+    ).rejects.toThrow()
+  })
+
   it('returns CLI status codes and writes messages', async () => {
     const cwd = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-'))
     temporaryDirectories.push(cwd)

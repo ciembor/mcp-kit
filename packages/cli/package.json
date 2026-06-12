@@ -20,7 +20,7 @@
     "typescript": "5.9.3"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/bin.ts --format esm --dts --sourcemap --clean && rm -rf dist/template && cp -R ../../templates/default dist/template",
+    "build": "tsup src/index.ts src/bin.ts --format esm --dts --sourcemap --clean && rm -rf dist/template && node ../../scripts/prepare-bundled-template.mjs ../../templates/default dist/template",
     "clean": "rm -rf dist",
     "typecheck": "tsc --project tsconfig.json"
   },
