@@ -399,7 +399,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Serwer HTTP przechodzi wspierane testy conformance.
 - [x] Negatywne testy auth, session, host i origin przechodza.
 - [x] Publiczny tryb production nie uruchamia sie bez jawnej decyzji o auth.
-- [ ] Domyslny production server skaluje sie poziomo bez lokalnego stanu procesu.
+- [x] Domyslny production server skaluje sie poziomo bez lokalnego stanu procesu.
 - [ ] Dlugie operacje przezywaja restart workera i nie wymagaja stalego SSE.
 
 ## Milestone 6: Release tooling

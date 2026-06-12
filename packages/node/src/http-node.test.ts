@@ -177,6 +177,29 @@ describe('@mcp-kit/node streamable http', () => {
     expect(transportInstances[0]?.close).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps production HTTP stateless unless a session store is configured explicitly', async () => {
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      mode: 'production',
+      host: '127.0.0.1',
+      port: 0,
+      auth: false
+    })
+    runtimes.push(runtime)
+
+    const response = await fetch(runtime.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ hello: 'world' })
+    })
+
+    expect(runtime.options.mode).toBe('production')
+    expect(runtime.options.sessionMode).toBe('stateless')
+    expect(runtime.options.sessionStore).toBeUndefined()
+    expect(response.status).toBe(200)
+    expect(response.headers.get('mcp-session-id')).toBeNull()
+  })
+
   it('rejects disallowed Host headers before touching the app', async () => {
     const apps = createAppFactory()
     const runtime = await runStreamableHttp(apps.createApp, { port: 0 })
