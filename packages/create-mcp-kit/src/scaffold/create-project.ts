@@ -4,7 +4,10 @@ import {
   findTemplateDirectory,
   resolveDefaultTemplateCandidates
 } from './template-directory.js'
-import { assertEmptyOrMissing } from './target-directory.js'
+import {
+  assertEmptyOrMissing,
+  assertTargetWithinRoot
+} from './target-directory.js'
 import {
   replaceTemplateTokens,
   templateReplacements
@@ -28,7 +31,9 @@ export async function createMcpKitProject(
     throw new Error('Project directory is required')
   }
 
-  const target = resolve(options.cwd ?? process.cwd(), projectPath)
+  const root = resolve(options.cwd ?? process.cwd())
+  const target = resolve(root, projectPath)
+  await assertTargetWithinRoot(root, target)
   await assertEmptyOrMissing(target)
   await mkdir(target, { recursive: true })
 

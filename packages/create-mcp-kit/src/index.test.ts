@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -80,6 +87,29 @@ describe('create-mcp-kit', () => {
     )
     await expect(createMcpKitProject('file', { cwd })).rejects.toThrow(
       'Target exists and is not a directory'
+    )
+  })
+
+  it('rejects path traversal outside the working directory', async () => {
+    const cwd = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-'))
+    temporaryDirectories.push(cwd)
+
+    await expect(createMcpKitProject('../escape', { cwd })).rejects.toThrow(
+      'Target must stay within the working directory'
+    )
+  })
+
+  it('rejects target paths that traverse symbolic links', async () => {
+    const cwd = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-'))
+    const external = await mkdtemp(
+      resolve(tmpdir(), 'create-mcp-kit-external-')
+    )
+    temporaryDirectories.push(cwd, external)
+
+    await symlink(external, resolve(cwd, 'linked'))
+
+    await expect(createMcpKitProject('linked/server', { cwd })).rejects.toThrow(
+      'Target must not traverse symbolic links'
     )
   })
 

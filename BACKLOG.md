@@ -352,7 +352,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 ### Ochrona I/O
 
 - [ ] Dodac policy filesystem roots.
-- [ ] Dodac ochrone path traversal i symlink escape.
+- [x] Dodac ochrone path traversal i symlink escape.
 - [ ] Dodac outbound HTTP allowlist i ochrone SSRF.
 - [ ] Dodac limity rozmiaru wynikow i paginacje.
 - [ ] Dodac policy dla destrukcyjnych operacji.
