@@ -901,27 +901,48 @@ describe('@mcp-kit/node streamable http', () => {
     })
   })
 
-  it('rejects invalid bearer tokens', async () => {
+  it('maps verifier failures for issuer, audience, signature, and expiry to safe 401 responses', async () => {
     const apps = createAppFactory()
     const runtime = await runStreamableHttp(apps.createApp, {
       port: 0,
       auth: {
-        verifyBearerToken: createVerifier()
+        verifyBearerToken: (token) => {
+          switch (token) {
+            case 'bad-issuer':
+              throw new Error('Issuer mismatch.')
+            case 'bad-audience':
+              throw new Error('Audience mismatch.')
+            case 'bad-signature':
+              throw new Error('Signature verification failed.')
+            case 'expired-token':
+              throw new Error('Token expired.')
+            default:
+              return createVerifier()(token)
+          }
+        }
       }
     })
     runtimes.push(runtime)
 
-    const response = await fetch(runtime.url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: 'Bearer missing-token'
-      },
-      body: '{"hello":"world"}'
-    })
+    for (const token of [
+      'bad-issuer',
+      'bad-audience',
+      'bad-signature',
+      'expired-token'
+    ]) {
+      const response = await fetch(runtime.url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`
+        },
+        body: '{"hello":"world"}'
+      })
 
-    expect(response.status).toBe(401)
-    expect(await response.text()).toContain('Bearer token rejected.')
+      expect(response.status).toBe(401)
+      expect(response.headers.get('www-authenticate')).toContain('Bearer')
+      expect(await response.text()).toContain('Bearer token rejected.')
+    }
   })
 
   it('binds stateful sessions to subject and tenant on every request', async () => {
