@@ -1,7 +1,3 @@
-import { createServer } from 'node:http'
-import { randomUUID } from 'node:crypto'
-
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
 
 import {
@@ -11,6 +7,7 @@ import {
   defineResource,
   defineTool
 } from '../../packages/core/dist/index.js'
+import { runStreamableHttp } from '../../packages/node/dist/index.js'
 
 const image =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nWQAAAAASUVORK5CYII='
@@ -229,71 +226,30 @@ const prompts = defineRegistry([
   })
 ])
 
-const app = createMcpApp({
-  name: 'mcp-kit-conformance',
-  version: '0.0.0',
-  services: {}
+const runtime = await runStreamableHttp(createApp, {
+  host: '127.0.0.1',
+  port: 0
 })
-if (process.env.MCP_KIT_CONFORMANCE_DEBUG === '1') {
-  app.sdk.server.onerror = (error) => process.stderr.write(`${error.stack}\n`)
-}
-app.tools(tools)
-app.resources(resources)
-app.prompts(prompts)
-
-const transport = new StreamableHTTPServerTransport({
-  sessionIdGenerator: randomUUID
-})
-await app.connect(transport)
-
-const server = createServer(async (request, response) => {
-  if (process.env.MCP_KIT_CONFORMANCE_DEBUG === '1') {
-    process.stderr.write(
-      `${request.method} ${request.url} ${JSON.stringify(request.headers)}\n`
-    )
-    response.once('finish', () => {
-      process.stderr.write(
-        `${response.statusCode} ${JSON.stringify(response.getHeaders())}\n`
-      )
-    })
-  }
-  if (request.url !== '/mcp') {
-    response.writeHead(404).end()
-    return
-  }
-  try {
-    const body =
-      request.method === 'POST' ? await readJsonBody(request) : undefined
-    if (process.env.MCP_KIT_CONFORMANCE_DEBUG === '1') {
-      process.stderr.write(`${JSON.stringify(body)}\n`)
-    }
-    if (body?.method === 'notifications/initialized') {
-      response.writeHead(202).end()
-      return
-    }
-    await transport.handleRequest(request, response, body)
-  } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.stack : error}\n`)
-    if (!response.headersSent) response.writeHead(500)
-    response.end()
-  }
-})
-
-server.listen(0, '127.0.0.1', () => {
-  const address = server.address()
-  if (address === null || typeof address === 'string') process.exit(1)
-  process.stdout.write(`http://127.0.0.1:${address.port}/mcp\n`)
-})
+process.stdout.write(`${runtime.url}\n`)
 
 const close = async () => {
-  await app.close()
-  server.close(() => process.exit())
+  await runtime.close()
+  process.exit()
 }
 process.once('SIGINT', () => void close())
 process.once('SIGTERM', () => void close())
 
-async function readJsonBody(request) {
-  const chunks = []
-  for await (const chunk of request) chunks.push(chunk)
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+function createApp() {
+  const app = createMcpApp({
+    name: 'mcp-kit-conformance',
+    version: '0.0.0',
+    services: {}
+  })
+  if (process.env.MCP_KIT_CONFORMANCE_DEBUG === '1') {
+    app.sdk.server.onerror = (error) => process.stderr.write(`${error.stack}\n`)
+  }
+  app.tools(tools)
+  app.resources(resources)
+  app.prompts(prompts)
+  return app
 }

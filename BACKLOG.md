@@ -392,11 +392,11 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Przetestowac forged proxy headers i bledna konfiguracje trusted proxy.
 - [x] Przetestowac brak sticky sessions i zewnetrzny session store.
 - [x] Przetestowac limity per tool oraz odrzucanie nieznanych pol.
-- [ ] Uruchomic conformance runner dla Streamable HTTP.
+- [x] Uruchomic conformance runner dla Streamable HTTP.
 
 ### Definition of Done
 
-- [ ] Serwer HTTP przechodzi wspierane testy conformance.
+- [x] Serwer HTTP przechodzi wspierane testy conformance.
 - [ ] Negatywne testy auth, session, host i origin przechodza.
 - [ ] Publiczny tryb production nie uruchamia sie bez jawnej decyzji o auth.
 - [ ] Domyslny production server skaluje sie poziomo bez lokalnego stanu procesu.
