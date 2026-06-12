@@ -271,6 +271,28 @@ describe('@mcp-kit/node fastify adapter', () => {
     expect(await sessionStore.get(sessionId)).toBeUndefined()
     expect(apps.instances[0]?.close).toHaveBeenCalledTimes(1)
   })
+
+  it('skips protected resource metadata routes when auth metadata is unavailable', () => {
+    const apps = createAppFactory()
+    const withoutMetadata = createFakeFastify()
+    const authDisabled = createFakeFastify()
+
+    registerFastifyStreamableHttp(withoutMetadata, apps.createApp, {
+      auth: {
+        verifyBearerToken: createVerifier()
+      },
+      healthPath: false,
+      readinessPath: false
+    })
+    registerFastifyStreamableHttp(authDisabled, apps.createApp, {
+      auth: false,
+      healthPath: false,
+      readinessPath: false
+    })
+
+    expect(withoutMetadata.routes.map((route) => route.url)).toEqual(['/mcp'])
+    expect(authDisabled.routes.map((route) => route.url)).toEqual(['/mcp'])
+  })
 })
 
 function createAppFactory() {
