@@ -176,6 +176,66 @@ describe('create-mcp-kit', () => {
     ).rejects.toThrow()
   })
 
+  it('tolerates templates without a test directory and restores bundled js test filenames', async () => {
+    const cwd = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-'))
+    const template = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-template-'))
+    temporaryDirectories.push(cwd, template)
+
+    await writeFile(
+      resolve(template, 'package.json'),
+      '{"name":"{{packageName}}","version":"0.0.0"}\n'
+    )
+    await mkdir(resolve(template, 'test/integration'), { recursive: true })
+    await writeFile(
+      resolve(template, 'test/integration/http.test.template.js'),
+      'export {}\n'
+    )
+
+    const target = await createMcpKitProject('server', {
+      cwd,
+      templateDirectory: template
+    })
+
+    await expect(
+      readFile(resolve(target, 'test/integration/http.test.js'), 'utf8')
+    ).resolves.toContain('export {}')
+
+    const noTestsTemplate = await mkdtemp(
+      resolve(tmpdir(), 'create-mcp-kit-template-no-tests-')
+    )
+    temporaryDirectories.push(noTestsTemplate)
+    await writeFile(
+      resolve(noTestsTemplate, 'package.json'),
+      '{"name":"{{packageName}}","version":"0.0.0"}\n'
+    )
+
+    await expect(
+      createMcpKitProject('server-no-tests', {
+        cwd,
+        templateDirectory: noTestsTemplate
+      })
+    ).resolves.toBe(resolve(cwd, 'server-no-tests'))
+  })
+
+  it('rethrows non-ENOENT errors while restoring bundled template tests', async () => {
+    const cwd = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-'))
+    const template = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-template-'))
+    temporaryDirectories.push(cwd, template)
+
+    await writeFile(
+      resolve(template, 'package.json'),
+      '{"name":"{{packageName}}","version":"0.0.0"}\n'
+    )
+    await writeFile(resolve(template, 'test'), 'not a directory\n')
+
+    await expect(
+      createMcpKitProject('broken', {
+        cwd,
+        templateDirectory: template
+      })
+    ).rejects.toThrow()
+  })
+
   it('returns CLI status codes and writes messages', async () => {
     const cwd = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-'))
     temporaryDirectories.push(cwd)
