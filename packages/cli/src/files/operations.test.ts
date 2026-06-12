@@ -58,6 +58,14 @@ describe('file operations', () => {
     expect(conflict.kind).toBe('conflict')
     expect(conflict.path).toBe('text.txt.mcp-kit.conflict')
     expect(conflict.content).toContain('<<<<<<< existing')
+
+    await expect(
+      createOrMergeOperation(cwd, 'brand-new.txt', 'fresh\n')
+    ).resolves.toMatchObject({
+      kind: 'create',
+      path: 'brand-new.txt',
+      content: 'fresh\n'
+    })
   })
 
   it('rolls back partially applied plans', async () => {
@@ -97,6 +105,53 @@ describe('file operations', () => {
     await expect(readFile(resolve(cwd, 'existing.txt'), 'utf8')).resolves.toBe(
       'before'
     )
+  })
+
+  it('skips unchanged protected files, rejects changed protected conflicts and removes backups after success', async () => {
+    const cwd = await makeTemp()
+    const conflictPath = resolve(cwd, 'notes.txt.mcp-kit.conflict')
+    const overwritePath = resolve(cwd, 'existing.txt')
+    await writeFile(conflictPath, 'same\n')
+    await writeFile(overwritePath, 'before')
+
+    await expect(
+      applyPlan(
+        {
+          root: cwd,
+          operations: [
+            {
+              kind: 'overwrite',
+              path: 'notes.txt.mcp-kit.conflict',
+              content: 'same\n'
+            },
+            { kind: 'overwrite', path: 'existing.txt', content: 'after' }
+          ]
+        },
+        { allowOverwrite: false }
+      )
+    ).resolves.toBeUndefined()
+
+    await expect(readFile(conflictPath, 'utf8')).resolves.toBe('same\n')
+    await expect(readFile(overwritePath, 'utf8')).resolves.toBe('after')
+    await expect(
+      readFile(`${overwritePath}.mcp-kit-backup`, 'utf8')
+    ).rejects.toThrow()
+
+    await expect(
+      applyPlan(
+        {
+          root: cwd,
+          operations: [
+            {
+              kind: 'overwrite',
+              path: 'notes.txt.mcp-kit.conflict',
+              content: 'different\n'
+            }
+          ]
+        },
+        { allowOverwrite: false }
+      )
+    ).rejects.toThrow('Refusing to overwrite unmanaged file')
   })
 })
 
