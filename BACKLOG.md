@@ -397,8 +397,8 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 ### Definition of Done
 
 - [x] Serwer HTTP przechodzi wspierane testy conformance.
-- [ ] Negatywne testy auth, session, host i origin przechodza.
-- [ ] Publiczny tryb production nie uruchamia sie bez jawnej decyzji o auth.
+- [x] Negatywne testy auth, session, host i origin przechodza.
+- [x] Publiczny tryb production nie uruchamia sie bez jawnej decyzji o auth.
 - [ ] Domyslny production server skaluje sie poziomo bez lokalnego stanu procesu.
 - [ ] Dlugie operacje przezywaja restart workera i nie wymagaja stalego SSE.
 
