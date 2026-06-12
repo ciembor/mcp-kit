@@ -13,13 +13,17 @@ import type {
   Root
 } from '@modelcontextprotocol/sdk/types.js'
 
-import { McpKitError } from '../definitions.js'
 import type {
   AuthContext,
   Logger,
   RequestContext,
   ServerRequestContext
 } from '../definitions.js'
+import {
+  assertElicitationSupport,
+  elicitationSupport,
+  unsupportedCapability
+} from './context-elicitation.js'
 
 export function contextFactory<Services>(
   runtime: () => {
@@ -79,28 +83,18 @@ function requestCorrelationId(extra: ServerRequestContext): string {
 function authContext(authInfo: ServerRequestContext['authInfo']): AuthContext {
   return {
     scopes: authInfo?.scopes ?? [],
-    source: authInfo === undefined ? 'anonymous' : 'oauth',
-    ...(typeof authInfo?.extra?.['subject'] === 'string'
-      ? { subject: authInfo.extra['subject'] }
-      : {}),
-    ...(typeof authInfo?.extra?.['tenantId'] === 'string'
-      ? { tenantId: authInfo.extra['tenantId'] }
-      : {}),
-    ...(authInfo?.clientId === undefined
-      ? {}
-      : { clientId: authInfo.clientId }),
-    ...(authInfo?.expiresAt === undefined
-      ? {}
-      : { expiresAt: authInfo.expiresAt }),
-    ...(authInfo?.resource === undefined
-      ? {}
-      : { resource: authInfo.resource }),
-    ...(authInfo?.token === undefined ? {} : { token: authInfo.token }),
-    ...(authInfo?.extra === undefined ? {} : { extra: authInfo.extra })
+    source: authSource(),
+    ...authExtraField(authInfo, 'subject', 'subject'),
+    ...authExtraField(authInfo, 'tenantId', 'tenantId'),
+    ...optionalAuthField('clientId', authInfo?.clientId),
+    ...optionalAuthField('expiresAt', authInfo?.expiresAt),
+    ...optionalAuthField('resource', authInfo?.resource),
+    ...optionalAuthField('token', authInfo?.token),
+    ...optionalAuthField('extra', authInfo?.extra)
   }
 }
 
-export function progressReporter(
+function progressReporter(
   extra: ServerRequestContext,
   progressToken: string | number
 ): (
@@ -113,7 +107,7 @@ export function progressReporter(
     })
 }
 
-export function clientContext(
+function clientContext(
   sdk: McpServer,
   protocolVersion: string
 ): {
@@ -153,139 +147,95 @@ export function clientContext(
     info: sdk.server.getClientVersion() ?? { name: '', version: '' },
     capabilities,
     protocolVersion: protocolVersion || LATEST_PROTOCOL_VERSION,
-    roots: {
-      supported: supportsRoots,
-      listChanged: capabilities.roots?.listChanged === true,
-      async list() {
-        if (!supportsRoots) return undefined
-        const result = await sdk.server.listRoots()
-        return result.roots
-      }
-    },
-    sampling: {
-      supported: supportsSampling,
-      async createMessage(params) {
-        if (!supportsSampling) {
-          throw new McpKitError({
-            code: 'UNSUPPORTED_CAPABILITY',
-            message: 'Client does not support sampling/createMessage',
-            safeMessage: 'Client does not support sampling requests.'
-          })
-        }
-        return sdk.server.createMessage(params)
-      }
-    },
-    elicitation: {
-      supported: supportsElicitation,
-      form: supportsFormElicitation,
-      url: supportsUrlElicitation,
-      async create(params) {
-        if (!supportsElicitation) {
-          throw new McpKitError({
-            code: 'UNSUPPORTED_CAPABILITY',
-            message: 'Client does not support elicitation/create',
-            safeMessage: 'Client does not support elicitation requests.'
-          })
-        }
-
-        const mode = params.mode ?? 'form'
-        if (mode === 'form' && !supportsFormElicitation) {
-          throw new McpKitError({
-            code: 'UNSUPPORTED_CAPABILITY',
-            message: 'Client does not support form elicitation requests',
-            safeMessage: 'Client does not support form elicitation requests.'
-          })
-        }
-        if (mode === 'url' && !supportsUrlElicitation) {
-          throw new McpKitError({
-            code: 'UNSUPPORTED_CAPABILITY',
-            message: 'Client does not support URL elicitation requests',
-            safeMessage: 'Client does not support URL elicitation requests.'
-          })
-        }
-        if (mode === 'form' && 'requestedSchema' in params) {
-          assertNoSensitiveFormFields(params)
-        }
-
-        return sdk.server.elicitInput(params)
-      },
-      async complete(elicitationId) {
-        if (!supportsElicitation) {
-          throw new McpKitError({
-            code: 'UNSUPPORTED_CAPABILITY',
-            message:
-              'Client does not support notifications/elicitation/complete',
-            safeMessage: 'Client does not support elicitation requests.'
-          })
-        }
-        await sdk.server.createElicitationCompletionNotifier(elicitationId)()
-      }
-    }
+    roots: rootsContext(sdk, supportsRoots, capabilities),
+    sampling: samplingContext(sdk, supportsSampling),
+    elicitation: elicitationContext(
+      sdk,
+      supportsElicitation,
+      supportsFormElicitation,
+      supportsUrlElicitation
+    )
   }
 }
 
-function assertNoSensitiveFormFields(params: ElicitRequestFormParams): void {
-  const properties = params.requestedSchema.properties
-  for (const [name, field] of Object.entries(properties)) {
-    if (!isSensitiveFormField(name, field)) continue
-    throw new McpKitError({
-      code: 'UNSAFE_ELICITATION',
-      message: `Form elicitation must not request sensitive field "${name}"`,
-      safeMessage:
-        'Form elicitation must not request secrets. Use URL elicitation or another secure flow.'
-    })
-  }
+function authExtraField(
+  authInfo: ServerRequestContext['authInfo'],
+  key: string,
+  field: 'subject' | 'tenantId'
+): Partial<Pick<AuthContext, 'subject' | 'tenantId'>> {
+  const value = authInfo?.extra?.[key]
+  return typeof value === 'string' ? { [field]: value } : {}
 }
 
-function isSensitiveFormField(name: string, field: unknown): boolean {
-  const parts = [name]
-  if (isObject(field)) {
-    const title = field.title
-    const description = field.description
-    if (typeof title === 'string') parts.push(title)
-    if (typeof description === 'string') parts.push(description)
-  }
-
-  return parts.some((part) =>
-    sensitiveTokenPattern.test(normalizeSensitiveText(part))
-  )
+function optionalAuthField<Key extends keyof AuthContext>(
+  key: Key,
+  value: AuthContext[Key] | undefined
+): Partial<Pick<AuthContext, Key>> {
+  return value === undefined ? {} : ({ [key]: value } as Pick<AuthContext, Key>)
 }
 
-function elicitationSupport(capabilities: ClientCapabilities): {
-  supportsElicitation: boolean
-  supportsFormElicitation: boolean
-  supportsUrlElicitation: boolean
-} {
-  const elicitation = capabilities.elicitation
-  if (elicitation === undefined) {
-    return {
-      supportsElicitation: false,
-      supportsFormElicitation: false,
-      supportsUrlElicitation: false
-    }
-  }
-
-  const supportsUrlElicitation = elicitation.url !== undefined
-  const supportsFormElicitation =
-    elicitation.form !== undefined || supportsUrlElicitation === false
-
+function rootsContext(
+  sdk: McpServer,
+  supportsRoots: boolean,
+  capabilities: ClientCapabilities
+) {
   return {
-    supportsElicitation: true,
-    supportsFormElicitation,
-    supportsUrlElicitation
+    supported: supportsRoots,
+    listChanged: capabilities.roots?.listChanged === true,
+    async list() {
+      if (!supportsRoots) return undefined
+      const result = await sdk.server.listRoots()
+      return result.roots
+    }
   }
 }
 
-function isObject(value: unknown): value is {
-  title?: unknown
-  description?: unknown
-} {
-  return typeof value === 'object' && value !== null
+function samplingContext(sdk: McpServer, supportsSampling: boolean) {
+  return {
+    supported: supportsSampling,
+    async createMessage(params: CreateMessageRequest['params']) {
+      if (!supportsSampling) {
+        throw unsupportedCapability(
+          'Client does not support sampling/createMessage',
+          'Client does not support sampling requests.'
+        )
+      }
+      return sdk.server.createMessage(params)
+    }
+  }
 }
 
-function normalizeSensitiveText(value: string): string {
-  return value.replace(/[^a-zA-Z0-9]+/g, ' ').toLowerCase()
+function elicitationContext(
+  sdk: McpServer,
+  supportsElicitation: boolean,
+  supportsFormElicitation: boolean,
+  supportsUrlElicitation: boolean
+) {
+  return {
+    supported: supportsElicitation,
+    form: supportsFormElicitation,
+    url: supportsUrlElicitation,
+    async create(params: ElicitRequestFormParams | ElicitRequestURLParams) {
+      assertElicitationSupport(
+        params,
+        supportsElicitation,
+        supportsFormElicitation,
+        supportsUrlElicitation
+      )
+      return sdk.server.elicitInput(params)
+    },
+    async complete(elicitationId: string) {
+      if (!supportsElicitation) {
+        throw unsupportedCapability(
+          'Client does not support notifications/elicitation/complete',
+          'Client does not support elicitation requests.'
+        )
+      }
+      await sdk.server.createElicitationCompletionNotifier(elicitationId)()
+    }
+  }
 }
 
-const sensitiveTokenPattern =
-  /\b(pass(word|phrase)?|secret|token|api key|apikey|access key|private key|credential|auth(?:entication)? code)\b/
+function authSource(): AuthContext['source'] {
+  return 'oauth'
+}
