@@ -26,36 +26,46 @@ export function isTrustedProxy(
 function forwardedOrigin(
   req: IncomingMessage
 ): { proto?: string; host?: string } | undefined {
-  const forwarded = req.headers['forwarded']
-  if (typeof forwarded === 'string') {
-    const first = forwarded.split(',')[0]
-    const proto = forwardedParameter(first, 'proto')
-    const host = forwardedParameter(first, 'host')
-    if (proto !== undefined || host !== undefined) {
-      return {
-        ...(proto === undefined ? {} : { proto }),
-        ...(host === undefined ? {} : { host })
-      }
-    }
-  }
+  return (
+    forwardedHeaderOrigin(req.headers['forwarded']) ?? forwardedProxyOrigin(req)
+  )
+}
 
-  const host = headerValue(req.headers['x-forwarded-host'])
-  const proto = headerValue(req.headers['x-forwarded-proto'])
-  if (host !== undefined || proto !== undefined) {
-    return {
-      ...(host === undefined ? {} : { host }),
-      ...(proto === undefined ? {} : { proto })
-    }
-  }
+function forwardedHeaderOrigin(
+  forwarded: string | string[] | undefined
+): { proto?: string; host?: string } | undefined {
+  if (typeof forwarded !== 'string') return undefined
+  const first = forwarded.split(',')[0]
+  return originParts(
+    forwardedParameter(first, 'proto'),
+    forwardedParameter(first, 'host')
+  )
+}
 
-  return undefined
+function forwardedProxyOrigin(
+  req: IncomingMessage
+): { proto?: string; host?: string } | undefined {
+  return originParts(
+    headerValue(req.headers['x-forwarded-proto']),
+    headerValue(req.headers['x-forwarded-host'])
+  )
+}
+
+function originParts(
+  proto: string | undefined,
+  host: string | undefined
+): { proto?: string; host?: string } | undefined {
+  if (proto === undefined && host === undefined) return undefined
+  return {
+    ...(proto === undefined ? {} : { proto }),
+    ...(host === undefined ? {} : { host })
+  }
 }
 
 function forwardedParameter(
-  value: string | undefined,
+  value: string,
   name: string
 ): string | undefined {
-  if (value === undefined) return undefined
   const match = value.match(new RegExp(`${name}=([^;]+)`))
   if (match === null) return undefined
   return match[1]?.replace(/^"|"$/g, '')
