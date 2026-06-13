@@ -80,8 +80,10 @@ Tools that touch files or make network calls should use `context.io`, not raw fi
 
 ```ts
 const path = await context.io.files.resolvePath(input.path)
-context.io.http.assertAllowed(input.url)
+const response = await context.io.http.fetch(input.url)
 ```
+
+Use `assertAllowed()` only when you are handing the checked URL to a lower-level HTTP adapter yourself.
 
 If a tool uses outbound HTTP policy, give it an `outputSchema`. The result should be shaped before it crosses the MCP boundary.
 

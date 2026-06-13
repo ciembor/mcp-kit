@@ -40,7 +40,8 @@ export function unavailableToolIo(): ToolIo {
     http: {
       assertAllowed: () => {
         throw unavailableToolIoError()
-      }
+      },
+      fetch: () => Promise.reject(unavailableToolIoError())
     },
     results: {
       paginate: <T>(options: PaginationArgs<T>): PaginatedResult<T> =>
@@ -64,7 +65,8 @@ export function bindToolIo<Services>(
       roots: () => toolFilesystemRoots(tool, context)
     },
     http: {
-      assertAllowed: (url) => assertAllowedOutboundUrl(tool, url)
+      assertAllowed: (url) => assertAllowedOutboundUrl(tool, url),
+      fetch: (input, init) => fetchAllowedOutbound(tool, input, init)
     },
     results: {
       paginate: <T>(options: PaginationArgs<T>): PaginatedResult<T> =>
@@ -78,6 +80,27 @@ export function bindToolIo<Services>(
       assertConfirmation: (input) => assertDestructiveConfirmation(tool, input)
     }
   }
+}
+
+async function fetchAllowedOutbound<Services>(
+  tool: ToolDefinition<Schema, Services>,
+  input: string | URL | Request,
+  init: RequestInit | undefined
+): Promise<Response> {
+  if (input instanceof Request) {
+    const request = new Request(input, {
+      ...init,
+      redirect: init?.redirect ?? 'manual'
+    })
+    const url = assertAllowedOutboundUrl(tool, request.url)
+    return fetch(new Request(url, request))
+  }
+
+  const url = assertAllowedOutboundUrl(tool, input)
+  return fetch(url, {
+    ...init,
+    redirect: init?.redirect ?? 'manual'
+  })
 }
 
 export async function validateToolInputPolicies<Services>(

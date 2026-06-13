@@ -64,12 +64,12 @@ Keep MCP definitions near the feature that owns the behavior. Keep registration 
 
 `RequestContext.io` wraps guarded tool I/O:
 
-| Helper                 | Method                                          |
-| ---------------------- | ----------------------------------------------- |
-| Files                  | `files.resolvePath(candidate)`, `files.roots()` |
-| HTTP                   | `http.assertAllowed(url)`                       |
-| Results                | `results.paginate({ items, limit, cursor })`    |
-| Destructive operations | `destructive.assertConfirmation(input)`         |
+| Helper                 | Method                                              |
+| ---------------------- | --------------------------------------------------- |
+| Files                  | `files.resolvePath(candidate)`, `files.roots()`     |
+| HTTP                   | `http.fetch(url, init?)`, `http.assertAllowed(url)` |
+| Results                | `results.paginate({ items, limit, cursor })`        |
+| Destructive operations | `destructive.assertConfirmation(input)`             |
 
 ## Policy
 
@@ -90,6 +90,8 @@ Keep MCP definitions near the feature that owns the behavior. Keep registration 
 | `timeoutMs`             | Tool timeout.                                                                              |
 | `concurrency`           | Per-tool in-flight limit.                                                                  |
 | `audit`                 | Force audit logging.                                                                       |
+
+Use `context.io.http.fetch()` for outbound calls. It checks the tool allowlist at the point of use and does not follow redirects by default. `assertAllowed()` is available for lower-level adapters, but it does not perform the request.
 
 `outboundHttp` requires an `outputSchema`. That keeps downstream responses shaped before they leave the tool.
 

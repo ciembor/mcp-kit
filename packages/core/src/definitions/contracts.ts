@@ -165,6 +165,7 @@ export type ToolIo = {
   }
   http: {
     assertAllowed(url: string | URL): URL
+    fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>
   }
   results: {
     paginate<T>(options: {

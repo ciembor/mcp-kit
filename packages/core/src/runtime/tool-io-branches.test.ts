@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { z } from 'zod'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { RequestContext } from '../definitions.js'
 import { defineTool } from '../index.js'
@@ -34,6 +34,7 @@ import { valueAtPath } from './tool-io-errors.js'
 const tempDirs: string[] = []
 
 afterEach(async () => {
+  vi.unstubAllGlobals()
   await Promise.all(
     tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))
   )
@@ -48,6 +49,9 @@ describe('tool io branch coverage', () => {
     })
     await expect(io.files.roots()).resolves.toEqual([])
     expect(() => io.http.assertAllowed('https://example.com')).toThrow(
+      'Tool I/O helpers are only available while executing a tool handler'
+    )
+    await expect(io.http.fetch('https://example.com')).rejects.toThrow(
       'Tool I/O helpers are only available while executing a tool handler'
     )
     expect(() => io.destructive.assertConfirmation({})).toThrow(
@@ -810,6 +814,24 @@ describe('tool io branch coverage', () => {
     expect(io.http.assertAllowed('https://api.example.com').host).toBe(
       'api.example.com'
     )
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(new Response('ok', { status: 200 }))
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(
+      io.http.fetch('https://api.example.com/items')
+    ).resolves.toMatchObject({
+      status: 200
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL('https://api.example.com/items'),
+      {
+        redirect: 'manual'
+      }
+    )
+    await expect(io.http.fetch('https://evil.example')).rejects.toMatchObject({
+      code: 'FORBIDDEN'
+    })
     expect(io.results.paginate({ items: ['a', 'b'] })).toEqual({
       items: ['a'],
       limit: 1,

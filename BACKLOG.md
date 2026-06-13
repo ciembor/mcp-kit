@@ -509,7 +509,7 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 
 - [x] Dodac fazy middleware albo jawny ordered pipeline dla policy, handlera, wyniku i bledow.
 - [x] Nie zwracac surowego `error.message` z HTTP runtime dla nieoczekiwanych 500.
-- [ ] Dac `context.io.http.fetch()` egzekwujacy SSRF guard zamiast polegac tylko na `assertAllowed(url)`.
+- [x] Dac `context.io.http.fetch()` egzekwujacy SSRF guard zamiast polegac tylko na `assertAllowed(url)`.
 - [ ] Rozdzielic dokumentacje statusu projektu od planow i eksperymentow.
 
 ### P3
