@@ -8,3 +8,5 @@ coverage/
 .pnpm-store/
 .stryker-tmp/
 .turbo/
+docs/.vitepress/.temp/
+docs/.vitepress/dist/

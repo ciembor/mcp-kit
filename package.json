@@ -15,7 +15,7 @@
     "format:check": "prettier --check .",
     "smells": "eslint --config eslint.smells.config.js",
     "lint": "eslint .",
-    "mutation": "stryker run",
+    "mutation": "stryker run --inPlace --appendPlugins @stryker-mutator/typescript-checker,@stryker-mutator/vitest-runner",
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --project tsconfig.json && corepack pnpm --recursive --if-present run typecheck",
     "test": "vitest run",
@@ -27,6 +27,9 @@
     "quality:fast": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --fast",
     "quality:full": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --full",
     "quality:mutation": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --mutation",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs && rm -rf docs/.vitepress/.temp",
+    "docs:preview": "vitepress preview docs",
     "prepublishOnly": "corepack pnpm --filter @mcp-kit/cli build && mcp-kit quality --release"
   },
   "devDependencies": {
@@ -38,6 +41,7 @@
     "@modelcontextprotocol/conformance": "0.1.16",
     "@modelcontextprotocol/sdk": "1.29.0",
     "@stryker-mutator/core": "9.6.1",
+    "@stryker-mutator/typescript-checker": "9.6.1",
     "@stryker-mutator/vitest-runner": "9.6.1",
     "@types/node": "25.9.2",
     "@vitest/coverage-v8": "4.1.8",
@@ -50,6 +54,7 @@
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "typescript-eslint": "8.61.0",
+    "vitepress": "^1.6.4",
     "vitest": "4.1.8",
     "zod": "4.4.3"
   }

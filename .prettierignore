@@ -4,3 +4,5 @@ coverage
 pnpm-lock.yaml
 .githooks
 .stryker-tmp
+docs/.vitepress/.temp
+docs/.vitepress/dist

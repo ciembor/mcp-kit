@@ -37,8 +37,17 @@ corepack enable
 ./scripts/pnpmw quality
 ```
 
+## Documentation Site
+
+```sh
+./scripts/pnpmw docs:dev
+./scripts/pnpmw docs:build
+./scripts/pnpmw docs:preview
+```
+
 ## Documentation
 
+- VitePress site source: [docs/](/Users/maciej/Projects/mcp-kit/docs)
 - Core API reference: [docs/api-core.md](./docs/api-core.md)
 - Compatibility matrix: [docs/compatibility.md](./docs/compatibility.md)
 - Tutorial: [docs/tutorial.md](./docs/tutorial.md)

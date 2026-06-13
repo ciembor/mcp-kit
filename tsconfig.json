@@ -9,5 +9,10 @@
       "create-mcp-kit": ["./packages/create-mcp-kit/src/index.ts"]
     }
   },
-  "include": ["vitest.config.ts", "test/**/*.ts"]
+  "include": [
+    "vitest.config.ts",
+    "test/**/*.ts",
+    "packages/*/src/**/*.ts",
+    "docs/.vitepress/**/*.ts"
+  ]
 }
