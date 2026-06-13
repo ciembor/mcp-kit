@@ -11,6 +11,7 @@ export default defineConfig({
     siteTitle: 'mcp-kit',
     nav: [
       { text: 'Start', link: '/index' },
+      { text: 'Status', link: '/status' },
       { text: 'Tutorial', link: '/tutorial' },
       { text: 'Deploy', link: '/http-deployment' },
       { text: 'Reference', link: '/reference/' }

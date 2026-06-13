@@ -98,7 +98,7 @@ Use `context.io.http.fetch()` for outbound calls. It checks the tool allowlist a
 
 Auth-related types include `AuthContext`, `AuthorizationDetails`, `AuthorizationConsent`, and `AuthorizationStepUp`.
 
-`policyStores` lets production deployments back rate limits and concurrency with shared storage. If you do not pass it, the app uses in-memory stores, which are fine for tests and one local process but do not survive restarts or coordinate several replicas.
+`policyStores` lets production deployments back rate limits, concurrency, and idempotency with shared storage. If you do not pass it, the app uses in-memory stores, which are fine for tests and one local process but do not survive restarts or coordinate several replicas.
 
 ```ts
 createMcpApp({
@@ -107,7 +107,8 @@ createMcpApp({
   services,
   policyStores: {
     rateLimit: redisRateLimitStore,
-    concurrency: redisConcurrencyStore
+    concurrency: redisConcurrencyStore,
+    idempotency: redisIdempotencyStore
   }
 })
 ```

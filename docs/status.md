@@ -27,7 +27,7 @@ The public package shape is still `0.0.x`. Names, option shapes, middleware phas
 
 Production-oriented APIs exist, but they need more real deployments before they should be considered boring. In particular, bring your own persistent stores for sessions, event replay, async jobs, rate limits, concurrency, and idempotency when running more than one process.
 
-## Experimental Or Incomplete
+## Experimental Or Adapter-Backed
 
 Native MCP Tasks integration is intentionally behind an adapter shape until the upstream API is stable.
 

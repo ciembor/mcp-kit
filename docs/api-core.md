@@ -12,11 +12,17 @@ import { createMcpApp } from '@mcp-kit/core'
 export const app = createMcpApp({
   name: 'example',
   version: '1.0.0',
-  services
+  services,
+  policyStores,
+  observability
 })
 ```
 
 `services` is the dependency container passed to handlers through `context.services`. Keep database clients, downstream APIs, and application ports there instead of importing them directly inside MCP definitions.
+
+`policyStores` is optional in local development. In production, provide shared stores for rate limits, concurrency, and idempotency when more than one process can handle requests.
+
+`observability` receives one event per tool call with the tool name, outcome, latency, correlation id, and optional subject or tenant. Map that event to OpenTelemetry, Prometheus, or your own metrics backend.
 
 ## Capabilities
 
@@ -45,11 +51,28 @@ Handlers receive `context`. The most common fields are `services`, `auth`, `logg
 
 Use `context.client` for optional MCP client capabilities such as roots, sampling, and elicitation. Use `context.io` for guarded filesystem, outbound HTTP, pagination, and destructive-operation checks.
 
+For outbound HTTP, prefer `context.io.http.fetch(url, init)`. It checks the tool allowlist at the point of use and does not follow redirects by default. `context.io.http.assertAllowed(url)` is lower-level; it only validates and returns a URL.
+
 ## Policy
 
-Policies describe what the runtime can enforce before or around handler execution: scopes, consent, input checks, file roots, outbound hosts, output limits, destructive confirmations, timeouts, rate limits, concurrency, and audit.
+Policies describe what the runtime can enforce before or around handler execution: scopes, consent, input checks, file roots, outbound hosts, output limits, destructive confirmations, idempotency keys, timeouts, rate limits, concurrency, and audit.
 
 Domain rules still belong in the feature. A `ToolPolicy` can reject a missing scope; it should not replace your application's own permission model.
+
+For write tools that clients may retry, set `policy.idempotency`. The default input field is `idempotencyKey`; use `idempotency: { keyField: 'requestId' }` if your API already has a different field.
+
+## Middleware
+
+Use `middlewarePhases` when placement matters:
+
+| Phase           | Use it for                                           |
+| --------------- | ---------------------------------------------------- |
+| `onError`       | Metrics or cleanup around policy and handler errors. |
+| `beforePolicy`  | Tracing the whole tool request.                      |
+| `aroundHandler` | Wrapping the handler after built-in policy passes.   |
+| `afterResult`   | Reading or replacing the handler result.             |
+
+The older `middleware` option still works and behaves like `aroundHandler`.
 
 ## Long-Running Jobs
 
