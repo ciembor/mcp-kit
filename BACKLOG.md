@@ -517,3 +517,104 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 - [x] Dodac observability jako first-class API: metryki per tool, latency, denied, rate-limit i timeout counters.
 - [x] Dodac idempotency dla write tools przez `idempotencyKey` i store deduplikacji.
 - [x] Posprzatac `defineRegistry()`: comparator dla rownosci i nieuzywany indeks.
+
+## Production readiness roadmap
+
+Cel: domknac roznice miedzy frameworkiem wygodnym lokalnie a frameworkiem, ktoremu mozna powierzyc realne operacje produkcyjne. Kolejnosc jest priorytetem implementacji.
+
+### 1. Production stores jako publiczne porty
+
+- [ ] Uporzadkowac publiczne porty produkcyjnego stanu: `SessionStore`, `StreamableHttpEventStore`, `JobStore`, `JobQueue`, `RateLimitStore`, `ConcurrencyStore`, `AuditStore` i `IdempotencyStore`.
+- [ ] Rozdzielic kontrakty store od adapterow in-memory tak, zeby in-memory bylo jawnie opisane jako dev/test.
+- [ ] Dodac runtime/doctor warning albo blad dla production HTTP, gdy aktywny jest in-memory store dla sesji, eventow, jobow, rate limitow, concurrency, audytu albo idempotency.
+- [ ] Dodac referencyjne adaptery Redis dla session, event, job queue, rate limit, concurrency i idempotency.
+- [ ] Dodac referencyjne adaptery Postgres dla job store, audit store i idempotency store.
+- [ ] Dodac testy wieloprocesowe albo wieloinstancyjne pokazujace, ze limity, idempotency, event replay i joby dzialaja poza jednym procesem.
+- [ ] Udokumentowac minimalne gwarancje kazdego store: atomicznosc, TTL, cleanup, retry, lease, ordering i wymagania indeksow.
+
+### 2. Observability first-class
+
+- [ ] Rozszerzyc `observability` z pojedynczego hooka na publiczne API: `tracer`, `meter`, `logger`, `redact`.
+- [ ] Zdefiniowac domyslne metryki: `mcp_tool_calls_total`, `mcp_tool_errors_total`, `mcp_tool_duration_ms`, `mcp_tool_denied_total`, `mcp_tool_timeout_total`, `mcp_http_requests_total`, `mcp_active_sessions`.
+- [ ] Dodac OpenTelemetry spans per request, tool, resource i prompt bez uzalezniania core od konkretnego eksportera.
+- [ ] Dodac redakcje atrybutow observability przed logami, metrykami i spanami.
+- [ ] Dodac testy, ze denied, rate limit, timeout, concurrency limit i unexpected error trafiaja do metryk z poprawnym outcome.
+- [ ] Udokumentowac mapping outcome, atrybuty metryk, cardinality rules i przyklady integracji OTel/Prometheus.
+
+### 3. Bezpieczny HTTP client dla `context.io.http.fetch`
+
+- [ ] Rozszerzyc `context.io.http.fetch(url, options)` o DNS resolve przed requestem i weryfikacje IP po resolve.
+- [ ] Blokowac prywatne, loopback, link-local, multicast i metadata IP po DNS resolve, chyba ze policy jawnie pozwala.
+- [ ] Weryfikowac kazdy redirect osobno i domyslnie ograniczyc albo wylaczyc automatyczne redirecty.
+- [ ] Dodac limity odpowiedzi: maksymalny rozmiar body, maksymalny czas, maksymalna liczba redirectow i dozwolone content types.
+- [ ] Dodac timeout i cancellation oparte o `context.signal`.
+- [ ] Dodac redakcje URL-i w logach i observability, w tym userinfo, query params i token-like wartosci.
+- [ ] Dodac adapter DNS/fetch jako port, z domyslna implementacja Node i mozliwoscia testowania DNS rebinding.
+- [ ] Dodac testy DNS rebinding, public host -> private IP, redirect do private IP, duze body, timeout i cancellation.
+
+### 4. Idempotency dla write tools
+
+- [ ] Rozszerzyc `policy.idempotency` o `ttlMs`, np. `{ keyField: 'idempotencyKey', ttlMs: 86400000 }`.
+- [ ] Wymagac `ttlMs` albo jawnej decyzji domyslnej dla production store.
+- [ ] Zdefiniowac atomowy kontrakt `IdempotencyStore`: reserve, complete, replay result, fail/retry oraz cleanup.
+- [ ] Obslugiwac rownolegle wywolania z tym samym idempotency key bez podwojnego wykonania handlera.
+- [ ] Zapisywac tylko bezpieczny, stabilny wynik idempotentny; nie zapisywac transient errorow bez jawnej decyzji.
+- [ ] Powiazac klucz z tool, subject, tenant i opcjonalnym client id.
+- [ ] Dodac testy retry write toola, race condition, TTL expiry, cross-tenant isolation i restart z zewnetrznym store.
+
+### 5. Status i stability contract API
+
+- [ ] Dodac jawny status kazdego publicznego elementu API: `stable`, `experimental`, `internal`, `deprecated`.
+- [ ] Dodac status do reference docs dla pakietow, subpath exports, typow, opcji, CLI commands i generatorow.
+- [ ] Dodac strone statusu z sekcjami: Implemented, Conformance-tested, Experimental, Planned, Not supported.
+- [ ] Dodac test albo lint docs, ktory wykrywa publiczny export bez statusu stabilnosci.
+- [ ] Dodac changelog discipline dla przejsc `experimental -> stable`, deprecations i removals.
+- [ ] Rozdzielic status implementacji od planow w backlogu, specyfikacji i docsach.
+
+### 6. Production deployment example
+
+- [ ] Dodac `examples/production-http/` jako uruchamialny przyklad produkcyjny.
+- [ ] Dodac `Dockerfile` i `docker-compose.yml`.
+- [ ] Dodac Redis dla session, event replay, job queue, rate limit, concurrency i idempotency.
+- [ ] Dodac Postgres dla job store i audit store, jesli adaptery Postgres beda dostepne.
+- [ ] Dodac reverse proxy config z trusted proxies, Host validation, TLS termination assumptions i forwarded headers.
+- [ ] Dodac OIDC/JWT auth z Protected Resource Metadata.
+- [ ] Dodac OpenTelemetry collector, eksport metryk i przykladowe dashboard-friendly nazwy metryk.
+- [ ] Dodac health, readiness, drain i graceful shutdown.
+- [ ] Dodac smoke/e2e test przykladu produkcyjnego w CI albo jako release-quality check.
+
+### 7. Secrets API
+
+- [ ] Dodac port sekretow `context.secrets.get(name)`.
+- [ ] Dodac policy `secrets: readonly string[]` na toolach i promptach, z walidacja dozwolonych nazw.
+- [ ] Zablokowac dostep do sekretu, jesli capability nie deklaruje go w policy.
+- [ ] Zapewnic, ze sekret nie trafia do structured output, logow, audit events, observability, promptow, sampling ani elicitation.
+- [ ] Dodac redakcje sekretow i secret-like wartosci w loggerze oraz observability.
+- [ ] Dodac adaptery dev/test i dokumentowany kontrakt produkcyjny dla secret managerow.
+- [ ] Dodac testy braku wycieku sekretu przez output, bledy, logi, sampling, elicitation i audit.
+
+### 8. Capability manifest i docs generator
+
+- [ ] Dodac `mcp-kit inspect --json` generujacy manifest tools, resources, prompts, policies i required scopes.
+- [ ] Dodac `mcp-kit generate-docs` generujacy dokumentacje capabilities z manifestu.
+- [ ] Uwzglednic input schema, output schema, descriptions, effects, scopes, idempotency, secrets, outbound HTTP, filesystem i destructive policy.
+- [ ] Dodac tryb CI porownujacy manifest z commited snapshotem.
+- [ ] Dodac format JSON stabilny dla hostow, audytu i narzedzi security review.
+- [ ] Dodac testy, ze manifest nie zawiera sekretow ani danych runtime.
+
+### 9. Policy presets
+
+- [ ] Dodac presety `readOnlyTool()`, `writeTool()`, `destructiveTool()`, `externalHttpTool()`, `filesystemTool()`.
+- [ ] Presety maja ustawiac sensowne domyslne policy, annotations, output limits, idempotency i wymagania confirmation, a nie tylko skracac skladnie.
+- [ ] Zapewnic kompozycje presetow bez konfliktow i bez ukrytych override.
+- [ ] Dodac testy, ze presety generuja bezpieczne policy i zgodne annotations.
+- [ ] Udokumentowac kiedy uzyc presetow, a kiedy pisac policy recznie.
+
+### 10. Contract snapshots w `@mcp-kit/testing`
+
+- [ ] Dodac `expectMcpContract(app).toMatchSnapshot()`.
+- [ ] Snapshot ma obejmowac nazwy tools/resources/prompts, input schema, output schema, descriptions, scopes, effects, idempotency i security policies.
+- [ ] Zapewnic stabilna kolejnosc i format snapshotu bez wartosci runtime.
+- [ ] Dodac opcje maskowania pol eksperymentalnych i ignorowania opisow, jesli projekt tego chce.
+- [ ] Dodac testy wykrywajace przypadkowa zmiane nazwy toola, schema, scope i opisu.
+- [ ] Udokumentowac workflow aktualizacji snapshotow w PR.
