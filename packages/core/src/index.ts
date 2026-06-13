@@ -36,6 +36,8 @@ export {
   type ToolDestructivePolicy,
   type ToolFilesystemPolicy,
   type ToolHandlerArgs,
+  type ToolInputFieldPolicy,
+  type ToolInputPolicy,
   type ToolIo,
   type ToolOptions,
   type ToolOutboundHttpPolicy,

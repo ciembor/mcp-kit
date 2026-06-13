@@ -82,6 +82,53 @@ describe('definition contracts', () => {
         handler: () => ({ content: [] })
       })
     ).toThrow('output.defaultPageSize must not exceed output.maxPageSize')
+    expect(() =>
+      defineTool({
+        name: 'fetcher',
+        inputSchema: z.object({}),
+        annotations: { readOnlyHint: true, openWorldHint: false },
+        policy: {
+          effects: 'read',
+          outboundHttp: { allowHosts: ['api.example.com'] }
+        },
+        handler: () => ({ content: [] })
+      })
+    ).toThrow('outboundHttp policy requires outputSchema')
+    expect(() =>
+      defineTool({
+        name: 'invalid-timeout',
+        inputSchema: z.object({}),
+        annotations: { readOnlyHint: true, openWorldHint: false },
+        policy: { effects: 'read', timeoutMs: 0 },
+        handler: () => ({ content: [] })
+      })
+    ).toThrow('policy.timeoutMs must be a positive integer')
+    expect(() =>
+      defineTool({
+        name: 'invalid-input-policy',
+        inputSchema: z.object({}),
+        annotations: { readOnlyHint: true, openWorldHint: false },
+        policy: { effects: 'read', input: { fields: {} } },
+        handler: () => ({ content: [] })
+      })
+    ).toThrow('policy.input.fields must not be empty')
+    expect(() =>
+      defineTool({
+        name: 'invalid-url-policy',
+        inputSchema: z.object({ url: z.string() }),
+        annotations: { readOnlyHint: true, openWorldHint: false },
+        policy: {
+          effects: 'read',
+          input: {
+            fields: {
+              url: { kind: 'url', allowHosts: [] }
+            }
+          }
+        },
+        outputSchema: z.object({ ok: z.boolean() }),
+        handler: () => ({ content: [], structuredContent: { ok: true } })
+      })
+    ).toThrow('policy.input.fields.url.allowHosts must not be empty')
   })
 
   it('validates public definition contracts', () => {

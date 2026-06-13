@@ -46,6 +46,7 @@ export type ToolPolicy = {
   requiredScopes?: readonly string[]
   stepUpScopes?: readonly string[]
   requiredConsentScopes?: readonly string[]
+  input?: ToolInputPolicy
   filesystem?: ToolFilesystemPolicy
   outboundHttp?: ToolOutboundHttpPolicy
   output?: ToolOutputPolicy
@@ -136,6 +137,42 @@ export type ClientElicitation = {
 export type ToolFilesystemPolicy = {
   roots?: readonly (string | URL)[]
   clientRoots?: boolean | 'require'
+}
+
+export type ToolInputFieldPolicy =
+  | {
+      kind: 'string'
+      minLength?: number
+      maxLength?: number
+    }
+  | {
+      kind: 'number'
+      min?: number
+      max?: number
+      integer?: boolean
+    }
+  | {
+      kind: 'collection'
+      minItems?: number
+      maxItems?: number
+    }
+  | ({
+      kind: 'url'
+    } & ToolOutboundHttpPolicy)
+  | {
+      kind: 'host'
+      allowHosts: readonly string[]
+      allowPrivateNetworks?: boolean
+    }
+  | {
+      kind: 'filesystemPath'
+      roots?: readonly (string | URL)[]
+      clientRoots?: boolean | 'require'
+      allowAbsolute?: boolean
+    }
+
+export type ToolInputPolicy = {
+  fields: Readonly<Record<string, ToolInputFieldPolicy>>
 }
 
 export type ToolOutboundHttpPolicy = {

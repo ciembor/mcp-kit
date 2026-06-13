@@ -396,6 +396,12 @@ describe('runtime helpers', () => {
         cursor: z.string().optional(),
         confirmDelete: z.literal('DELETE')
       }),
+      outputSchema: z.object({
+        items: z.array(z.string()),
+        limit: z.number(),
+        nextCursor: z.string().optional(),
+        total: z.number()
+      }),
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
@@ -511,6 +517,7 @@ describe('runtime helpers', () => {
     const tool = defineTool({
       name: 'http-list-guard',
       inputSchema: z.object({}),
+      outputSchema: z.object({ ok: z.boolean() }),
       annotations: { readOnlyHint: true, openWorldHint: false },
       policy: {
         effects: 'read',
@@ -533,13 +540,14 @@ describe('runtime helpers', () => {
             context.io.results.paginate({ items: ['a', 'b'], limit: 3 })
           )
         ).toBe('Pagination limit exceeds the configured maximum of 2.')
-        return { content: [] }
+        return { content: [], structuredContent: { ok: true } }
       }
     })
 
     await expect(runToolPipeline(tool, {}, makeContext(), [])).resolves.toEqual(
       {
-        content: []
+        content: [],
+        structuredContent: { ok: true }
       }
     )
   })

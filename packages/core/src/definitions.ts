@@ -23,6 +23,8 @@ export {
   type StaticResourceDefinition,
   type TemplateResourceDefinition,
   type ToolDefinition,
+  type ToolInputFieldPolicy,
+  type ToolInputPolicy,
   type ToolHandlerArgs,
   type ToolIo,
   type ToolDestructivePolicy,

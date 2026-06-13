@@ -996,6 +996,161 @@ describe('@mcp-kit/core', () => {
     await client.close()
   })
 
+  it('rejects tool inputs that violate field policies', async () => {
+    const app = createMcpApp({
+      name: 'input-policy-server',
+      version: '1.0.0',
+      services: {}
+    })
+    app.tools([
+      defineTool({
+        name: 'validated-input-policy',
+        inputSchema: z.object({
+          query: z.string(),
+          ids: z.array(z.number()),
+          amount: z.number(),
+          targetUrl: z.string(),
+          targetHost: z.string(),
+          filePath: z.string()
+        }),
+        outputSchema: z.object({ ok: z.boolean() }),
+        annotations: { readOnlyHint: true, openWorldHint: false },
+        policy: {
+          effects: 'read',
+          input: {
+            fields: {
+              query: { kind: 'string', maxLength: 5 },
+              ids: { kind: 'collection', maxItems: 2 },
+              amount: { kind: 'number', min: 0, max: 10, integer: true },
+              targetUrl: {
+                kind: 'url',
+                allowHosts: ['api.example.com']
+              },
+              targetHost: {
+                kind: 'host',
+                allowHosts: ['api.example.com']
+              },
+              filePath: {
+                kind: 'filesystemPath',
+                roots: ['file:///private/tmp'],
+                allowAbsolute: true
+              }
+            }
+          }
+        },
+        handler: () => ({
+          content: [],
+          structuredContent: { ok: true }
+        })
+      })
+    ])
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
+    const client = new Client(
+      { name: 'input-policy-test', version: '1.0.0' },
+      { capabilities: {} }
+    )
+
+    await Promise.all([
+      app.connect(serverTransport),
+      client.connect(clientTransport)
+    ])
+    await expect(
+      client.callTool({
+        name: 'validated-input-policy',
+        arguments: {
+          query: '123456',
+          ids: [1, 2],
+          amount: 1,
+          targetUrl: 'https://api.example.com/users',
+          targetHost: 'api.example.com',
+          filePath: '/private/tmp/file.txt'
+        }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
+    await expect(
+      client.callTool({
+        name: 'validated-input-policy',
+        arguments: {
+          query: '12345',
+          ids: [1, 2, 3],
+          amount: 1,
+          targetUrl: 'https://api.example.com/users',
+          targetHost: 'api.example.com',
+          filePath: '/private/tmp/file.txt'
+        }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
+    await expect(
+      client.callTool({
+        name: 'validated-input-policy',
+        arguments: {
+          query: '12345',
+          ids: [1, 2],
+          amount: 11,
+          targetUrl: 'https://api.example.com/users',
+          targetHost: 'api.example.com',
+          filePath: '/private/tmp/file.txt'
+        }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
+    await expect(
+      client.callTool({
+        name: 'validated-input-policy',
+        arguments: {
+          query: '12345',
+          ids: [1, 2],
+          amount: 1,
+          targetUrl: 'https://127.0.0.1/internal',
+          targetHost: 'api.example.com',
+          filePath: '/private/tmp/file.txt'
+        }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
+    await expect(
+      client.callTool({
+        name: 'validated-input-policy',
+        arguments: {
+          query: '12345',
+          ids: [1, 2],
+          amount: 1,
+          targetUrl: 'https://api.example.com/users',
+          targetHost: 'localhost',
+          filePath: '/private/tmp/file.txt'
+        }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
+    await expect(
+      client.callTool({
+        name: 'validated-input-policy',
+        arguments: {
+          query: '12345',
+          ids: [1, 2],
+          amount: 1,
+          targetUrl: 'https://api.example.com/users',
+          targetHost: 'api.example.com',
+          filePath: '/etc/passwd'
+        }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
+    await expect(
+      client.callTool({
+        name: 'validated-input-policy',
+        arguments: {
+          query: '12345',
+          ids: [1, 2],
+          amount: 1,
+          targetUrl: 'https://api.example.com/users',
+          targetHost: 'api.example.com',
+          filePath: '/private/tmp/file.txt'
+        }
+      })
+    ).resolves.toMatchObject({
+      structuredContent: { ok: true }
+    })
+    await client.close()
+  })
+
   it('maps client cancellation through timed tool execution', async () => {
     const app = createMcpApp({
       name: 'cancel-server',

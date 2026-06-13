@@ -25,6 +25,7 @@ import {
   toolExecutionError,
   type ToolMiddleware
 } from '../runtime.js'
+import { validateToolInputPolicies } from '../runtime/tool-io.js'
 import { unknownInputPaths } from '../runtime/input-validation.js'
 
 export function installToolCallHandler<Services>(runtime: {
@@ -69,6 +70,7 @@ async function executeTool<Services>(
     )
   }
   const context = runtime.createRequestContext(extra)
+  await validateToolInput(tool, parsed.data, context)
   const result = await runToolPipeline(
     tool,
     parsed.data,
@@ -76,6 +78,23 @@ async function executeTool<Services>(
     runtime.middleware
   )
   return validateToolOutput(runtime, tool, result, context)
+}
+
+async function validateToolInput<Services>(
+  tool: ToolDefinition<Schema, Services>,
+  input: unknown,
+  context: RequestContext<Services>
+): Promise<void> {
+  try {
+    await validateToolInputPolicies(tool, input, context)
+  } catch (error) {
+    const message =
+      error instanceof McpKitError ? error.safeMessage : 'Input is not allowed.'
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      `Invalid arguments for tool ${tool.name}: ${message}`
+    )
+  }
 }
 
 async function validateToolOutput<Services>(

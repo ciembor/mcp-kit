@@ -157,6 +157,8 @@ Supported fields:
 - `requiredScopes?`: minimum scopes required to proceed
 - `stepUpScopes?`: stronger scopes that should fail with a step-up style denial
 - `requiredConsentScopes?`: scopes that must be present in consent metadata
+- `input?`: per-field input validation for string, number, collection, URL, host,
+  and filesystem path arguments
 - `filesystem?`: file-root policy for `context.io.files`
 - `outboundHttp?`: outbound host allowlist and SSRF guard for `context.io.http`
 - `output?`: result-size and pagination policy for `context.io.results`
@@ -166,6 +168,10 @@ Supported fields:
 - `timeoutMs?`: execution timeout
 - `concurrency?`: max in-flight calls per tool
 - `audit?`: force audit logging
+
+`outboundHttp` requires `outputSchema`. The intent is to force a shaped,
+validated response contract instead of passing raw downstream payloads through
+the tool boundary.
 
 ### Auth contracts
 

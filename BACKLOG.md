@@ -360,12 +360,12 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 ### Twarda walidacja tools
 
 - [x] Domyslnie odrzucac nieznane pola input.
-- [ ] Walidowac limity stringow, kolekcji i zakresow liczbowych.
-- [ ] Egzekwowac timeout i concurrency per tool.
+- [x] Walidowac limity stringow, kolekcji i zakresow liczbowych.
+- [x] Egzekwowac timeout i concurrency per tool.
 - [x] Egzekwowac rate limit per subject, tenant i kosztowny tool.
-- [ ] Walidowac structured output wzgledem output schema.
-- [ ] Wymagac presentera zamiast surowej odpowiedzi downstream API.
-- [ ] Dodac policies dla URL, host, filesystem path i innych niebezpiecznych inputow.
+- [x] Walidowac structured output wzgledem output schema.
+- [x] Wymagac presentera zamiast surowej odpowiedzi downstream API.
+- [x] Dodac policies dla URL, host, filesystem path i innych niebezpiecznych inputow.
 
 ### Dlugie operacje
 

@@ -1,5 +1,9 @@
 import { access, realpath } from 'node:fs/promises'
-import { dirname, isAbsolute, resolve as resolvePath } from 'node:path'
+import {
+  dirname,
+  isAbsolute,
+  resolve as resolvePath
+} from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import type {
@@ -8,6 +12,7 @@ import type {
   Schema,
   ToolDefinition,
   ToolIo,
+  ToolInputFieldPolicy,
   ToolOutputPolicy
 } from '../definitions.js'
 import { McpKitError } from '../definitions.js'
@@ -164,6 +169,21 @@ export function validateToolResultLimits<Services>(
   }
 }
 
+export async function validateToolInputPolicies<Services>(
+  tool: ToolDefinition<Schema, Services>,
+  input: unknown,
+  context: RequestContext<Services>
+): Promise<void> {
+  const fields = tool.policy?.input?.fields
+  if (fields === undefined) return
+
+  for (const [path, policy] of Object.entries(fields)) {
+    const value = valueAtPath(input, path)
+    if (value === undefined) continue
+    await validateInputField(tool, context, path, policy, value)
+  }
+}
+
 export function assertDestructiveConfirmation<Services>(
   tool: ToolDefinition<Schema, Services>,
   input: unknown
@@ -187,6 +207,35 @@ export function assertDestructiveConfirmation<Services>(
   })
 }
 
+async function validateInputField<Services>(
+  tool: ToolDefinition<Schema, Services>,
+  context: RequestContext<Services>,
+  path: string,
+  policy: ToolInputFieldPolicy,
+  value: unknown
+): Promise<void> {
+  switch (policy.kind) {
+    case 'string':
+      validateStringField(tool.name, path, policy, value)
+      return
+    case 'number':
+      validateNumberField(tool.name, path, policy, value)
+      return
+    case 'collection':
+      validateCollectionField(tool.name, path, policy, value)
+      return
+    case 'url':
+      validateUrlField(tool.name, path, policy, value)
+      return
+    case 'host':
+      validateHostField(tool.name, path, policy, value)
+      return
+    case 'filesystemPath':
+      await validateFilesystemPathField(tool, context, path, policy, value)
+      return
+  }
+}
+
 function unavailableToolIoError(): McpKitError {
   return new McpKitError({
     code: 'POLICY',
@@ -202,11 +251,27 @@ async function resolveToolPath<Services>(
   candidate: string | URL
 ): Promise<string> {
   const roots = await toolFilesystemRoots(tool, context)
+  return resolvePathAgainstRoots(
+    tool.name,
+    roots,
+    candidate,
+    'Filesystem access is not allowed for this tool.',
+    'Filesystem access is outside the configured roots.'
+  )
+}
+
+async function resolvePathAgainstRoots(
+  toolName: string,
+  roots: readonly URL[],
+  candidate: string | URL,
+  noRootsSafeMessage: string,
+  outsideRootsSafeMessage: string
+): Promise<string> {
   if (roots.length === 0) {
     throw new McpKitError({
       code: 'FORBIDDEN',
-      message: `Tool ${tool.name} attempted filesystem access without configured roots`,
-      safeMessage: 'Filesystem access is not allowed for this tool.'
+      message: `Tool ${toolName} attempted filesystem access without configured roots`,
+      safeMessage: noRootsSafeMessage
     })
   }
 
@@ -226,8 +291,8 @@ async function resolveToolPath<Services>(
 
   throw new McpKitError({
     code: 'FORBIDDEN',
-    message: `Tool ${tool.name} attempted filesystem access outside configured roots: ${absoluteCandidate}`,
-    safeMessage: 'Filesystem access is outside the configured roots.'
+    message: `Tool ${toolName} attempted filesystem access outside configured roots: ${absoluteCandidate}`,
+    safeMessage: outsideRootsSafeMessage
   })
 }
 
@@ -288,6 +353,18 @@ function assertAllowedOutboundUrl<Services>(
     })
   }
 
+  return assertAllowedUrl(tool.name, candidate, policy)
+}
+
+function assertAllowedUrl(
+  toolName: string,
+  candidate: string | URL,
+  policy: {
+    allowHosts: readonly string[]
+    allowHttp?: boolean
+    allowPrivateNetworks?: boolean
+  }
+): URL {
   const url =
     candidate instanceof URL
       ? new URL(candidate.toString())
@@ -295,39 +372,65 @@ function assertAllowedOutboundUrl<Services>(
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
     throw new McpKitError({
       code: 'FORBIDDEN',
-      message: `Tool ${tool.name} attempted unsupported outbound protocol: ${url.protocol}`,
+      message: `Tool ${toolName} attempted unsupported outbound protocol: ${url.protocol}`,
       safeMessage: 'Only HTTP and HTTPS outbound requests are allowed.'
     })
   }
   if (url.protocol === 'http:' && policy.allowHttp !== true) {
     throw new McpKitError({
       code: 'FORBIDDEN',
-      message: `Tool ${tool.name} attempted insecure outbound HTTP: ${url.toString()}`,
+      message: `Tool ${toolName} attempted insecure outbound HTTP: ${url.toString()}`,
       safeMessage: 'HTTPS is required for outbound requests.'
     })
   }
   if (url.username !== '' || url.password !== '') {
     throw new McpKitError({
       code: 'FORBIDDEN',
-      message: `Tool ${tool.name} attempted outbound URL with embedded credentials`,
+      message: `Tool ${toolName} attempted outbound URL with embedded credentials`,
       safeMessage: 'Embedded URL credentials are not allowed.'
     })
   }
   if (policy.allowPrivateNetworks !== true && isPrivateHostname(url.hostname)) {
     throw new McpKitError({
       code: 'FORBIDDEN',
-      message: `Tool ${tool.name} attempted outbound request to private host ${url.hostname}`,
+      message: `Tool ${toolName} attempted outbound request to private host ${url.hostname}`,
       safeMessage: 'Requests to private network targets are not allowed.'
     })
   }
   if (!policy.allowHosts.some((entry) => hostMatches(url.hostname, entry))) {
     throw new McpKitError({
       code: 'FORBIDDEN',
-      message: `Tool ${tool.name} attempted outbound request to non-allowlisted host ${url.hostname}`,
+      message: `Tool ${toolName} attempted outbound request to non-allowlisted host ${url.hostname}`,
       safeMessage: 'The outbound destination is not allowlisted.'
     })
   }
   return url
+}
+
+function assertAllowedHost(
+  toolName: string,
+  candidate: string,
+  policy: {
+    allowHosts: readonly string[]
+    allowPrivateNetworks?: boolean
+  }
+): string {
+  const host = normalizeHostInput(candidate)
+  if (policy.allowPrivateNetworks !== true && isPrivateHostname(host)) {
+    throw new McpKitError({
+      code: 'FORBIDDEN',
+      message: `Tool ${toolName} attempted private host input ${host}`,
+      safeMessage: 'Private network hosts are not allowed.'
+    })
+  }
+  if (!policy.allowHosts.some((entry) => hostMatches(host, entry))) {
+    throw new McpKitError({
+      code: 'FORBIDDEN',
+      message: `Tool ${toolName} attempted non-allowlisted host input ${host}`,
+      safeMessage: 'The host input is not allowlisted.'
+    })
+  }
+  return host
 }
 
 function paginateItems<T>(
@@ -446,6 +549,148 @@ function normalizePathCandidate(candidate: string | URL): string {
   return isAbsolute(candidate) ? resolvePath(candidate) : resolvePath(candidate)
 }
 
+function validateStringField(
+  toolName: string,
+  path: string,
+  policy: Extract<ToolInputFieldPolicy, { kind: 'string' }>,
+  value: unknown
+): void {
+  if (typeof value !== 'string') return
+  if (policy.minLength !== undefined && value.length < policy.minLength) {
+    throw invalidInput(
+      toolName,
+      path,
+      `must be at least ${policy.minLength} characters long`
+    )
+  }
+  if (policy.maxLength !== undefined && value.length > policy.maxLength) {
+    throw invalidInput(
+      toolName,
+      path,
+      `must be at most ${policy.maxLength} characters long`
+    )
+  }
+}
+
+function validateNumberField(
+  toolName: string,
+  path: string,
+  policy: Extract<ToolInputFieldPolicy, { kind: 'number' }>,
+  value: unknown
+): void {
+  if (typeof value !== 'number' || Number.isNaN(value)) return
+  if (policy.integer === true && !Number.isInteger(value)) {
+    throw invalidInput(toolName, path, 'must be an integer')
+  }
+  if (policy.min !== undefined && value < policy.min) {
+    throw invalidInput(
+      toolName,
+      path,
+      `must be greater than or equal to ${policy.min}`
+    )
+  }
+  if (policy.max !== undefined && value > policy.max) {
+    throw invalidInput(
+      toolName,
+      path,
+      `must be less than or equal to ${policy.max}`
+    )
+  }
+}
+
+function validateCollectionField(
+  toolName: string,
+  path: string,
+  policy: Extract<ToolInputFieldPolicy, { kind: 'collection' }>,
+  value: unknown
+): void {
+  if (!Array.isArray(value)) return
+  if (policy.minItems !== undefined && value.length < policy.minItems) {
+    throw invalidInput(
+      toolName,
+      path,
+      `must contain at least ${policy.minItems} items`
+    )
+  }
+  if (policy.maxItems !== undefined && value.length > policy.maxItems) {
+    throw invalidInput(
+      toolName,
+      path,
+      `must contain at most ${policy.maxItems} items`
+    )
+  }
+}
+
+function validateUrlField(
+  toolName: string,
+  path: string,
+  policy: Extract<ToolInputFieldPolicy, { kind: 'url' }>,
+  value: unknown
+): void {
+  if (typeof value !== 'string') return
+  try {
+    assertAllowedUrl(toolName, value, policy)
+  } catch (error) {
+    throw normalizeInputError(error, toolName, path)
+  }
+}
+
+function validateHostField(
+  toolName: string,
+  path: string,
+  policy: Extract<ToolInputFieldPolicy, { kind: 'host' }>,
+  value: unknown
+): void {
+  if (typeof value !== 'string') return
+  try {
+    assertAllowedHost(toolName, value, policy)
+  } catch (error) {
+    throw normalizeInputError(error, toolName, path)
+  }
+}
+
+async function validateFilesystemPathField<Services>(
+  tool: ToolDefinition<Schema, Services>,
+  context: RequestContext<Services>,
+  path: string,
+  policy: Extract<ToolInputFieldPolicy, { kind: 'filesystemPath' }>,
+  value: unknown
+): Promise<void> {
+  if (typeof value !== 'string') return
+
+  if (policy.allowAbsolute !== true && isAbsolute(value)) {
+    throw invalidInput(tool.name, path, 'must be a relative path')
+  }
+  if (hasParentTraversal(value)) {
+    throw invalidInput(
+      tool.name,
+      path,
+      'must not contain parent traversal segments'
+    )
+  }
+  if (
+    policy.roots === undefined &&
+    policy.clientRoots !== true &&
+    policy.clientRoots !== 'require'
+  ) {
+    return
+  }
+  if (!isAbsolute(value) && !value.startsWith('file://')) return
+
+  try {
+    const roots = await effectivePathRoots(tool, context, policy)
+    await resolvePathAgainstRoots(
+      tool.name,
+      roots,
+      value,
+      'Filesystem path input has no configured roots.',
+      `Filesystem path input "${path}" is outside the configured roots.`
+    )
+  } catch (error) {
+    throw normalizeInputError(error, tool.name, path)
+  }
+}
+
 function asFileUrl(root: string | URL): URL {
   if (root instanceof URL) {
     if (root.protocol !== 'file:') {
@@ -491,12 +736,124 @@ function stripTrailingSeparator(path: string): string {
   return path.endsWith('/') && path !== '/' ? path.slice(0, -1) : path
 }
 
+async function effectivePathRoots<Services>(
+  tool: ToolDefinition<Schema, Services>,
+  context: RequestContext<Services>,
+  policy: Extract<ToolInputFieldPolicy, { kind: 'filesystemPath' }>
+): Promise<readonly URL[]> {
+  const configuredRoots = [...(policy.roots ?? [])].map(asFileUrl)
+  const wantsClientRoots =
+    policy.clientRoots === true || policy.clientRoots === 'require'
+
+  if (!wantsClientRoots) return configuredRoots
+  if (!context.client.roots.supported) {
+    if (policy.clientRoots === 'require') {
+      throw new McpKitError({
+        code: 'INVALID_ARGUMENT',
+        message: `Tool ${tool.name} requires client roots for filesystem path validation`,
+        safeMessage: 'Client filesystem roots are required.'
+      })
+    }
+    return configuredRoots
+  }
+
+  const clientRoots = await context.client.roots.list()
+  const fileRoots = (clientRoots ?? [])
+    .map((root) => {
+      try {
+        return new URL(root.uri)
+      } catch {
+        return undefined
+      }
+    })
+    .filter((root): root is URL => root?.protocol === 'file:')
+
+  if (policy.clientRoots === 'require' && fileRoots.length === 0) {
+    throw new McpKitError({
+      code: 'INVALID_ARGUMENT',
+      message: `Tool ${tool.name} requires client file roots for filesystem path validation`,
+      safeMessage: 'Client filesystem roots are required.'
+    })
+  }
+
+  return [...configuredRoots, ...fileRoots]
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
+function invalidInput(
+  toolName: string,
+  path: string,
+  detail: string
+): McpKitError {
+  return new McpKitError({
+    code: 'INVALID_ARGUMENT',
+    message: `Tool ${toolName} input "${path}" ${detail}`,
+    safeMessage: `Input "${path}" ${detail}.`
+  })
+}
+
+function normalizeInputError(
+  error: unknown,
+  toolName: string,
+  path: string
+): McpKitError {
+  if (error instanceof McpKitError) {
+    return new McpKitError({
+      code: 'INVALID_ARGUMENT',
+      message: error.message,
+      safeMessage: `Input "${path}" is not allowed.`
+    })
+  }
+  if (error instanceof Error) {
+    return new McpKitError({
+      code: 'INVALID_ARGUMENT',
+      message: error.message,
+      safeMessage: `Input "${path}" is not allowed.`
+    })
+  }
+  return invalidInput(toolName, path, 'is not allowed')
+}
+
+function valueAtPath(input: unknown, path: string): unknown {
+  let current = input
+  for (const segment of path.split('.')) {
+    if (!isRecord(current)) return undefined
+    current = current[segment]
+  }
+  return current
+}
+
 function decodedByteLength(data: string): number {
   return Buffer.from(data, 'base64').byteLength
+}
+
+function hasParentTraversal(path: string): boolean {
+  return path
+    .replaceAll('\\', '/')
+    .split('/')
+    .some((segment) => segment === '..')
+}
+
+function normalizeHostInput(value: string): string {
+  const candidate = value.trim().toLowerCase()
+  if (candidate === '') {
+    throw new McpKitError({
+      code: 'INVALID_ARGUMENT',
+      message: 'Host input must not be empty',
+      safeMessage: 'Host input must not be empty.'
+    })
+  }
+  if (candidate.includes('://') || candidate.includes('/')) {
+    throw new McpKitError({
+      code: 'INVALID_ARGUMENT',
+      message: `Host input must not include a scheme or path: ${value}`,
+      safeMessage: 'Host input must be a hostname only.'
+    })
+  }
+  return candidate
 }
 
 function hostMatches(hostname: string, entry: string): boolean {
