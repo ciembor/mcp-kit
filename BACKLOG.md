@@ -369,16 +369,16 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 
 ### Dlugie operacje
 
-- [ ] Zdefiniowac port `JobStore`.
-- [ ] Zdefiniowac port `JobQueue`.
-- [ ] Dodac wzorzec start/status/result/cancel niezalezny od transportu.
-- [ ] Zapewnic przechowywanie job state poza procesem.
-- [ ] Dodac generator asynchronicznego toola.
-- [ ] Dodac polling hints i TTL.
-- [ ] Dodac test restartu workera podczas wykonywania joba.
-- [ ] Dodac test odebrania wyniku przez inny worker.
-- [ ] Nie uzywac dlugiego SSE jako jedynego mechanizmu wykonywania joba.
-- [ ] Przygotowac adapter do natywnego MCP Tasks bez uzalezniania domeny od eksperymentalnego API.
+- [x] Zdefiniowac port `JobStore`.
+- [x] Zdefiniowac port `JobQueue`.
+- [x] Dodac wzorzec start/status/result/cancel niezalezny od transportu.
+- [x] Zapewnic przechowywanie job state poza procesem.
+- [x] Dodac generator asynchronicznego toola.
+- [x] Dodac polling hints i TTL.
+- [x] Dodac test restartu workera podczas wykonywania joba.
+- [x] Dodac test odebrania wyniku przez inny worker.
+- [x] Nie uzywac dlugiego SSE jako jedynego mechanizmu wykonywania joba.
+- [x] Przygotowac adapter do natywnego MCP Tasks bez uzalezniania domeny od eksperymentalnego API.
 
 ### Testy security
 

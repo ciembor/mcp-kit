@@ -18,6 +18,7 @@ Transport-independent core APIs for assembling MCP servers.
 - `silentLogger`
 - `timeoutAbortError()`
 - `trackProtocolVersion()`
+- `createAsyncJobOperation()`
 
 ## App Assembly
 
@@ -207,6 +208,29 @@ from internal exceptions.
 
 `ToolMiddleware` is the extension boundary for cross-cutting tool behavior.
 Middleware runs around tool execution, not around prompt or resource handlers.
+
+## Async Jobs
+
+`createAsyncJobOperation(options)` builds a transport-independent long-running
+job workflow around explicit external ports:
+
+- `JobStore`: persisted job state and worker leasing
+- `JobQueue`: wake-up signaling for workers
+
+The helper exposes:
+
+- `start(input)`
+- `status(jobId)`
+- `result(jobId)`
+- `cancel(jobId)`
+- `worker(workerId).runNext()`
+- `worker(workerId).runUntilIdle()`
+- `worker(workerId).waitForWork(signal)`
+- `toTask(job, adapter)`
+
+Jobs carry built-in polling hints and TTL metadata through `pollAfterMs` and
+`expiresAt`, while `toTask()` projects the stable job model into an adapter for
+future MCP Tasks integration without coupling core policy to experimental APIs.
 
 ## `RequestContext` Methods And Fields
 

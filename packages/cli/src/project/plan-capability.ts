@@ -18,24 +18,38 @@ export async function planAddCapability(
 ): Promise<FilePlan> {
   const suffix = input.kind
   const exported = `${input.symbol}${capitalize(input.kind)}`
+  const asyncExports =
+    input.kind === 'tool' && input.async === true
+      ? asyncToolExports(input.symbol)
+      : undefined
   const operations: FileOperation[] = []
   const path = `src/features/${input.feature}/mcp/${input.feature}.${suffix}.${input.ext}`
   operations.push(
     await createOrMergeOperation(
       root,
       path,
-      capabilityContent(input.kind, exported)
+      capabilityContent(input.kind, exported, {
+        ...(input.async === undefined ? {} : { async: input.async })
+      })
     )
   )
-  operations.push(await featureIndexUpdateOperation(root, input, exported))
+  operations.push(
+    await featureIndexUpdateOperation(
+      root,
+      input,
+      asyncExports ?? [exported]
+    )
+  )
   operations.push(
     await createOrMergeOperation(
       root,
       `test/contracts/${input.feature}.${input.kind}.contract.test.ts`,
-      `import { describe, expect, it } from 'vitest'\n\nimport { ${exported} } from '../../src/features/${input.feature}/mcp/${input.feature}.${suffix}.js'\n\ndescribe('${input.feature} ${input.kind}', () => {\n  it('has a stable name', () => {\n    expect(${exported}.name).toBe('${input.feature}')\n  })\n})\n`
+      contractTestContent(input, exported, asyncExports)
     )
   )
-  operations.push(await registryUpdateOperation(root, input, exported))
+  operations.push(
+    await registryUpdateOperation(root, input, asyncExports ?? [exported])
+  )
   operations.push(await docsUpdateOperation(root, input))
   operations.push(await manifestUpdateOperation(root, operations))
   return { root, operations }
@@ -44,7 +58,7 @@ export async function planAddCapability(
 async function registryUpdateOperation(
   root: string,
   input: CapabilityRegistrationInput,
-  exported: string
+  exported: readonly string[]
 ): Promise<FileOperation> {
   const path = 'src/mcp/registry.ts'
   const absolute = resolve(root, path)
@@ -59,12 +73,15 @@ async function registryUpdateOperation(
     ? await readFile(absolute, 'utf8')
     : "import { defineRegistry } from '@mcp-kit/core'\n\nexport const tools = defineRegistry([])\nexport const resources = defineRegistry([])\nexport const prompts = defineRegistry([])\n"
 
-  if (current.includes(importPath) || current.includes(exported)) {
+  if (
+    current.includes(importPath) ||
+    exported.every((name) => current.includes(name))
+  ) {
     return { kind: 'merge-package', path, content: current }
   }
 
   const lines = current.split('\n')
-  const importLine = `import { ${exported} } from '${importPath}'`
+  const importLine = `import { ${exported.join(', ')} } from '${importPath}'`
   const lastImportIndex = lines.reduce(
     (last, line, index) => (line.startsWith('import ') ? index : last),
     -1
@@ -79,22 +96,22 @@ async function registryUpdateOperation(
       .split(',')
       .map((item: string) => item.trim())
       .filter(Boolean)
-    return `export const ${registryName} = defineRegistry([${[
-      ...existing,
-      exported
-    ].join(', ')}])`
-  })
+      return `export const ${registryName} = defineRegistry([${[
+        ...existing,
+        ...exported
+      ].join(', ')}])`
+    })
   return { kind: 'overwrite', path, content: updated }
 }
 
 async function featureIndexUpdateOperation(
   root: string,
   input: CapabilityRegistrationInput,
-  exported: string
+  exported: readonly string[]
 ): Promise<FileOperation> {
   const path = `src/features/${input.feature}/index.${input.ext}`
   const absolute = resolve(root, path)
-  const exportLine = `export { ${exported} } from './mcp/${input.feature}.${input.kind}.js'`
+  const exportLine = `export { ${exported.join(', ')} } from './mcp/${input.feature}.${input.kind}.js'`
   const current = (await exists(absolute))
     ? await readFile(absolute, 'utf8')
     : ''
@@ -107,6 +124,28 @@ async function featureIndexUpdateOperation(
     path,
     content
   }
+}
+
+function contractTestContent(
+  input: CapabilityInput,
+  exported: string,
+  asyncExports: readonly string[] | undefined
+): string {
+  if (input.kind === 'tool' && asyncExports !== undefined) {
+    const [startTool, statusTool, resultTool, cancelTool] = asyncExports
+    return `import { describe, expect, it } from 'vitest'\n\nimport { ${asyncExports.join(', ')} } from '../../src/features/${input.feature}/mcp/${input.feature}.${input.kind}.js'\n\ndescribe('${input.feature} async tool', () => {\n  it('has stable job lifecycle names', () => {\n    expect(${startTool}.name).toBe('start-${input.feature}')\n    expect(${statusTool}.name).toBe('get-${input.feature}-status')\n    expect(${resultTool}.name).toBe('get-${input.feature}-result')\n    expect(${cancelTool}.name).toBe('cancel-${input.feature}')\n  })\n})\n`
+  }
+  return `import { describe, expect, it } from 'vitest'\n\nimport { ${exported} } from '../../src/features/${input.feature}/mcp/${input.feature}.${input.kind}.js'\n\ndescribe('${input.feature} ${input.kind}', () => {\n  it('has a stable name', () => {\n    expect(${exported}.name).toBe('${input.feature}')\n  })\n})\n`
+}
+
+function asyncToolExports(symbol: string): readonly string[] {
+  const base = capitalize(symbol)
+  return [
+    `start${base}Tool`,
+    `get${base}StatusTool`,
+    `get${base}ResultTool`,
+    `cancel${base}Tool`
+  ]
 }
 
 async function docsUpdateOperation(

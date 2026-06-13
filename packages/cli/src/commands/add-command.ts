@@ -20,7 +20,8 @@ export async function addCapability(
     kind,
     feature: toKebabName(rawName),
     symbol: toCamelName(rawName),
-    ext: context.language === 'typescript' ? 'ts' : 'js'
+    ext: context.language === 'typescript' ? 'ts' : 'js',
+    async: kind === 'tool' && getBoolean(parsed, 'async')
   })
 
   if (!getBoolean(parsed, 'dry-run')) {
@@ -43,7 +44,7 @@ function capabilityArguments(positionals: readonly string[]): {
     rawName.trim() === ''
   ) {
     throw new CliError(
-      'Usage: mcp-kit add tool|resource|prompt <name>',
+      'Usage: mcp-kit add tool|resource|prompt <name> [--async]',
       exitCodes.usage
     )
   }

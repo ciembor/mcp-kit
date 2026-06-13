@@ -90,6 +90,36 @@ describe('cli plan helpers', () => {
       )?.kind
     ).toBe('create')
   })
+
+  it('plans async tool lifecycle capabilities in one feature module', async () => {
+    const cwd = await makeTemp()
+    await mkdir(resolve(cwd, 'src/mcp'), { recursive: true })
+
+    const plan = await planAddCapability(cwd, {
+      kind: 'tool',
+      feature: 'sync-report',
+      symbol: 'syncReport',
+      ext: 'ts',
+      async: true
+    })
+
+    const registry = plan.operations.find(
+      (operation) => operation.path === 'src/mcp/registry.ts'
+    )?.content
+    const contract = plan.operations.find(
+      (operation) =>
+        operation.path === 'test/contracts/sync-report.tool.contract.test.ts'
+    )?.content
+    const featureModule = plan.operations.find(
+      (operation) =>
+        operation.path === 'src/features/sync-report/mcp/sync-report.tool.ts'
+    )?.content
+
+    expect(registry).toContain('startSyncReportTool')
+    expect(registry).toContain('cancelSyncReportTool')
+    expect(contract).toContain("expect(startSyncReportTool.name).toBe('start-sync-report')")
+    expect(featureModule).toContain('createAsyncJobOperation')
+  })
 })
 
 async function makeTemp(): Promise<string> {

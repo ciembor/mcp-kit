@@ -108,9 +108,10 @@ export type CapabilityInput = {
   feature: string
   symbol: string
   ext: 'ts' | 'js'
+  async?: boolean
 }
 
 export type CapabilityRegistrationInput = Pick<
   CapabilityInput,
-  'kind' | 'feature' | 'ext'
+  'kind' | 'feature' | 'ext' | 'async'
 >

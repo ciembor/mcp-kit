@@ -103,6 +103,34 @@ describe('mcp-kit cli', () => {
     )
   })
 
+  it('generates async tool lifecycle scaffolding', async () => {
+    const cwd = await makeTemp()
+    await runCli(['new', 'async-server', '--yes', '--no-install', '--no-ci'], {
+      cwd
+    })
+
+    const project = resolve(cwd, 'async-server')
+    await expect(
+      runCli(['add', 'tool', 'sync-report', '--async'], { cwd: project })
+    ).resolves.toBe(exitCodes.ok)
+
+    await expect(
+      readFile(
+        resolve(project, 'src/features/sync-report/mcp/sync-report.tool.ts'),
+        'utf8'
+      )
+    ).resolves.toContain('createAsyncJobOperation')
+    await expect(
+      readFile(resolve(project, 'src/mcp/registry.ts'), 'utf8')
+    ).resolves.toContain('startSyncReportTool')
+    await expect(
+      readFile(
+        resolve(project, 'test/contracts/sync-report.tool.contract.test.ts'),
+        'utf8'
+      )
+    ).resolves.toContain("expect(startSyncReportTool.name).toBe('start-sync-report')")
+  })
+
   it('creates the JavaScript variant without TypeScript config', async () => {
     const cwd = await makeTemp()
 

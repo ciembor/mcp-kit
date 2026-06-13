@@ -1,5 +1,18 @@
 export { createMcpApp, type McpApp, type McpAppOptions } from './app/app.js'
 export {
+  createAsyncJobOperation,
+  type AsyncJobExecution,
+  type AsyncJobWorker,
+  type JobFailure,
+  type JobQueue,
+  type JobRecord,
+  type JobSnapshot,
+  type JobStatus,
+  type JobStore,
+  type JobTaskAdapter,
+  type JobTaskView
+} from './jobs.js'
+export {
   definePrompt,
   defineRegistry,
   defineResource,
