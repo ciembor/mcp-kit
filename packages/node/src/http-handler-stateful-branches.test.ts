@@ -1,5 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+type MockTransportInstance = {
+  sessionId: string | undefined
+  handleRequest: ReturnType<
+    typeof vi.fn<(request: Request, init?: unknown) => Promise<Response>>
+  >
+  close: ReturnType<typeof vi.fn<() => Promise<void>>>
+}
+
+type MockApp = {
+  setLogger: ReturnType<typeof vi.fn>
+  connect: ReturnType<typeof vi.fn<(transport: unknown) => Promise<void>>>
+  close: ReturnType<typeof vi.fn<() => Promise<void>>>
+}
+
 const {
   randomUUIDMock,
   transportCtorMock,
@@ -8,7 +22,7 @@ const {
   createStderrLoggerMock
 } = vi.hoisted(() => ({
   randomUUIDMock: vi.fn(),
-  transportCtorMock: vi.fn(),
+  transportCtorMock: vi.fn<(options: unknown) => MockTransportInstance>(),
   sameAuthIdentityMock: vi.fn(),
   corsHeadersMock: vi.fn(),
   createStderrLoggerMock: vi.fn()
@@ -18,22 +32,25 @@ vi.mock('node:crypto', () => ({
   randomUUID: randomUUIDMock
 }))
 
-vi.mock('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js', () => ({
-  WebStandardStreamableHTTPServerTransport: class {
-    sessionId
-    handleRequest
-    close
-    options
+vi.mock(
+  '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js',
+  () => ({
+    WebStandardStreamableHTTPServerTransport: class {
+      sessionId
+      handleRequest
+      close
+      options
 
-    constructor(options: unknown) {
-      const instance = transportCtorMock(options)
-      this.options = options
-      this.sessionId = instance.sessionId
-      this.handleRequest = instance.handleRequest
-      this.close = instance.close
+      constructor(options: unknown) {
+        const instance = transportCtorMock(options)
+        this.options = options
+        this.sessionId = instance.sessionId
+        this.handleRequest = instance.handleRequest
+        this.close = instance.close
+      }
     }
-  }
-}))
+  })
+)
 
 vi.mock('./http-auth.js', () => ({
   sameAuthIdentity: sameAuthIdentityMock
@@ -66,7 +83,9 @@ beforeEach(() => {
 
   randomUUIDMock.mockReturnValue('session-uuid')
   sameAuthIdentityMock.mockReturnValue(true)
-  corsHeadersMock.mockReturnValue(new Headers({ 'access-control-allow-origin': 'https://client.example' }))
+  corsHeadersMock.mockReturnValue(
+    new Headers({ 'access-control-allow-origin': 'https://client.example' })
+  )
   createStderrLoggerMock.mockReturnValue({ info: vi.fn() })
 })
 
@@ -81,10 +100,13 @@ describe('stateful handler branches', () => {
     }
 
     await expect(
-      existingSession(new Request('http://runtime.test/mcp'), sessionStore as never)
+      existingSession(
+        new Request('http://runtime.test/mcp'),
+        sessionStore as never
+      )
     ).resolves.toBeUndefined()
 
-    sessionStore.get = vi.fn(async () => undefined)
+    sessionStore.get = vi.fn(() => Promise.resolve(undefined))
     await expect(
       existingSession(
         new Request('http://runtime.test/mcp', {
@@ -100,11 +122,12 @@ describe('stateful handler branches', () => {
 
     const rejected = await existingSessionExchange({
       session: {
-        auth: { scopes: [], subject: 'alice' },
+        id: 'session-1',
+        auth: { source: 'oauth', scopes: [], subject: 'alice' },
         handleRequest: vi.fn(),
         close: vi.fn()
       },
-      auth: { scopes: [], subject: 'bob' },
+      auth: { source: 'oauth', scopes: [], subject: 'bob' },
       request: new Request('http://runtime.test/mcp'),
       parsedBody: undefined,
       cors: false
@@ -112,10 +135,12 @@ describe('stateful handler branches', () => {
 
     expect(rejected.response.status).toBe(403)
     await expect(rejected.response.json()).resolves.toMatchObject({
-      error: { message: 'Session subject or tenant does not match this request.' }
+      error: {
+        message: 'Session subject or tenant does not match this request.'
+      }
     })
 
-    const close = vi.fn(async () => undefined)
+    const close = vi.fn(() => Promise.resolve())
     const exchange = createResponseExchange(
       new Response('ok'),
       new Request('http://runtime.test/mcp'),
@@ -130,7 +155,7 @@ describe('stateful handler branches', () => {
     expect(close).toHaveBeenCalledTimes(1)
   })
 
-  it('adds cors headers to responses when enabled', async () => {
+  it('adds cors headers to responses when enabled', () => {
     const exchange = createResponseExchange(
       new Response('ok', {
         status: 202,
@@ -154,8 +179,9 @@ describe('stateful handler branches', () => {
   })
 
   it('swallows close failures for managed resources and configures loggers', async () => {
-    const app = {
+    const app: MockApp = {
       setLogger: vi.fn(),
+      connect: vi.fn(() => Promise.resolve()),
       close: vi.fn(() => Promise.reject(new Error('app close failed')))
     }
     const transport = {
@@ -168,7 +194,9 @@ describe('stateful handler branches', () => {
 
     const configured = createConfiguredApp(() => app as never)
     expect(configured).toBe(app)
-    expect(app.setLogger).toHaveBeenCalledWith(createStderrLoggerMock.mock.results[0]?.value)
+    expect(app.setLogger).toHaveBeenCalledWith(
+      createStderrLoggerMock.mock.results[0]?.value
+    )
   })
 
   it('builds transport options only from configured resumability settings', () => {
@@ -192,25 +220,25 @@ describe('stateful handler branches', () => {
   })
 
   it('cleans up a newly-created session when handling or connect fails', async () => {
-    const deleteMock = vi.fn(async () => undefined)
+    const deleteMock = vi.fn(() => Promise.resolve())
     const sessionStore = {
-      get: vi.fn(async () => ({
-        close: vi.fn(async () => undefined)
-      })),
-      set: vi.fn(async () => undefined),
+      get: vi.fn(() =>
+        Promise.resolve({
+          close: vi.fn(() => Promise.resolve())
+        })
+      ),
+      set: vi.fn(() => Promise.resolve()),
       delete: deleteMock
     }
-    const app = {
+    const app: MockApp = {
       setLogger: vi.fn(),
-      connect: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined)
+      connect: vi.fn(() => Promise.resolve()),
+      close: vi.fn(() => Promise.resolve())
     }
-    const transport = {
+    const transport: MockTransportInstance = {
       sessionId: 'session-1',
-      handleRequest: vi.fn(async () => {
-        throw new Error('request failed')
-      }),
-      close: vi.fn(async () => undefined)
+      handleRequest: vi.fn(() => Promise.reject(new Error('request failed'))),
+      close: vi.fn(() => Promise.resolve())
     }
     transportCtorMock.mockReturnValueOnce(transport)
 
@@ -230,17 +258,15 @@ describe('stateful handler branches', () => {
 
     expect(deleteMock).toHaveBeenCalledWith('session-1')
 
-    const failingApp = {
+    const failingApp: MockApp = {
       setLogger: vi.fn(),
-      connect: vi.fn(async () => {
-        throw new Error('connect failed')
-      }),
-      close: vi.fn(async () => undefined)
+      connect: vi.fn(() => Promise.reject(new Error('connect failed'))),
+      close: vi.fn(() => Promise.resolve())
     }
-    const connectTransport = {
+    const connectTransport: MockTransportInstance = {
       sessionId: undefined,
       handleRequest: vi.fn(),
-      close: vi.fn(async () => undefined)
+      close: vi.fn(() => Promise.resolve())
     }
     transportCtorMock.mockReturnValueOnce(connectTransport)
 
@@ -277,19 +303,19 @@ describe('stateful handler branches', () => {
     ).rejects.toThrow('Stateful Streamable HTTP requires a SessionStore.')
 
     const sessionStore = {
-      get: vi.fn(async () => undefined),
-      set: vi.fn(async () => undefined),
-      delete: vi.fn(async () => undefined)
+      get: vi.fn(() => Promise.resolve(undefined)),
+      set: vi.fn(() => Promise.resolve()),
+      delete: vi.fn(() => Promise.resolve())
     }
-    const app = {
+    const app: MockApp = {
       setLogger: vi.fn(),
-      connect: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined)
+      connect: vi.fn(() => Promise.resolve()),
+      close: vi.fn(() => Promise.resolve())
     }
-    const transport = {
+    const transport: MockTransportInstance = {
       sessionId: undefined,
-      handleRequest: vi.fn(async () => new Response('ok')),
-      close: vi.fn(async () => undefined)
+      handleRequest: vi.fn(() => Promise.resolve(new Response('ok'))),
+      close: vi.fn(() => Promise.resolve())
     }
     transportCtorMock.mockReturnValueOnce(transport)
 
@@ -302,11 +328,12 @@ describe('stateful handler branches', () => {
       request: new Request('http://runtime.test/mcp'),
       parsedBody: undefined,
       auth: {
+        source: 'oauth',
         scopes: ['users:read'],
         subject: 'alice',
         tenantId: 'tenant-a',
-        expiresAt: new Date('2026-06-12T00:00:00.000Z'),
-        resource: 'resource-1'
+        expiresAt: Date.parse('2026-06-12T00:00:00.000Z'),
+        resource: new URL('https://resource-1.example')
       },
       sessionStore: sessionStore as never
     })
@@ -315,41 +342,36 @@ describe('stateful handler branches', () => {
     expect(sessionStore.set).not.toHaveBeenCalled()
     expect(app.close).toHaveBeenCalledTimes(1)
     expect(transport.close).toHaveBeenCalledTimes(1)
-    expect(transport.handleRequest).toHaveBeenCalledWith(
-      expect.any(Request),
-      {
-        authInfo: {
-          token: '',
-          clientId: 'mcp-kit',
-          scopes: ['users:read'],
-          expiresAt: new Date('2026-06-12T00:00:00.000Z'),
-          resource: 'resource-1',
-          extra: {
-            subject: 'alice',
-            tenantId: 'tenant-a'
-          }
+    expect(transport.handleRequest).toHaveBeenCalledWith(expect.any(Request), {
+      authInfo: {
+        token: '',
+        clientId: 'mcp-kit',
+        scopes: ['users:read'],
+        expiresAt: Date.parse('2026-06-12T00:00:00.000Z'),
+        resource: new URL('https://resource-1.example'),
+        extra: {
+          subject: 'alice',
+          tenantId: 'tenant-a'
         }
       }
-    )
+    })
   })
 
   it('returns an empty session id before the transport assigns one and ignores missing close targets', async () => {
     const sessionStore = {
-      get: vi.fn(async () => undefined),
-      set: vi.fn(async () => undefined),
-      delete: vi.fn(async () => undefined)
+      get: vi.fn(() => Promise.resolve(undefined)),
+      set: vi.fn(() => Promise.resolve()),
+      delete: vi.fn(() => Promise.resolve())
     }
-    const app = {
+    const app: MockApp = {
       setLogger: vi.fn(),
-      connect: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined)
+      connect: vi.fn(() => Promise.resolve()),
+      close: vi.fn(() => Promise.resolve())
     }
-    const transport = {
+    const transport: MockTransportInstance = {
       sessionId: undefined,
-      handleRequest: vi.fn(async () => {
-        throw new Error('request failed')
-      }),
-      close: vi.fn(async () => undefined)
+      handleRequest: vi.fn(() => Promise.reject(new Error('request failed'))),
+      close: vi.fn(() => Promise.resolve())
     }
     transportCtorMock.mockReturnValueOnce(transport)
 
@@ -363,6 +385,7 @@ describe('stateful handler branches', () => {
         request: new Request('http://runtime.test/mcp'),
         parsedBody: undefined,
         auth: {
+          source: 'oauth',
           token: 'service-token',
           clientId: 'service-client',
           scopes: ['service:read'],
@@ -375,18 +398,17 @@ describe('stateful handler branches', () => {
     const ctorOptions = transportCtorMock.mock.calls.at(-1)?.[0] as {
       onsessionclosed: (sessionId: string) => Promise<void>
     }
-    await expect(ctorOptions.onsessionclosed('unknown-session')).resolves.toBeUndefined()
+    await expect(
+      ctorOptions.onsessionclosed('unknown-session')
+    ).resolves.toBeUndefined()
     expect(sessionStore.delete).not.toHaveBeenCalled()
-    expect(transport.handleRequest).toHaveBeenCalledWith(
-      expect.any(Request),
-      {
-        authInfo: {
-          token: 'service-token',
-          clientId: 'service-client',
-          scopes: ['service:read'],
-          extra: { role: 'robot' }
-        }
+    expect(transport.handleRequest).toHaveBeenCalledWith(expect.any(Request), {
+      authInfo: {
+        token: '',
+        clientId: 'service-client',
+        scopes: ['service:read'],
+        extra: { role: 'robot' }
       }
-    )
+    })
   })
 })

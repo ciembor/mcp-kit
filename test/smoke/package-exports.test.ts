@@ -2,6 +2,7 @@ import { packageInfo as cliPackage } from '@mcp-kit/cli'
 import { packageInfo as corePackage } from '@mcp-kit/core'
 import {
   createJwtBearerVerifier,
+  exchangeDownstreamAccessToken,
   createInMemoryEventStore,
   packageInfo as nodePackage
 } from '@mcp-kit/node'
@@ -34,5 +35,6 @@ describe('workspace package exports', () => {
   it('imports resumability helpers from the node root export', () => {
     expect(createInMemoryEventStore).toBeTypeOf('function')
     expect(createJwtBearerVerifier).toBeTypeOf('function')
+    expect(exchangeDownstreamAccessToken).toBeTypeOf('function')
   })
 })

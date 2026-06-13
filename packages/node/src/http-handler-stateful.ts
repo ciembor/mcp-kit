@@ -207,7 +207,7 @@ async function persistStatefulSession(
 
 function toAuthInfo(auth: AuthContext) {
   return {
-    token: auth.token ?? '',
+    token: '',
     clientId: auth.clientId ?? 'mcp-kit',
     scopes: [...auth.scopes],
     ...(auth.expiresAt === undefined ? {} : { expiresAt: auth.expiresAt }),
@@ -215,7 +215,10 @@ function toAuthInfo(auth: AuthContext) {
     extra: {
       ...(auth.extra ?? {}),
       ...(auth.subject === undefined ? {} : { subject: auth.subject }),
-      ...(auth.tenantId === undefined ? {} : { tenantId: auth.tenantId })
+      ...(auth.tenantId === undefined ? {} : { tenantId: auth.tenantId }),
+      ...(auth.authorization === undefined
+        ? {}
+        : { authorization: auth.authorization })
     }
   }
 }

@@ -107,5 +107,41 @@ await runStreamableHttp(createApp, {
 
 The verifier checks signature, `iss`, `aud`, and `exp`, and will reject tokens
 that are not yet active via `nbf`. Scope mapping stays explicit through JWT
-claims such as `scope` or `scp`, while consent, downstream token exchange, and
-step-up rules remain caller-owned outer-layer concerns.
+claims such as `scope` or `scp`.
+
+For protected capabilities:
+
+- `requiredScopes` expresses the minimum scope set
+- `stepUpScopes` expresses additional scopes that should fail with a step-up
+  style denial instead of a generic forbidden error
+- `requiredConsentScopes` checks consent tied to `subject`, `clientId`, and
+  scopes when the verifier is configured with a consent port
+
+Raw bearer tokens are not passed through to `RequestContext.auth`, so inner
+layers see authorization state, not transport credentials.
+
+For downstream credentials or token exchange, keep the concrete implementation
+outside your use cases and expose it via an outer-layer port:
+
+```ts
+import {
+  createJwtBearerVerifier,
+  exchangeDownstreamAccessToken
+} from '@mcp-kit/node'
+
+const verifyBearerToken = createJwtBearerVerifier({
+  issuer: 'https://auth.example',
+  audience: 'https://mcp.example/mcp',
+  jwksUri: 'https://auth.example/jwks',
+  consent: {
+    getConsent: ({ subject, clientId, scopes }) =>
+      consentStore.find(subject, clientId, scopes)
+  }
+})
+
+const downstream = await exchangeDownstreamAccessToken(
+  tokenExchangePort,
+  context.auth ?? {},
+  { scopes: ['calendar:write'] }
+)
+```

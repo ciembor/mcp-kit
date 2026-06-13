@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import type { AuthContext } from '@mcp-kit/core'
+import type { StreamableHttpAuthOptions } from './http-contracts.js'
 import { authenticateRequest, sameAuthIdentity } from './http-auth.js'
 
 describe('authenticateRequest', () => {
@@ -34,9 +36,11 @@ describe('authenticateRequest', () => {
       authOptions()
     )
 
-    await expect(rejectionBody(missingBearer.rejection)).resolves.toMatchObject({
-      error: { message: 'Invalid Authorization header.' }
-    })
+    await expect(rejectionBody(missingBearer.rejection)).resolves.toMatchObject(
+      {
+        error: { message: 'Invalid Authorization header.' }
+      }
+    )
     expect(missingBearer.rejection?.headers.get('www-authenticate')).toBe(
       'Bearer realm="mcp-kit", error="invalid_token"'
     )
@@ -74,14 +78,19 @@ describe('authenticateRequest', () => {
   })
 
   it('returns auth context and auth info for accepted bearer tokens', async () => {
-    const verifyBearerToken = vi.fn(async () => ({
-      clientId: undefined,
-      scopes: ['users:read'],
-      subject: 'alice',
-      tenantId: 'tenant-a',
-      resource: 'resource-1',
-      extra: { role: 'admin' }
-    }))
+    const verifyBearerToken = vi.fn(() =>
+      Promise.resolve({
+        source: 'oauth' as const,
+        scopes: ['users:read'],
+        subject: 'alice',
+        tenantId: 'tenant-a',
+        resource: new URL('https://resource-1.example'),
+        authorization: {
+          availableScopes: ['users:read', 'users:write']
+        },
+        extra: { role: 'admin' }
+      })
+    )
     const request = new Request('http://localhost/mcp', {
       headers: { authorization: 'Bearer alice-token' }
     })
@@ -97,26 +106,30 @@ describe('authenticateRequest', () => {
       tenantId: 'tenant-a'
     })
     expect(result.authInfo).toEqual({
-      token: 'alice-token',
+      token: '',
       clientId: 'mcp-kit',
       scopes: ['users:read'],
-      resource: 'resource-1',
+      resource: new URL('https://resource-1.example'),
       extra: {
         role: 'admin',
         subject: 'alice',
-        tenantId: 'tenant-a'
+        tenantId: 'tenant-a',
+        authorization: {
+          availableScopes: ['users:read', 'users:write']
+        }
       }
     })
   })
 
   it('keeps optional auth info fields absent when the context does not provide them', async () => {
-    const expiresAt = new Date('2026-06-12T00:00:00.000Z')
+    const expiresAt = Date.parse('2026-06-12T00:00:00.000Z')
     const request = new Request('http://localhost/mcp', {
       headers: { authorization: 'Bearer service-token' }
     })
 
     const result = await authenticateRequest(request, {
-      verifyBearerToken: async () => ({
+      verifyBearerToken: () => ({
+        source: 'oauth',
         clientId: 'service-client',
         scopes: ['service:read'],
         expiresAt
@@ -124,7 +137,7 @@ describe('authenticateRequest', () => {
     })
 
     expect(result.authInfo).toEqual({
-      token: 'service-token',
+      token: '',
       clientId: 'service-client',
       scopes: ['service:read'],
       expiresAt,
@@ -138,7 +151,7 @@ describe('authenticateRequest', () => {
         headers: { authorization: 'Bearer rejected-token' }
       }),
       {
-        verifyBearerToken: async () => {
+        verifyBearerToken: () => {
           throw new Error('nope')
         }
       }
@@ -155,6 +168,7 @@ describe('sameAuthIdentity', () => {
     expect(sameAuthIdentity(undefined, undefined)).toBe(true)
     expect(
       sameAuthIdentity(undefined, {
+        source: 'oauth',
         scopes: [],
         subject: 'alice'
       })
@@ -165,12 +179,14 @@ describe('sameAuthIdentity', () => {
     expect(
       sameAuthIdentity(
         {
+          source: 'oauth',
           clientId: 'client-a',
           scopes: ['users:read'],
           subject: 'alice',
           tenantId: 'tenant-a'
         },
         {
+          source: 'oauth',
           clientId: 'client-b',
           scopes: ['users:write'],
           subject: 'alice',
@@ -181,11 +197,13 @@ describe('sameAuthIdentity', () => {
     expect(
       sameAuthIdentity(
         {
+          source: 'oauth',
           scopes: [],
           subject: 'alice',
           tenantId: 'tenant-a'
         },
         {
+          source: 'oauth',
           scopes: [],
           subject: 'bob',
           tenantId: 'tenant-a'
@@ -195,12 +213,14 @@ describe('sameAuthIdentity', () => {
   })
 })
 
-function authOptions() {
+function authOptions(): StreamableHttpAuthOptions {
   return {
-    verifyBearerToken: async () => ({
-      clientId: 'client-1',
-      scopes: ['users:read']
-    })
+    verifyBearerToken: () =>
+      ({
+        source: 'oauth',
+        clientId: 'client-1',
+        scopes: ['users:read']
+      }) satisfies AuthContext
   }
 }
 

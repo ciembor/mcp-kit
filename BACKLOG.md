@@ -342,12 +342,12 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 
 - [x] Dodac Protected Resource Metadata.
 - [x] Dodac discovery authorization servera.
-- [ ] Walidowac podpis, issuer, audience i expiry tokenu.
-- [ ] Obsluzyc minimal scopes i step-up authorization.
-- [ ] Uniemozliwic token passthrough.
-- [ ] Dodac consent powiazany z user, client i scopes.
-- [ ] Dodac port dla downstream credentials/token exchange.
-- [ ] Udokumentowac integracje z zewnetrznym authorization serverem.
+- [x] Walidowac podpis, issuer, audience i expiry tokenu.
+- [x] Obsluzyc minimal scopes i step-up authorization.
+- [x] Uniemozliwic token passthrough.
+- [x] Dodac consent powiazany z user, client i scopes.
+- [x] Dodac port dla downstream credentials/token exchange.
+- [x] Udokumentowac integracje z zewnetrznym authorization serverem.
 
 ### Ochrona I/O
 
@@ -400,7 +400,7 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 - [x] Negatywne testy auth, session, host i origin przechodza.
 - [x] Publiczny tryb production nie uruchamia sie bez jawnej decyzji o auth.
 - [x] Domyslny production server skaluje sie poziomo bez lokalnego stanu procesu.
-- [ ] Dlugie operacje przezywaja restart workera i nie wymagaja stalego SSE.
+- [x] Dlugie operacje przezywaja restart workera i nie wymagaja stalego SSE.
 
 ## Milestone 6: Release tooling
 

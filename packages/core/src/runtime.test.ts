@@ -217,10 +217,28 @@ describe('runtime helpers', () => {
       inputSchema: z.object({}),
       policy: {
         effects: 'read',
-        rateLimit: { windowMs: 60_000, maxCalls: 1 }
+        rateLimit: { windowMs: 60_000, maxCalls: 2 }
       },
       handler: () => ({ content: [] })
     })
+    await expect(
+      runToolPipeline(
+        throttledTool,
+        {},
+        makeContext({
+          auth: {
+            source: 'oauth',
+            scopes: ['users:read'],
+            subject: 'alice',
+            tenantId: 'tenant-a'
+          }
+        }),
+        []
+      )
+    ).resolves.toMatchObject({ content: [] })
+    await expect(
+      runToolPipeline(throttledTool, {}, makeContext(), [])
+    ).resolves.toMatchObject({ content: [] })
     await expect(
       runToolPipeline(
         throttledTool,
@@ -305,6 +323,62 @@ describe('runtime helpers', () => {
       isError: true,
       content: [{ type: 'text', text: 'safe' }]
     })
+
+    const stepUpTool = defineTool({
+      name: 'step-up-tool',
+      inputSchema: z.object({}),
+      policy: {
+        effects: 'write',
+        requiredScopes: ['users:read'],
+        stepUpScopes: ['users:write']
+      },
+      handler: () => ({ content: [] })
+    })
+    await expect(
+      runToolPipeline(
+        stepUpTool,
+        {},
+        makeContext({
+          auth: {
+            source: 'oauth',
+            scopes: ['users:read']
+          }
+        }),
+        []
+      )
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [{ type: 'text', text: 'Additional authorization is required.' }]
+    })
+
+    const consentTool = defineTool({
+      name: 'consent-tool',
+      inputSchema: z.object({}),
+      policy: {
+        effects: 'read',
+        requiredScopes: ['users:read'],
+        requiredConsentScopes: ['users:read']
+      },
+      handler: () => ({ content: [] })
+    })
+    await expect(
+      runToolPipeline(
+        consentTool,
+        {},
+        makeContext({
+          auth: {
+            source: 'oauth',
+            scopes: ['users:read'],
+            clientId: 'client-1',
+            subject: 'user-1'
+          }
+        }),
+        []
+      )
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [{ type: 'text', text: 'Additional consent is required.' }]
+    })
   })
 
   it('maps authInfo into auth context and checks capability scopes', async () => {
@@ -316,7 +390,18 @@ describe('runtime helpers', () => {
           token: 'secret',
           clientId: 'client-1',
           scopes: ['users:read'],
-          extra: { subject: 'user-1', tenantId: 'tenant-1' }
+          extra: {
+            subject: 'user-1',
+            tenantId: 'tenant-1',
+            authorization: {
+              availableScopes: ['users:read', 'users:write'],
+              consent: {
+                subject: 'user-1',
+                clientId: 'client-1',
+                scopes: ['users:read']
+              }
+            }
+          }
         },
         sendNotification: () => Promise.resolve(),
         sendRequest: () => Promise.resolve({} as never)
@@ -340,8 +425,17 @@ describe('runtime helpers', () => {
       tenantId: 'tenant-1',
       clientId: 'client-1',
       source: 'oauth',
-      scopes: ['users:read']
+      scopes: ['users:read'],
+      authorization: {
+        availableScopes: ['users:read', 'users:write'],
+        consent: {
+          subject: 'user-1',
+          clientId: 'client-1',
+          scopes: ['users:read']
+        }
+      }
     })
+    expect(context.auth?.token).toBeUndefined()
     expect(context.correlationId).toMatch(/^mcp-/)
 
     await expect(
@@ -350,6 +444,18 @@ describe('runtime helpers', () => {
 
     await expect(
       requireCapabilityAccess({ requiredScopes: ['users:read'] }, context)
+    ).resolves.toBeUndefined()
+    await expect(
+      requireCapabilityAccess({ stepUpScopes: ['users:write'] }, context)
+    ).rejects.toThrow('Step-up authorization required for scope: users:write')
+    await expect(
+      requireCapabilityAccess(
+        { requiredConsentScopes: ['users:write'] },
+        context
+      )
+    ).rejects.toThrow('Missing consent for scope: users:write')
+    await expect(
+      requireCapabilityAccess({ requiredScopes: [] }, makeContext())
     ).resolves.toBeUndefined()
   })
 
@@ -501,6 +607,49 @@ describe('runtime helpers', () => {
         }
       }
     ])
+  })
+
+  it('audits tool responses marked as errors', async () => {
+    const auditEntries: Array<Record<string, unknown>> = []
+    const logger = {
+      debug: () => undefined,
+      info: (_message: string, data?: Record<string, unknown>) => {
+        if (data !== undefined) auditEntries.push(data)
+      },
+      warn: () => undefined,
+      error: () => undefined
+    }
+    const tool = defineTool({
+      name: 'audited-error-tool',
+      inputSchema: z.object({}),
+      policy: { effects: 'read', requiredScopes: ['users:read'] },
+      handler: () => ({
+        isError: true as const,
+        content: [{ type: 'text', text: 'failed safely' }]
+      })
+    })
+
+    await expect(
+      runToolPipeline(
+        tool,
+        {},
+        makeContext({
+          logger,
+          auth: {
+            source: 'oauth',
+            scopes: ['users:read']
+          }
+        }),
+        []
+      )
+    ).resolves.toMatchObject({ isError: true })
+
+    expect(auditEntries).toContainEqual(
+      expect.objectContaining({
+        outcome: 'error',
+        tool: 'audited-error-tool'
+      })
+    )
   })
 })
 

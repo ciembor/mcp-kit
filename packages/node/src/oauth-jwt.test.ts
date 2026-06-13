@@ -2,7 +2,10 @@ import { generateKeyPairSync, sign as signBuffer } from 'node:crypto'
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { createJwtBearerVerifier } from './oauth-jwt.js'
+import {
+  createJwtBearerVerifier,
+  exchangeDownstreamAccessToken
+} from './oauth-jwt.js'
 
 describe('createJwtBearerVerifier', () => {
   it('verifies RSA bearer tokens against a JWKS endpoint', async () => {
@@ -48,6 +51,50 @@ describe('createJwtBearerVerifier', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(fetch).toHaveBeenCalledWith(new URL('https://issuer.example/jwks'), {
       headers: { accept: 'application/json' }
+    })
+  })
+
+  it('loads consent tied to subject, client, and scopes', async () => {
+    const key = createRsaKeyPair('consent')
+    const consent = {
+      subject: 'alice',
+      clientId: 'client-1',
+      scopes: ['tools:read']
+    }
+    const getConsent = vi.fn(() => Promise.resolve(consent))
+    const verifyBearerToken = createJwtBearerVerifier({
+      issuer: 'https://issuer.example',
+      audience: 'mcp-kit',
+      jwksUri: 'https://issuer.example/jwks',
+      fetch: vi.fn(() =>
+        Promise.resolve(jsonResponse({ keys: [key.publicJwk] }))
+      ),
+      consent: { getConsent }
+    })
+
+    const result = await verifyBearerToken(
+      signJwt(
+        {
+          iss: 'https://issuer.example',
+          aud: 'mcp-kit',
+          exp: futureEpochSeconds(),
+          sub: 'alice',
+          client_id: 'client-1',
+          scope: 'tools:read tools:write'
+        },
+        key
+      ),
+      new Request('https://resource.example/mcp')
+    )
+
+    expect(getConsent).toHaveBeenCalledWith({
+      subject: 'alice',
+      clientId: 'client-1',
+      scopes: ['tools:read', 'tools:write']
+    })
+    expect(result.authorization).toMatchObject({
+      availableScopes: ['tools:read', 'tools:write'],
+      consent
     })
   })
 
@@ -398,6 +445,39 @@ describe('createJwtBearerVerifier', () => {
         audience: 'mcp-kit'
       })
     ).toThrow('Provide either jwksUri or discoveryUrl for JWT validation.')
+  })
+
+  it('fills missing downstream token exchange attributes from auth context', async () => {
+    const exchange = vi.fn(() =>
+      Promise.resolve({
+        accessToken: 'downstream-token',
+        scopes: ['tools:write']
+      })
+    )
+
+    await expect(
+      exchangeDownstreamAccessToken(
+        { exchange },
+        {
+          clientId: 'client-1',
+          subject: 'alice',
+          resource: new URL('https://resource.example/mcp')
+        },
+        {
+          scopes: ['tools:write']
+        }
+      )
+    ).resolves.toEqual({
+      accessToken: 'downstream-token',
+      scopes: ['tools:write']
+    })
+
+    expect(exchange).toHaveBeenCalledWith({
+      clientId: 'client-1',
+      subject: 'alice',
+      resource: new URL('https://resource.example/mcp'),
+      scopes: ['tools:write']
+    })
   })
 })
 

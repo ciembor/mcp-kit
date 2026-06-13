@@ -37,7 +37,7 @@ export async function authenticateRequest(
     const context = await auth.verifyBearerToken(token, request)
     return {
       auth: context,
-      authInfo: toAuthInfo(context, token)
+      authInfo: toAuthInfo(context)
     }
   } catch {
     return {
@@ -58,8 +58,11 @@ export function sameAuthIdentity(
 function bearerToken(request: Request): string | null | undefined {
   const header = request.headers.get('authorization')
   if (header === null) return undefined
-  const match = header.match(/^Bearer\s+(.+)$/i)
-  return match?.[1] ?? null
+  const separator = header.indexOf(' ')
+  if (separator === -1) return null
+  if (header.slice(0, separator).toLowerCase() !== 'bearer') return null
+  const token = header.slice(separator + 1).trim()
+  return token === '' ? null : token
 }
 
 function unauthorizedResponse(
@@ -87,9 +90,9 @@ function unauthorizedResponse(
   )
 }
 
-function toAuthInfo(context: AuthContext, token: string): AuthInfo {
+function toAuthInfo(context: AuthContext): AuthInfo {
   return {
-    token,
+    token: '',
     clientId: context.clientId ?? 'mcp-kit',
     scopes: [...context.scopes],
     ...(context.expiresAt === undefined
@@ -99,7 +102,10 @@ function toAuthInfo(context: AuthContext, token: string): AuthInfo {
     extra: {
       ...(context.extra ?? {}),
       ...(context.subject === undefined ? {} : { subject: context.subject }),
-      ...(context.tenantId === undefined ? {} : { tenantId: context.tenantId })
+      ...(context.tenantId === undefined ? {} : { tenantId: context.tenantId }),
+      ...(context.authorization === undefined
+        ? {}
+        : { authorization: context.authorization })
     }
   }
 }

@@ -81,6 +81,7 @@ function requestCorrelationId(extra: ServerRequestContext): string {
 }
 
 function authContext(authInfo: ServerRequestContext['authInfo']): AuthContext {
+  const authorization = authInfo?.extra?.['authorization']
   return {
     scopes: authInfo?.scopes ?? [],
     source: authSource(),
@@ -89,7 +90,7 @@ function authContext(authInfo: ServerRequestContext['authInfo']): AuthContext {
     ...optionalAuthField('clientId', authInfo?.clientId),
     ...optionalAuthField('expiresAt', authInfo?.expiresAt),
     ...optionalAuthField('resource', authInfo?.resource),
-    ...optionalAuthField('token', authInfo?.token),
+    ...(isAuthorizationDetails(authorization) ? { authorization } : {}),
     ...optionalAuthField('extra', authInfo?.extra)
   }
 }
@@ -238,4 +239,13 @@ function elicitationContext(
 
 function authSource(): AuthContext['source'] {
   return 'oauth'
+}
+
+function isAuthorizationDetails(
+  value: unknown
+): value is NonNullable<AuthContext['authorization']> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+  return true
 }

@@ -4,7 +4,6 @@ import type {
 } from '@modelcontextprotocol/sdk/server/zod-compat.js'
 import type { CompleteResourceTemplateCallback } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js'
-import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type {
   CallToolResult,
   ClientCapabilities,
@@ -45,6 +44,8 @@ export type Logger = {
 export type ToolPolicy = {
   effects: 'read' | 'write'
   requiredScopes?: readonly string[]
+  stepUpScopes?: readonly string[]
+  requiredConsentScopes?: readonly string[]
   authorize?(context: RequestContext<unknown>): Promise<void> | void
   rateLimit?: {
     windowMs: number
@@ -57,7 +58,28 @@ export type ToolPolicy = {
 
 export type CapabilityPolicy = {
   requiredScopes?: readonly string[]
+  stepUpScopes?: readonly string[]
+  requiredConsentScopes?: readonly string[]
   authorize?(context: RequestContext<unknown>): Promise<void> | void
+}
+
+export type AuthorizationConsent = {
+  subject: string
+  clientId: string
+  scopes: readonly string[]
+  grantedAt?: number
+  expiresAt?: number
+}
+
+export type AuthorizationStepUp = {
+  scopes: readonly string[]
+  authorizationUrl?: string
+}
+
+export type AuthorizationDetails = {
+  availableScopes?: readonly string[]
+  consent?: AuthorizationConsent
+  stepUp?: AuthorizationStepUp
 }
 
 export type AuthContext = {
@@ -69,6 +91,7 @@ export type AuthContext = {
   expiresAt?: number
   resource?: URL
   token?: string
+  authorization?: AuthorizationDetails
   extra?: Record<string, unknown>
 }
 
@@ -243,5 +266,3 @@ export type PromptDefinition<
 export type RegistryItem = {
   name: string
 }
-
-export type { AuthInfo }

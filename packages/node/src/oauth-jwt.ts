@@ -16,8 +16,10 @@ type JwtBearerVerifierOptions = {
   clientIdClaim?: string
   tenantIdClaim?: string
   scopesClaim?: string | readonly string[]
+  availableScopesClaim?: string | readonly string[]
   resource?: string | URL
   jwksCacheTtlMs?: number
+  consent?: OAuthConsentPort
 }
 
 type JwtHeader = {
@@ -45,6 +47,44 @@ type CachedValue<T> = {
   value: T
 }
 
+type OAuthConsentRecord = {
+  subject: string
+  clientId: string
+  scopes: readonly string[]
+  grantedAt?: number
+  expiresAt?: number
+}
+
+type OAuthConsentPort = {
+  getConsent(input: {
+    subject: string
+    clientId: string
+    scopes: readonly string[]
+    resource?: URL
+  }): Promise<OAuthConsentRecord | undefined> | OAuthConsentRecord | undefined
+}
+
+type OAuthTokenExchangeRequest = {
+  clientId?: string
+  subject?: string
+  scopes: readonly string[]
+  audience?: string
+  resource?: string | URL
+}
+
+type OAuthTokenExchangeResult = {
+  accessToken: string
+  tokenType?: 'Bearer'
+  scopes: readonly string[]
+  expiresAt?: number
+}
+
+type OAuthTokenExchangePort = {
+  exchange(
+    input: OAuthTokenExchangeRequest
+  ): Promise<OAuthTokenExchangeResult> | OAuthTokenExchangeResult
+}
+
 const signatureAlgorithms: Record<
   JwtSigningAlgorithm,
   { name: 'RSASSA-PKCS1-v1_5'; hash: 'SHA-256' | 'SHA-384' | 'SHA-512' }
@@ -54,7 +94,15 @@ const signatureAlgorithms: Record<
   RS512: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-512' }
 }
 
-export type { JwtBearerVerifierOptions, JwtSigningAlgorithm }
+export type {
+  JwtBearerVerifierOptions,
+  JwtSigningAlgorithm,
+  OAuthConsentPort,
+  OAuthConsentRecord,
+  OAuthTokenExchangePort,
+  OAuthTokenExchangeRequest,
+  OAuthTokenExchangeResult
+}
 
 export function createJwtBearerVerifier(
   options: JwtBearerVerifierOptions
@@ -91,7 +139,7 @@ export function createJwtBearerVerifier(
     }
 
     validateClaims(jwt.payload, config)
-    return toAuthContext(jwt.payload, config)
+    return await toAuthContext(jwt.payload, config)
   }
 
   async function resolveJwk(
@@ -216,10 +264,12 @@ function normalizeOptions(options: JwtBearerVerifierOptions): {
   clientIdClaim: string
   tenantIdClaim: string
   scopesClaim: readonly string[]
+  availableScopesClaim: readonly string[]
   jwksUri?: URL
   discoveryUrl: URL
   resource?: URL
   jwksCacheTtlMs: number
+  consent?: OAuthConsentPort
 } {
   if (options.jwksUri === undefined && options.discoveryUrl === undefined) {
     throw new Error(
@@ -245,6 +295,7 @@ function normalizeOptions(options: JwtBearerVerifierOptions): {
     clientIdClaim: options.clientIdClaim ?? 'client_id',
     tenantIdClaim: options.tenantIdClaim ?? 'tenant_id',
     scopesClaim: normalizeScopesClaims(options.scopesClaim),
+    availableScopesClaim: normalizeScopesClaims(options.availableScopesClaim),
     jwksCacheTtlMs: options.jwksCacheTtlMs ?? 300_000,
     ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
     ...(options.jwksUri === undefined
@@ -252,7 +303,8 @@ function normalizeOptions(options: JwtBearerVerifierOptions): {
       : { jwksUri: normalizeUrl(options.jwksUri) }),
     ...(options.resource === undefined
       ? {}
-      : { resource: normalizeUrl(options.resource) })
+      : { resource: normalizeUrl(options.resource) }),
+    ...(options.consent === undefined ? {} : { consent: options.consent })
   }
 }
 
@@ -489,23 +541,34 @@ function optionalNumericClaim(
   return value
 }
 
-function toAuthContext(
+async function toAuthContext(
   payload: JwtPayload,
   config: ReturnType<typeof normalizeOptions>
-): AuthContext {
+): Promise<AuthContext> {
   const subject = optionalStringClaim(payload, config.subjectClaim)
   const clientId = optionalStringClaim(payload, config.clientIdClaim)
   const tenantId = optionalStringClaim(payload, config.tenantIdClaim)
+  const scopes = readScopes(payload, config.scopesClaim)
+  const availableScopes = readScopes(payload, config.availableScopesClaim)
+  const consent = await loadConsent(config, subject, clientId, scopes)
 
   return {
     source: 'oauth',
-    scopes: readScopes(payload, config.scopesClaim),
+    scopes,
     expiresAt: readNumericClaim(payload, 'exp') * 1000,
     extra: {},
     ...(subject === undefined ? {} : { subject }),
     ...(clientId === undefined ? {} : { clientId }),
     ...(tenantId === undefined ? {} : { tenantId }),
-    ...(config.resource === undefined ? {} : { resource: config.resource })
+    ...(config.resource === undefined ? {} : { resource: config.resource }),
+    ...(availableScopes.length === 0 && consent === undefined
+      ? {}
+      : {
+          authorization: {
+            ...(availableScopes.length === 0 ? {} : { availableScopes }),
+            ...(consent === undefined ? {} : { consent })
+          }
+        })
   }
 }
 
@@ -549,4 +612,45 @@ function readScopes(
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== ''
+}
+
+async function loadConsent(
+  config: ReturnType<typeof normalizeOptions>,
+  subject: string | undefined,
+  clientId: string | undefined,
+  scopes: readonly string[]
+): Promise<OAuthConsentRecord | undefined> {
+  if (
+    config.consent === undefined ||
+    subject === undefined ||
+    clientId === undefined
+  ) {
+    return undefined
+  }
+
+  return await config.consent.getConsent({
+    subject,
+    clientId,
+    scopes,
+    ...(config.resource === undefined ? {} : { resource: config.resource })
+  })
+}
+
+export async function exchangeDownstreamAccessToken(
+  port: OAuthTokenExchangePort,
+  auth: Pick<AuthContext, 'clientId' | 'resource' | 'subject'>,
+  request: OAuthTokenExchangeRequest
+): Promise<OAuthTokenExchangeResult> {
+  return await port.exchange({
+    ...request,
+    ...(request.clientId === undefined && auth.clientId !== undefined
+      ? { clientId: auth.clientId }
+      : {}),
+    ...(request.subject === undefined && auth.subject !== undefined
+      ? { subject: auth.subject }
+      : {}),
+    ...(request.resource === undefined && auth.resource !== undefined
+      ? { resource: auth.resource }
+      : {})
+  })
 }
