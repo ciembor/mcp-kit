@@ -126,9 +126,7 @@ async function buildRequest(
   })
   return {
     request,
-    ...(bodyText === undefined
-      ? {}
-      : { parsedBody: JSON.parse(bodyText) as unknown })
+    ...(bodyText === undefined ? {} : { parsedBody: parseJsonBody(bodyText) })
   }
 }
 
@@ -187,9 +185,21 @@ function toHeaders(req: IncomingMessage): Headers {
 class HttpError extends Error {
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    readonly jsonRpcCode = -32000
   ) {
     super(message)
+  }
+}
+
+function parseJsonBody(bodyText: string): unknown {
+  try {
+    return JSON.parse(bodyText) as unknown
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new HttpError(400, 'Parse error.', -32700)
+    }
+    throw error
   }
 }
 
@@ -222,7 +232,11 @@ function writeRuntimeError(
   error: unknown
 ): void {
   const status = error instanceof HttpError ? error.status : 500
-  const message = error instanceof Error ? error.message : String(error)
+  const code = error instanceof HttpError ? error.jsonRpcCode : -32603
+  const message =
+    error instanceof HttpError
+      ? error.message
+      : `Internal server error. Correlation id: ${correlationId}`
   if (!res.headersSent) {
     res.writeHead(status, {
       'content-type': 'application/json; charset=utf-8',
@@ -232,7 +246,7 @@ function writeRuntimeError(
   res.end(
     JSON.stringify({
       jsonrpc: '2.0',
-      error: { code: status === 500 ? -32603 : -32000, message },
+      error: { code, message },
       id: null
     })
   )

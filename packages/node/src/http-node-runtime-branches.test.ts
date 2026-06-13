@@ -179,7 +179,34 @@ describe('createNodeHttpRuntime branches', () => {
     })
   })
 
-  it('serializes non-Error runtime failures without rewriting sent headers', async () => {
+  it('returns a JSON-RPC parse error for invalid JSON bodies', async () => {
+    const handler = vi.fn()
+    createStreamableHttpHandlerMock.mockReturnValue(handler)
+
+    const runtime = createNodeHttpRuntime(vi.fn(), {})
+    const req = createRequest({
+      method: 'POST',
+      headers: {},
+      chunks: ['{']
+    })
+    const res = createResponse()
+
+    await runtime.handle(req, res as never)
+
+    expect(handler).not.toHaveBeenCalled()
+    expect(res.writeHead).toHaveBeenCalledWith(400, {
+      'content-type': 'application/json; charset=utf-8',
+      'x-correlation-id': 'corr-123'
+    })
+    expect(JSON.parse(String(res.end.mock.calls[0]?.[0]))).toMatchObject({
+      error: {
+        code: -32700,
+        message: 'Parse error.'
+      }
+    })
+  })
+
+  it('serializes unexpected runtime failures without leaking details or rewriting sent headers', async () => {
     createStreamableHttpHandlerMock.mockReturnValue(
       vi.fn(() => rejectWith('boom'))
     )
@@ -198,7 +225,7 @@ describe('createNodeHttpRuntime branches', () => {
     expect(JSON.parse(String(res.end.mock.calls[0]?.[0]))).toMatchObject({
       error: {
         code: -32603,
-        message: 'boom'
+        message: 'Internal server error. Correlation id: corr-123'
       }
     })
   })
