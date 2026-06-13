@@ -85,6 +85,7 @@ Keep MCP definitions near the feature that owns the behavior. Keep registration 
 | `outboundHttp`          | Host allowlist and SSRF guard for `context.io.http`.                                       |
 | `output`                | Result size and pagination limits.                                                         |
 | `destructive`           | Confirmation rules for destructive writes.                                                 |
+| `idempotency`           | Deduplicate retried write tools by an input idempotency key.                               |
 | `authorize(context)`    | Custom authorization hook.                                                                 |
 | `rateLimit`             | Subject and tenant aware rate limits.                                                      |
 | `timeoutMs`             | Tool timeout.                                                                              |
@@ -110,6 +111,23 @@ createMcpApp({
   }
 })
 ```
+
+For write tools, set `policy.idempotency` when clients may retry the same mutation:
+
+```ts
+defineTool({
+  name: 'create-payment',
+  inputSchema: z.object({ idempotencyKey: z.string() }),
+  outputSchema,
+  policy: {
+    effects: 'write',
+    idempotency: true
+  },
+  handler
+})
+```
+
+The default key field is `idempotencyKey`. Use `idempotency: { keyField: 'requestId' }` if your API already has a different field. Production deployments should provide an `IdempotencyStore` outside the process.
 
 ## Errors And Utilities
 
@@ -179,6 +197,6 @@ Jobs include `pollAfterMs` and `expiresAt` so clients know when to poll and when
 | Client helpers | `ClientRoots`, `ClientSampling`, `ClientElicitation`                                                                                                                                             |
 | Logging        | `Logger`                                                                                                                                                                                         |
 | Observability  | `ToolObservability`, `ToolExecutionEvent`, `ToolExecutionOutcome`                                                                                                                                |
-| Policy stores  | `RateLimitStore`, `ConcurrencyStore`, `RuntimePolicyStores`                                                                                                                                      |
+| Policy stores  | `RateLimitStore`, `ConcurrencyStore`, `IdempotencyStore`, `RuntimePolicyStores`                                                                                                                  |
 
 See [Core API](../api-core.md) for a shorter walkthrough.

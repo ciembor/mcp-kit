@@ -55,6 +55,7 @@ export type ToolPolicy = {
   outboundHttp?: ToolOutboundHttpPolicy
   output?: ToolOutputPolicy
   destructive?: ToolDestructivePolicy
+  idempotency?: ToolIdempotencyPolicy
   authorize?(context: RequestContext<unknown>): Promise<void> | void
   rateLimit?: {
     windowMs: number
@@ -150,6 +151,12 @@ export type ToolDestructivePolicy = {
         value?: string | number | boolean
       }
 }
+
+export type ToolIdempotencyPolicy =
+  | boolean
+  | {
+      keyField?: string
+    }
 
 export type PaginatedResult<T> = {
   items: readonly T[]

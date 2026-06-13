@@ -515,5 +515,5 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 ### P3
 
 - [x] Dodac observability jako first-class API: metryki per tool, latency, denied, rate-limit i timeout counters.
-- [ ] Dodac idempotency dla write tools przez `idempotencyKey` i store deduplikacji.
+- [x] Dodac idempotency dla write tools przez `idempotencyKey` i store deduplikacji.
 - [ ] Posprzatac `defineRegistry()`: comparator dla rownosci i nieuzywany indeks.

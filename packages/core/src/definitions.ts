@@ -29,6 +29,7 @@ export {
   type ToolIo,
   type ToolDestructivePolicy,
   type ToolFilesystemPolicy,
+  type ToolIdempotencyPolicy,
   type ToolOptions,
   type ToolOutboundHttpPolicy,
   type ToolOutputPolicy,

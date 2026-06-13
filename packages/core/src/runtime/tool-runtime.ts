@@ -17,6 +17,7 @@ import {
   createConcurrencyMiddleware,
   createInMemoryRuntimePolicyStores,
   createDestructiveMiddleware,
+  createIdempotencyMiddleware,
   createObservabilityMiddleware,
   createRateLimitMiddleware,
   createResultLimitMiddleware,
@@ -27,6 +28,7 @@ export type {
   ConcurrencyCheck,
   ConcurrencyPermit,
   ConcurrencyStore,
+  IdempotencyStore,
   RateLimitCheck,
   RateLimitDecision,
   RateLimitStore,
@@ -82,6 +84,7 @@ export async function runToolPipeline<Services>(
     createTimeoutMiddleware<Services>(),
     createToolIoMiddleware<Services>(),
     createDestructiveMiddleware<Services>(),
+    createIdempotencyMiddleware<Services>(policyStores.idempotency),
     ...(middlewarePhases.afterResult ?? []),
     createResultLimitMiddleware<Services>(),
     ...(middlewarePhases.aroundHandler ?? [])

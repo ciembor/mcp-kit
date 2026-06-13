@@ -203,6 +203,22 @@ describe('tool policy validation branches', () => {
     ).toThrow(
       'Tool "bad-rate-max" policy.rateLimit.maxCalls must be a positive integer'
     )
+    expect(() =>
+      validateToolPolicy({
+        name: 'read-idempotency',
+        policy: { effects: 'read', idempotency: true }
+      })
+    ).toThrow(
+      'Tool "read-idempotency" idempotency policy requires write effects'
+    )
+    expect(() =>
+      validateToolPolicy({
+        name: 'empty-idempotency-field',
+        policy: { effects: 'write', idempotency: { keyField: ' ' } }
+      })
+    ).toThrow(
+      'Tool "empty-idempotency-field" policy.idempotency.keyField must not be empty'
+    )
 
     expect(() =>
       validateToolPolicy({
@@ -218,6 +234,7 @@ describe('tool policy validation branches', () => {
             }
           },
           outboundHttp: { allowHosts: ['api.example.com'] },
+          idempotency: true,
           timeoutMs: 1,
           concurrency: 1,
           rateLimit: { windowMs: 1, maxCalls: 1 }

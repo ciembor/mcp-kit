@@ -421,6 +421,10 @@ describe('runtime helpers', () => {
             }
           }
         }
+      },
+      idempotency: {
+        getIdempotentResult: () => undefined,
+        storeIdempotentResult: () => undefined
       }
     }
     const tool = defineTool({
@@ -586,6 +590,10 @@ describe('runtime helpers', () => {
       },
       concurrency: {
         acquireConcurrency: () => ({ release: () => undefined })
+      },
+      idempotency: {
+        getIdempotentResult: () => undefined,
+        storeIdempotentResult: () => undefined
       }
     }
 
@@ -679,6 +687,55 @@ describe('runtime helpers', () => {
         tool: 'observed-timeout'
       }
     ])
+  })
+
+  it('deduplicates write tools with idempotency keys', async () => {
+    let calls = 0
+    const tool = defineTool({
+      name: 'create-payment',
+      inputSchema: z.object({ idempotencyKey: z.string() }),
+      outputSchema: z.object({ paymentId: z.string() }),
+      annotations: { readOnlyHint: false },
+      policy: {
+        effects: 'write',
+        idempotency: true
+      },
+      handler: () => {
+        calls += 1
+        return {
+          content: [{ type: 'text' as const, text: `payment-${calls}` }],
+          structuredContent: { paymentId: `payment-${calls}` }
+        }
+      }
+    })
+
+    await expect(
+      runToolPipeline(tool, { idempotencyKey: 'request-1' }, makeContext(), [])
+    ).resolves.toMatchObject({
+      structuredContent: { paymentId: 'payment-1' }
+    })
+    await expect(
+      runToolPipeline(tool, { idempotencyKey: 'request-1' }, makeContext(), [])
+    ).resolves.toMatchObject({
+      structuredContent: { paymentId: 'payment-1' }
+    })
+    await expect(
+      runToolPipeline(tool, { idempotencyKey: 'request-2' }, makeContext(), [])
+    ).resolves.toMatchObject({
+      structuredContent: { paymentId: 'payment-2' }
+    })
+    await expect(
+      runToolPipeline(tool, { idempotencyKey: '' }, makeContext(), [])
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: 'Input "idempotencyKey" must be a non-empty idempotency key.'
+        }
+      ]
+    })
+    expect(calls).toBe(2)
   })
 
   it('binds filesystem, outbound HTTP, pagination, output and destructive I/O policies', async () => {

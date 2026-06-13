@@ -1,3 +1,5 @@
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+
 import type {
   Logger,
   RequestContext,
@@ -52,9 +54,20 @@ export type ConcurrencyStore = {
   ): ConcurrencyPermit | undefined | Promise<ConcurrencyPermit | undefined>
 }
 
+export type IdempotencyStore = {
+  getIdempotentResult(
+    key: string
+  ): CallToolResult | undefined | Promise<CallToolResult | undefined>
+  storeIdempotentResult(
+    key: string,
+    result: CallToolResult
+  ): void | Promise<void>
+}
+
 export type RuntimePolicyStores = {
   rateLimit: RateLimitStore
   concurrency: ConcurrencyStore
+  idempotency: IdempotencyStore
 }
 
 export type RuntimePolicyStoreOptions = Partial<RuntimePolicyStores>
@@ -62,23 +75,30 @@ export type RuntimePolicyStoreOptions = Partial<RuntimePolicyStores>
 export function createInMemoryRuntimePolicyStores(): RuntimePolicyStores {
   return {
     rateLimit: new InMemoryRateLimitStore(),
-    concurrency: new InMemoryConcurrencyStore()
+    concurrency: new InMemoryConcurrencyStore(),
+    idempotency: new InMemoryIdempotencyStore()
   }
 }
 
 export function resolveRuntimePolicyStores(
   stores: RuntimePolicyStoreOptions | undefined
 ): RuntimePolicyStores {
-  if (stores?.rateLimit !== undefined && stores.concurrency !== undefined) {
+  if (
+    stores?.rateLimit !== undefined &&
+    stores.concurrency !== undefined &&
+    stores.idempotency !== undefined
+  ) {
     return {
       rateLimit: stores.rateLimit,
-      concurrency: stores.concurrency
+      concurrency: stores.concurrency,
+      idempotency: stores.idempotency
     }
   }
   const fallback = createInMemoryRuntimePolicyStores()
   return {
     rateLimit: stores?.rateLimit ?? fallback.rateLimit,
-    concurrency: stores?.concurrency ?? fallback.concurrency
+    concurrency: stores?.concurrency ?? fallback.concurrency,
+    idempotency: stores?.idempotency ?? fallback.idempotency
   }
 }
 
@@ -194,6 +214,25 @@ export function createRateLimitMiddleware<Services>(
     }
 
     return next()
+  }
+}
+
+export function createIdempotencyMiddleware<Services>(
+  store: IdempotencyStore
+): ToolMiddleware<Services> {
+  return async ({ tool, input, context }, next) => {
+    const policy = tool.policy?.idempotency
+    if (policy === undefined) return next()
+
+    const key = idempotencyStoreKey(tool.name, context, input, policy)
+    const existing = await store.getIdempotentResult(key)
+    if (existing !== undefined) return existing
+
+    const result = await next()
+    if (result.isError !== true) {
+      await store.storeIdempotentResult(key, result)
+    }
+    return result
   }
 }
 
@@ -329,6 +368,51 @@ function rateLimitKey(
   ].join(':')
 }
 
+function idempotencyStoreKey(
+  toolName: string,
+  context: RequestContext<unknown>,
+  input: unknown,
+  policy: NonNullable<ToolDefinition['policy']>['idempotency']
+): string {
+  const keyField =
+    typeof policy === 'object'
+      ? (policy.keyField ?? 'idempotencyKey')
+      : 'idempotencyKey'
+  const key = idempotencyKeyValue(toolName, input, keyField)
+  return [
+    toolName,
+    context.auth?.subject ?? 'anonymous',
+    context.auth?.tenantId ?? 'global',
+    key
+  ].join(':')
+}
+
+function idempotencyKeyValue(
+  toolName: string,
+  input: unknown,
+  keyField: string
+): string {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    throw missingIdempotencyKey(toolName, keyField)
+  }
+  const value = (input as Record<string, unknown>)[keyField]
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw missingIdempotencyKey(toolName, keyField)
+  }
+  return value
+}
+
+function missingIdempotencyKey(
+  toolName: string,
+  keyField: string
+): McpKitError {
+  return new McpKitError({
+    code: 'INVALID_ARGUMENT',
+    message: `Tool ${toolName} requires idempotency key input field "${keyField}"`,
+    safeMessage: `Input "${keyField}" must be a non-empty idempotency key.`
+  })
+}
+
 class InMemoryConcurrencyStore implements ConcurrencyStore {
   readonly #active = new Map<string, number>()
 
@@ -350,6 +434,18 @@ class InMemoryConcurrencyStore implements ConcurrencyStore {
         this.#active.set(key, next)
       }
     }
+  }
+}
+
+class InMemoryIdempotencyStore implements IdempotencyStore {
+  readonly #results = new Map<string, CallToolResult>()
+
+  getIdempotentResult(key: string): CallToolResult | undefined {
+    return this.#results.get(key)
+  }
+
+  storeIdempotentResult(key: string, result: CallToolResult): void {
+    this.#results.set(key, result)
   }
 }
 

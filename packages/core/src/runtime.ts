@@ -13,6 +13,7 @@ export {
   type ConcurrencyCheck,
   type ConcurrencyPermit,
   type ConcurrencyStore,
+  type IdempotencyStore,
   type RateLimitCheck,
   type RateLimitDecision,
   type RateLimitStore,

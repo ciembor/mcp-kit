@@ -8,7 +8,7 @@ Use this page to separate what exists from what is planned.
 
 The repository currently includes:
 
-- `@mcp-kit/core` for app assembly, tools, resources, prompts, policy checks, request context, guarded tool I/O, observability hooks, and async job workflows.
+- `@mcp-kit/core` for app assembly, tools, resources, prompts, policy checks, request context, guarded tool I/O, observability hooks, idempotency helpers, and async job workflows.
 - `@mcp-kit/node` for stdio, Streamable HTTP, Fastify mounting, bearer-token auth helpers, session storage ports, event replay ports, proxy handling, and HTTP safety defaults.
 - `@mcp-kit/testing` for contract-level tests against MCP clients.
 - `@mcp-kit/cli` and `create-mcp-kit` for project generation, adding capabilities, `doctor`, quality checks, and release checks.
@@ -25,7 +25,7 @@ The repository also has architecture checks, type checks, linting, formatting, c
 
 The public package shape is still `0.0.x`. Names, option shapes, middleware phases, policy stores, and generated project layout can still change before the first stable release.
 
-Production-oriented APIs exist, but they need more real deployments before they should be considered boring. In particular, bring your own persistent stores for sessions, event replay, async jobs, rate limits, and concurrency when running more than one process.
+Production-oriented APIs exist, but they need more real deployments before they should be considered boring. In particular, bring your own persistent stores for sessions, event replay, async jobs, rate limits, concurrency, and idempotency when running more than one process.
 
 ## Experimental Or Incomplete
 
@@ -33,7 +33,7 @@ Native MCP Tasks integration is intentionally behind an adapter shape until the 
 
 Observability has a first-class tool execution hook. It is intentionally backend-neutral; applications still provide the OpenTelemetry, Prometheus, or custom adapter.
 
-Idempotency helpers for write tools are not implemented yet.
+Idempotency helpers exist for write tools, but production deployments still need a shared store.
 
 ## Where To Track Plans
 

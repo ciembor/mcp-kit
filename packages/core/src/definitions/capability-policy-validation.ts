@@ -11,6 +11,7 @@ export function validateToolPolicy(definition: {
 }): void {
   validateReadOnlyHint(definition)
   validateDestructiveHint(definition)
+  validateIdempotencyPolicy(definition)
   validateOutputPolicy(definition)
   validateOutboundHttpPolicy(definition)
   validateNumericToolPolicy(definition)
@@ -93,6 +94,28 @@ function assertDestructivePolicyDeclaresHint(definition: {
   throw new Error(
     `Tool "${definition.name}" destructive policy requires destructiveHint: true`
   )
+}
+
+function validateIdempotencyPolicy(definition: {
+  name: string
+  policy?: ToolPolicy
+}): void {
+  const idempotency = definition.policy?.idempotency
+  if (idempotency === undefined) return
+  if (definition.policy?.effects !== 'write') {
+    throw new Error(
+      `Tool "${definition.name}" idempotency policy requires write effects`
+    )
+  }
+  if (
+    typeof idempotency === 'object' &&
+    idempotency.keyField !== undefined &&
+    idempotency.keyField.trim() === ''
+  ) {
+    throw new Error(
+      `Tool "${definition.name}" policy.idempotency.keyField must not be empty`
+    )
+  }
 }
 
 function validateOutputPolicy(definition: {
