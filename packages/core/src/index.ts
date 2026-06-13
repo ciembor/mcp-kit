@@ -59,9 +59,18 @@ export {
   unwrapCompletable
 } from './definitions.js'
 export {
+  createInMemoryRuntimePolicyStores,
   silentLogger,
   timeoutAbortError,
   trackProtocolVersion,
+  type ConcurrencyCheck,
+  type ConcurrencyPermit,
+  type ConcurrencyStore,
+  type RateLimitCheck,
+  type RateLimitDecision,
+  type RateLimitStore,
+  type RuntimePolicyStoreOptions,
+  type RuntimePolicyStores,
   type ToolMiddleware,
   type ToolMiddlewareArgs
 } from './runtime.js'

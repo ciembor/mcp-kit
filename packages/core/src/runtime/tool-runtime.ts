@@ -15,10 +15,22 @@ import {
   createAuditMiddleware,
   createAuthorizationMiddleware,
   createConcurrencyMiddleware,
+  createInMemoryRuntimePolicyStores,
   createDestructiveMiddleware,
   createRateLimitMiddleware,
   createResultLimitMiddleware,
   createTimeoutMiddleware
+} from './tool-runtime-policy.js'
+export { createInMemoryRuntimePolicyStores } from './tool-runtime-policy.js'
+export type {
+  ConcurrencyCheck,
+  ConcurrencyPermit,
+  ConcurrencyStore,
+  RateLimitCheck,
+  RateLimitDecision,
+  RateLimitStore,
+  RuntimePolicyStoreOptions,
+  RuntimePolicyStores
 } from './tool-runtime-policy.js'
 export type {
   ToolMiddleware,
@@ -31,6 +43,7 @@ import {
   type ToolMiddleware
 } from './tool-runtime-shared.js'
 import { bindToolIo } from './tool-io.js'
+import type { RuntimePolicyStores } from './tool-runtime-policy.js'
 
 export const silentLogger: Logger = {
   debug() {},
@@ -39,18 +52,21 @@ export const silentLogger: Logger = {
   error() {}
 }
 
+const defaultRuntimePolicyStores = createInMemoryRuntimePolicyStores()
+
 export async function runToolPipeline<Services>(
   tool: ToolDefinition<Schema, Services>,
   input: unknown,
   context: RequestContext<Services>,
-  middleware: readonly ToolMiddleware<Services>[]
+  middleware: readonly ToolMiddleware<Services>[],
+  policyStores: RuntimePolicyStores = defaultRuntimePolicyStores
 ): Promise<CallToolResult> {
   const builtIn = [
     createErrorMappingMiddleware<Services>(),
     createAuditMiddleware<Services>(),
     createAuthorizationMiddleware<Services>(),
-    createRateLimitMiddleware<Services>(),
-    createConcurrencyMiddleware<Services>(),
+    createRateLimitMiddleware<Services>(policyStores.rateLimit),
+    createConcurrencyMiddleware<Services>(policyStores.concurrency),
     createTimeoutMiddleware<Services>(),
     createToolIoMiddleware<Services>(),
     createDestructiveMiddleware<Services>(),

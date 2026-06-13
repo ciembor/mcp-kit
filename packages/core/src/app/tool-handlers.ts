@@ -24,6 +24,7 @@ import {
   requireCapabilityAccess,
   runToolPipeline,
   toolExecutionError,
+  type RuntimePolicyStores,
   type ToolMiddleware
 } from '../runtime.js'
 import { validateToolInputPolicies } from '../runtime/tool-io.js'
@@ -34,6 +35,7 @@ export function installToolCallHandler<Services>(runtime: {
   tools: ReadonlyMap<string, ToolDefinition<Schema, Services>>
   createRequestContext(extra: ServerRequestContext): RequestContext<Services>
   middleware: readonly ToolMiddleware<Services>[]
+  policyStores: RuntimePolicyStores
   logger(): Logger
 }): void {
   runtime.sdk.server.setRequestHandler(
@@ -47,6 +49,7 @@ async function executeTool<Services>(
     tools: ReadonlyMap<string, ToolDefinition<Schema, Services>>
     createRequestContext(extra: ServerRequestContext): RequestContext<Services>
     middleware: readonly ToolMiddleware<Services>[]
+    policyStores: RuntimePolicyStores
     logger(): Logger
   },
   params: { name: string; arguments?: Record<string, unknown> | undefined },
@@ -76,7 +79,8 @@ async function executeTool<Services>(
     tool,
     parsed.data,
     context,
-    runtime.middleware
+    runtime.middleware,
+    runtime.policyStores
   )
   return validateToolOutput(runtime, tool, result, context)
 }

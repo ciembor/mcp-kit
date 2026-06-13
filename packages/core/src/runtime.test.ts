@@ -21,7 +21,8 @@ import {
   silentLogger,
   timeoutAbortError,
   toolConfig,
-  trackProtocolVersion
+  trackProtocolVersion,
+  type RuntimePolicyStores
 } from './runtime.js'
 import { unknownInputPaths } from './runtime/input-validation.js'
 import {
@@ -396,6 +397,63 @@ describe('runtime helpers', () => {
       isError: true,
       content: [{ type: 'text', text: 'Additional consent is required.' }]
     })
+  })
+
+  it('uses injected policy stores for rate limits and concurrency', async () => {
+    const calls: string[] = []
+    const stores: RuntimePolicyStores = {
+      rateLimit: {
+        checkRateLimit: (check) => {
+          calls.push(
+            `rate:${check.key}:${check.windowMs}:${check.maxCalls}:${check.nowMs > 0}`
+          )
+          return { allowed: true }
+        }
+      },
+      concurrency: {
+        acquireConcurrency: (check) => {
+          calls.push(`acquire:${check.key}:${check.limit}`)
+          return {
+            release: () => {
+              calls.push(`release:${check.key}`)
+            }
+          }
+        }
+      }
+    }
+    const tool = defineTool({
+      name: 'stored-policy-tool',
+      inputSchema: z.object({}),
+      policy: {
+        effects: 'read',
+        concurrency: 3,
+        rateLimit: { windowMs: 1000, maxCalls: 2 }
+      },
+      handler: () => ({ content: [] })
+    })
+
+    await expect(
+      runToolPipeline(
+        tool,
+        {},
+        makeContext({
+          auth: {
+            source: 'oauth',
+            scopes: [],
+            subject: 'alice',
+            tenantId: 'tenant-a'
+          }
+        }),
+        [],
+        stores
+      )
+    ).resolves.toMatchObject({ content: [] })
+
+    expect(calls).toEqual([
+      'rate:stored-policy-tool:alice:tenant-a:1000:2:true',
+      'acquire:stored-policy-tool:3',
+      'release:stored-policy-tool'
+    ])
   })
 
   it('binds filesystem, outbound HTTP, pagination, output and destructive I/O policies', async () => {

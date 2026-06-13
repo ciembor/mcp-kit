@@ -1,5 +1,6 @@
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import { silentLogger } from '../runtime.js'
+import { resolveRuntimePolicyStores } from '../runtime/tool-runtime-policy.js'
 import { capabilityMethods } from './capabilities.js'
 import { contextFactory } from './context.js'
 import type { McpApp, McpAppOptions } from './contracts.js'
@@ -16,6 +17,7 @@ export function createMcpApp<Services>(
   let connected = false
   let logger = options.logger ?? silentLogger
   let protocolVersion = LATEST_PROTOCOL_VERSION
+  const policyStores = resolveRuntimePolicyStores(options.policyStores)
 
   const createRequestContext = contextFactory(() => ({
     services: options.services,
@@ -31,6 +33,7 @@ export function createMcpApp<Services>(
     subscriptions,
     createRequestContext,
     middleware: options.middleware ?? [],
+    policyStores,
     connected: () => connected,
     logger: () => logger
   })

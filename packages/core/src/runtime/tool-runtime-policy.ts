@@ -16,9 +16,69 @@ import {
   validateToolResultLimits
 } from './tool-io.js'
 
-const activeToolCalls = new WeakMap<object, number>()
 type RateLimitBucket = { count: number; resetAt: number }
-const toolRateLimits = new WeakMap<object, Map<string, RateLimitBucket>>()
+
+export type RateLimitCheck = {
+  key: string
+  windowMs: number
+  maxCalls: number
+  nowMs: number
+}
+
+export type RateLimitDecision =
+  | { allowed: true }
+  | { allowed: false; retryAfterMs: number }
+
+export type RateLimitStore = {
+  checkRateLimit(
+    check: RateLimitCheck
+  ): RateLimitDecision | Promise<RateLimitDecision>
+}
+
+export type ConcurrencyCheck = {
+  key: string
+  limit: number
+}
+
+export type ConcurrencyPermit = {
+  release(): void | Promise<void>
+}
+
+export type ConcurrencyStore = {
+  acquireConcurrency(
+    check: ConcurrencyCheck
+  ): ConcurrencyPermit | undefined | Promise<ConcurrencyPermit | undefined>
+}
+
+export type RuntimePolicyStores = {
+  rateLimit: RateLimitStore
+  concurrency: ConcurrencyStore
+}
+
+export type RuntimePolicyStoreOptions = Partial<RuntimePolicyStores>
+
+export function createInMemoryRuntimePolicyStores(): RuntimePolicyStores {
+  return {
+    rateLimit: new InMemoryRateLimitStore(),
+    concurrency: new InMemoryConcurrencyStore()
+  }
+}
+
+export function resolveRuntimePolicyStores(
+  stores: RuntimePolicyStoreOptions | undefined
+): RuntimePolicyStores {
+  if (stores?.rateLimit !== undefined && stores.concurrency !== undefined) {
+    return {
+      rateLimit: stores.rateLimit,
+      concurrency: stores.concurrency
+    }
+  }
+  const fallback = createInMemoryRuntimePolicyStores()
+  return {
+    rateLimit: stores?.rateLimit ?? fallback.rateLimit,
+    concurrency: stores?.concurrency ?? fallback.concurrency
+  }
+}
 
 export function createAuthorizationMiddleware<
   Services
@@ -59,15 +119,18 @@ export function createAuditMiddleware<Services>(): ToolMiddleware<Services> {
   }
 }
 
-export function createConcurrencyMiddleware<
-  Services
->(): ToolMiddleware<Services> {
+export function createConcurrencyMiddleware<Services>(
+  store: ConcurrencyStore
+): ToolMiddleware<Services> {
   return async ({ tool }, next) => {
     const limit = tool.policy?.concurrency
     if (limit === undefined) return next()
 
-    const active = activeToolCalls.get(tool) ?? 0
-    if (active >= limit) {
+    const permit = await store.acquireConcurrency({
+      key: concurrencyKey(tool.name),
+      limit
+    })
+    if (permit === undefined) {
       throw new McpKitError({
         code: 'CONCURRENCY_LIMIT',
         message: `Tool ${tool.name} concurrency limit exceeded`,
@@ -75,37 +138,28 @@ export function createConcurrencyMiddleware<
       })
     }
 
-    activeToolCalls.set(tool, active + 1)
     try {
       return await next()
     } finally {
-      activeToolCalls.set(tool, activeToolCalls.get(tool)! - 1)
+      await permit.release()
     }
   }
 }
 
-export function createRateLimitMiddleware<
-  Services
->(): ToolMiddleware<Services> {
+export function createRateLimitMiddleware<Services>(
+  store: RateLimitStore
+): ToolMiddleware<Services> {
   return async ({ tool, context }, next) => {
     const rateLimit = tool.policy?.rateLimit
     if (rateLimit === undefined) return next()
 
-    const now = Date.now()
-    const bucketKey = rateLimitBucketKey(tool.name, context)
-    const buckets = rateLimitBuckets(tool)
-    toolRateLimits.set(tool, buckets)
-    const current = buckets.get(bucketKey)
-
-    if (current === undefined || current.resetAt <= now) {
-      buckets.set(bucketKey, {
-        count: 1,
-        resetAt: now + rateLimit.windowMs
-      })
-      return next()
-    }
-
-    if (current.count >= rateLimit.maxCalls) {
+    const decision = await store.checkRateLimit({
+      key: rateLimitKey(tool.name, context),
+      windowMs: rateLimit.windowMs,
+      maxCalls: rateLimit.maxCalls,
+      nowMs: Date.now()
+    })
+    if (!decision.allowed) {
       throw new McpKitError({
         code: 'RATE_LIMIT',
         message: `Rate limit exceeded for tool ${tool.name}`,
@@ -113,7 +167,6 @@ export function createRateLimitMiddleware<
       })
     }
 
-    current.count += 1
     return next()
   }
 }
@@ -185,11 +238,11 @@ function requiresAudit(tool: ToolDefinition): boolean {
   )
 }
 
-function rateLimitBuckets(tool: object): Map<string, RateLimitBucket> {
-  return toolRateLimits.get(tool) ?? new Map<string, RateLimitBucket>()
+function concurrencyKey(toolName: string): string {
+  return toolName
 }
 
-function rateLimitBucketKey(
+function rateLimitKey(
   toolName: string,
   context: RequestContext<unknown>
 ): string {
@@ -198,6 +251,57 @@ function rateLimitBucketKey(
     context.auth?.subject ?? 'anonymous',
     context.auth?.tenantId ?? 'global'
   ].join(':')
+}
+
+class InMemoryConcurrencyStore implements ConcurrencyStore {
+  readonly #active = new Map<string, number>()
+
+  acquireConcurrency({
+    key,
+    limit
+  }: ConcurrencyCheck): ConcurrencyPermit | undefined {
+    const active = this.#active.get(key) ?? 0
+    if (active >= limit) return undefined
+
+    this.#active.set(key, active + 1)
+    return {
+      release: () => {
+        const next = (this.#active.get(key) ?? 1) - 1
+        if (next <= 0) {
+          this.#active.delete(key)
+          return
+        }
+        this.#active.set(key, next)
+      }
+    }
+  }
+}
+
+class InMemoryRateLimitStore implements RateLimitStore {
+  readonly #buckets = new Map<string, RateLimitBucket>()
+
+  checkRateLimit({
+    key,
+    windowMs,
+    maxCalls,
+    nowMs
+  }: RateLimitCheck): RateLimitDecision {
+    const current = this.#buckets.get(key)
+    if (current === undefined || current.resetAt <= nowMs) {
+      this.#buckets.set(key, {
+        count: 1,
+        resetAt: nowMs + windowMs
+      })
+      return { allowed: true }
+    }
+
+    if (current.count >= maxCalls) {
+      return { allowed: false, retryAfterMs: current.resetAt - nowMs }
+    }
+
+    current.count += 1
+    return { allowed: true }
+  }
 }
 
 function writeAuditEvent(

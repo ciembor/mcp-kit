@@ -10,7 +10,11 @@ import type {
   ServerRequestContext,
   ToolDefinition
 } from '../definitions.js'
-import type { ToolMiddleware } from '../runtime.js'
+import type {
+  RuntimePolicyStoreOptions,
+  RuntimePolicyStores,
+  ToolMiddleware
+} from '../runtime.js'
 
 export type McpAppOptions<Services> = {
   name: string
@@ -19,6 +23,7 @@ export type McpAppOptions<Services> = {
   logger?: Logger
   instructions?: string
   middleware?: readonly ToolMiddleware<Services>[]
+  policyStores?: RuntimePolicyStoreOptions
 }
 
 type ResourceRegistrationCheck<Definitions extends readonly unknown[]> =
@@ -58,6 +63,7 @@ export type AppRuntime<Services> = {
   subscriptions: Set<string>
   createRequestContext(extra: ServerRequestContext): RequestContext<Services>
   middleware: readonly ToolMiddleware<Services>[]
+  policyStores: RuntimePolicyStores
   connected(): boolean
   logger(): Logger
 }

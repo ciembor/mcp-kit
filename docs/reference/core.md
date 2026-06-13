@@ -24,7 +24,7 @@ app.prompts(defineRegistry([prompt]))
 | `defineRegistry(items)` | Register public tools, resources, or prompts explicitly. |
 | `packageInfo`           | Published package name and version.                      |
 
-`McpAppOptions` includes `name`, `version`, `services`, optional `logger`, optional `instructions`, and optional tool `middleware`.
+`McpAppOptions` includes `name`, `version`, `services`, optional `logger`, optional `instructions`, optional tool `middleware`, and optional `policyStores`.
 
 `McpApp` exposes `sdk`, `connected`, `tools()`, `resources()`, `prompts()`, `connect()`, `close()`, `setLogger()`, `notifyResourceListChanged()`, and `notifyResourceUpdated(uri)`.
 
@@ -95,6 +95,20 @@ Keep MCP definitions near the feature that owns the behavior. Keep registration 
 
 Auth-related types include `AuthContext`, `AuthorizationDetails`, `AuthorizationConsent`, and `AuthorizationStepUp`.
 
+`policyStores` lets production deployments back rate limits and concurrency with shared storage. If you do not pass it, the app uses in-memory stores, which are fine for tests and one local process but do not survive restarts or coordinate several replicas.
+
+```ts
+createMcpApp({
+  name: 'example',
+  version: '1.0.0',
+  services,
+  policyStores: {
+    rateLimit: redisRateLimitStore,
+    concurrency: redisConcurrencyStore
+  }
+})
+```
+
 ## Errors And Utilities
 
 | Export                                       | Use                                                                 |
@@ -131,5 +145,6 @@ Jobs include `pollAfterMs` and `expiresAt` so clients know when to poll and when
 | Handlers       | `ToolHandlerArgs`, `ProgressReporter`                                                                                                                                                            |
 | Client helpers | `ClientRoots`, `ClientSampling`, `ClientElicitation`                                                                                                                                             |
 | Logging        | `Logger`                                                                                                                                                                                         |
+| Policy stores  | `RateLimitStore`, `ConcurrencyStore`, `RuntimePolicyStores`                                                                                                                                      |
 
 See [Core API](../api-core.md) for a shorter walkthrough.
