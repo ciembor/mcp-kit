@@ -4,8 +4,6 @@ import { resolve } from 'node:path'
 import ts from 'typescript'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { readSourceFiles } from './project-analysis-files.js'
-
 const temporaryDirectories: string[] = []
 
 afterEach(async () => {
@@ -14,10 +12,13 @@ afterEach(async () => {
       .splice(0)
       .map((directory) => rm(directory, { recursive: true, force: true }))
   )
+  vi.doUnmock('node:fs/promises')
+  vi.resetModules()
 })
 
 describe('project analysis source file reader', () => {
   it('returns only supported source files with relative normalized paths and script kinds', async () => {
+    const readSourceFiles = await loadReadSourceFiles()
     const root = await makeProject()
     await files(root, {
       'src/feature.ts': 'export const tsFile = true\n',
@@ -26,6 +27,7 @@ describe('project analysis source file reader', () => {
       'src/client.jsx': 'export const jsxClient = <div />\n',
       'src/module.mjs': 'export const moduleFile = true\n',
       'src/common.cjs': 'module.exports = { common: true }\n',
+      'src/nested/deep.ts': 'export const deepFile = true\n',
       'src/ignored.json': '{"ignored":true}\n'
     })
 
@@ -39,6 +41,7 @@ describe('project analysis source file reader', () => {
       'src/common.cjs',
       'src/feature.ts',
       'src/module.mjs',
+      'src/nested/deep.ts',
       'src/view.tsx'
     ])
 
@@ -51,9 +54,13 @@ describe('project analysis source file reader', () => {
     expect(byPath.get('src/feature.ts')?.absolute).toBe(
       resolve(root, 'src/feature.ts')
     )
+    expect(byPath.get('src/feature.ts')?.source.statements[0]?.parent).toBe(
+      byPath.get('src/feature.ts')?.source
+    )
   })
 
   it('supports custom source directories and missing directories', async () => {
+    const readSourceFiles = await loadReadSourceFiles()
     const root = await makeProject()
     await files(root, {
       'lib/index.ts': 'export const library = true\n'
@@ -66,6 +73,7 @@ describe('project analysis source file reader', () => {
   })
 
   it('rethrows directory errors other than missing paths', async () => {
+    const readSourceFiles = await loadReadSourceFiles()
     const root = await makeProject()
     await writeFile(resolve(root, 'src'), 'not a directory')
 
@@ -98,9 +106,6 @@ describe('project analysis source file reader', () => {
     await expect(readWithMock(root)).resolves.toEqual([])
     await expect(readWithMock(root)).rejects.toThrow('boom')
     await expect(readWithMock(root)).rejects.toEqual({ code: 'ENOENT' })
-
-    vi.doUnmock('node:fs/promises')
-    vi.resetModules()
   })
 })
 
@@ -121,12 +126,19 @@ async function files(
   }
 }
 
+async function loadReadSourceFiles(): Promise<
+  typeof import('./project-analysis-files.js').readSourceFiles
+> {
+  vi.resetModules()
+  return (await import('./project-analysis-files.js')).readSourceFiles
+}
+
 function scriptKind(
-  file: ReturnType<typeof readSourceFiles> extends Promise<infer Files>
-    ? Files extends readonly (infer File)[]
-      ? File | undefined
-      : never
-    : never
+  file:
+    | Awaited<
+        ReturnType<typeof import('./project-analysis-files.js').readSourceFiles>
+      >[number]
+    | undefined
 ): ts.ScriptKind | undefined {
   const source = file?.source as ts.SourceFile & { scriptKind?: ts.ScriptKind }
   return source.scriptKind

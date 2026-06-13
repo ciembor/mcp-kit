@@ -24,7 +24,14 @@ const {
   spawnMock: vi.fn(),
   detectProjectRootMock: vi.fn(),
   detectPackageManagerMock: vi.fn(),
-  runQualityMock: vi.fn(),
+  runQualityMock:
+    vi.fn<
+      (args: {
+        root: string
+        mode: string
+        signal: AbortSignal
+      }) => Promise<unknown>
+    >(),
   executeCommandMock: vi.fn()
 }))
 
@@ -92,7 +99,7 @@ describe('release command branches', () => {
           command: 'release',
           positionals: [],
           options: { dryRun: true }
-        } as ParsedArgs,
+        },
         '/repo'
       )
     ).rejects.toMatchObject({
@@ -106,11 +113,11 @@ describe('release command branches', () => {
 
     expect(result.exitCode).toBe(exitCodes.ok)
     expect(result.release).toMatchObject({ status: 'prepared' })
-    expect(runQualityMock).toHaveBeenCalledWith({
-      root: '/repo',
-      mode: 'release',
-      signal: expect.any(AbortSignal)
-    })
+    expect(runQualityMock).toHaveBeenCalledTimes(1)
+    const qualityArgs = runQualityMock.mock.calls[0]?.[0]
+    expect(qualityArgs?.root).toBe('/repo')
+    expect(qualityArgs?.mode).toBe('release')
+    expect(qualityArgs?.signal).toBeInstanceOf(AbortSignal)
     expect(executeCommandMock).not.toHaveBeenCalled()
   })
 
@@ -239,7 +246,10 @@ describe('release command branches', () => {
 
     const sigintChild = createChild()
     spawnMock.mockReturnValueOnce(sigintChild)
-    const sigintPromise = prepareRelease(releaseArgs({ publish: true }), '/repo')
+    const sigintPromise = prepareRelease(
+      releaseArgs({ publish: true }),
+      '/repo'
+    )
     await flushAsyncWork()
     sigintChild.emit('exit', null, 'SIGINT')
     await expect(sigintPromise).rejects.toMatchObject({
@@ -249,7 +259,10 @@ describe('release command branches', () => {
 
     const sigtermChild = createChild()
     spawnMock.mockReturnValueOnce(sigtermChild)
-    const sigtermPromise = prepareRelease(releaseArgs({ publish: true }), '/repo')
+    const sigtermPromise = prepareRelease(
+      releaseArgs({ publish: true }),
+      '/repo'
+    )
     await flushAsyncWork()
     process.emit('SIGTERM')
     expect(sigtermChild.kill).toHaveBeenCalledWith('SIGTERM')

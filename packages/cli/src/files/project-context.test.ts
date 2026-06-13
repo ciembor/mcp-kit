@@ -68,6 +68,16 @@ describe('project context', () => {
       gitRoot: cwd
     })
   })
+
+  it('falls back to bun and pnpm detection when other lockfiles are absent', async () => {
+    const cwd = await makeTemp()
+
+    await writeFile(resolve(cwd, 'bun.lockb'), '')
+    expect(detectPackageManager(cwd)).toBe('bun')
+
+    await rm(resolve(cwd, 'bun.lockb'))
+    expect(detectPackageManager(cwd)).toBe('pnpm')
+  })
 })
 
 async function makeTemp(): Promise<string> {

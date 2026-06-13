@@ -23,17 +23,19 @@ describe('createInMemoryEventStore', () => {
     const message = jsonRpcMessage('stored')
     const eventId = await store.storeEvent('stream-a', message)
 
-    await expect(store.getStreamIdForEventId(eventId)).resolves.toBe('stream-a')
-    await expect(store.getStreamIdForEventId('missing')).resolves.toBeUndefined()
+    await expect(store.getStreamIdForEventId!(eventId)).resolves.toBe(
+      'stream-a'
+    )
+    await expect(
+      store.getStreamIdForEventId!('missing')
+    ).resolves.toBeUndefined()
   })
 
   it('returns an empty stream id when replay starts from an unknown event', async () => {
     const store = createInMemoryEventStore()
     const send = vi.fn<(_: string, __: JSONRPCMessage) => Promise<void>>()
 
-    await expect(
-      store.replayEventsAfter('missing', { send })
-    ).resolves.toBe('')
+    await expect(store.replayEventsAfter('missing', { send })).resolves.toBe('')
     expect(send).not.toHaveBeenCalled()
   })
 

@@ -35,7 +35,7 @@ function forwardedHeaderOrigin(
   forwarded: string | string[] | undefined
 ): { proto?: string; host?: string } | undefined {
   if (typeof forwarded !== 'string') return undefined
-  const first = forwarded.split(',')[0]
+  const first = forwarded.split(',')[0]!
   return originParts(
     forwardedParameter(first, 'proto'),
     forwardedParameter(first, 'host')
@@ -62,10 +62,7 @@ function originParts(
   }
 }
 
-function forwardedParameter(
-  value: string,
-  name: string
-): string | undefined {
+function forwardedParameter(value: string, name: string): string | undefined {
   const match = value.match(new RegExp(`${name}=([^;]+)`))
   if (match === null) return undefined
   return match[1]?.replace(/^"|"$/g, '')

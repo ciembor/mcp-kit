@@ -1,5 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+type MockTransportInstance = {
+  handleRequest: ReturnType<
+    typeof vi.fn<(request: Request, init?: unknown) => Promise<Response>>
+  >
+  close: ReturnType<typeof vi.fn<() => Promise<void>>>
+}
+
+type MockApp = {
+  connect: ReturnType<typeof vi.fn<(transport: unknown) => Promise<void>>>
+  close: ReturnType<typeof vi.fn<() => Promise<void>>>
+}
+
+type MockExchange = {
+  response: Response
+  close: () => Promise<void>
+}
+
 const {
   transportCtorMock,
   authenticateRequestMock,
@@ -15,11 +32,19 @@ const {
   validateHostHeaderMock,
   validateOriginHeaderMock
 } = vi.hoisted(() => ({
-  transportCtorMock: vi.fn(),
+  transportCtorMock: vi.fn<(options: unknown) => MockTransportInstance>(),
   authenticateRequestMock: vi.fn(),
   closeManagedResourcesMock: vi.fn(),
-  createConfiguredAppMock: vi.fn(),
-  createResponseExchangeMock: vi.fn(),
+  createConfiguredAppMock: vi.fn<() => MockApp>(),
+  createResponseExchangeMock:
+    vi.fn<
+      (
+        response: Response,
+        request: Request,
+        cors: unknown,
+        close: () => Promise<void>
+      ) => MockExchange
+    >(),
   createTransportOptionsMock: vi.fn(),
   existingSessionMock: vi.fn(),
   existingSessionExchangeMock: vi.fn(),
@@ -30,18 +55,21 @@ const {
   validateOriginHeaderMock: vi.fn()
 }))
 
-vi.mock('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js', () => ({
-  WebStandardStreamableHTTPServerTransport: class {
-    handleRequest
-    close
+vi.mock(
+  '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js',
+  () => ({
+    WebStandardStreamableHTTPServerTransport: class {
+      handleRequest
+      close
 
-    constructor(options: unknown) {
-      const instance = transportCtorMock(options)
-      this.handleRequest = instance.handleRequest
-      this.close = instance.close
+      constructor(options: unknown) {
+        const instance = transportCtorMock(options)
+        this.handleRequest = instance.handleRequest
+        this.close = instance.close
+      }
     }
-  }
-}))
+  })
+)
 
 vi.mock('./http-auth.js', () => ({
   authenticateRequest: authenticateRequestMock
@@ -93,17 +121,19 @@ beforeEach(() => {
   validateHostHeaderMock.mockReturnValue(undefined)
   validateOriginHeaderMock.mockReturnValue(undefined)
   corsHeadersMock.mockReturnValue(new Headers({ 'x-cors': '1' }))
-  normalizeStreamableHttpOptionsMock.mockImplementation((options) => ({
-    path: '/mcp',
-    sessionMode: 'stateless',
-    maxConcurrency: 2,
-    cors: false,
-    allowedHosts: ['runtime.test'],
-    allowedOrigins: ['https://client.example'],
-    auth: undefined,
-    sessionStore: undefined,
-    ...options
-  }))
+  normalizeStreamableHttpOptionsMock.mockImplementation(
+    (options: Record<string, unknown>) => ({
+      path: '/mcp',
+      sessionMode: 'stateless',
+      maxConcurrency: 2,
+      cors: false,
+      allowedHosts: ['runtime.test'],
+      allowedOrigins: ['https://client.example'],
+      auth: undefined,
+      sessionStore: undefined,
+      ...options
+    })
+  )
 })
 
 afterEach(() => {
@@ -112,13 +142,13 @@ afterEach(() => {
 
 describe('createStreamableHttpHandler branches', () => {
   it('handles stateless requests without parsed bodies or auth info', async () => {
-    const transport = {
-      handleRequest: vi.fn(async () => new Response('ok')),
-      close: vi.fn(async () => undefined)
+    const transport: MockTransportInstance = {
+      handleRequest: vi.fn(() => Promise.resolve(new Response('ok'))),
+      close: vi.fn(() => Promise.resolve())
     }
-    const app = {
-      connect: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined)
+    const app: MockApp = {
+      connect: vi.fn(() => Promise.resolve()),
+      close: vi.fn(() => Promise.resolve())
     }
     transportCtorMock.mockImplementation(() => transport)
     createConfiguredAppMock.mockReturnValue(app)
@@ -141,15 +171,13 @@ describe('createStreamableHttpHandler branches', () => {
 
   it('closes managed resources when stateless transport handling fails', async () => {
     const error = new Error('transport failed')
-    const transport = {
-      handleRequest: vi.fn(async () => {
-        throw error
-      }),
-      close: vi.fn(async () => undefined)
+    const transport: MockTransportInstance = {
+      handleRequest: vi.fn(() => Promise.reject(error)),
+      close: vi.fn(() => Promise.resolve())
     }
-    const app = {
-      connect: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined)
+    const app: MockApp = {
+      connect: vi.fn(() => Promise.resolve()),
+      close: vi.fn(() => Promise.resolve())
     }
     transportCtorMock.mockImplementation(() => transport)
     createConfiguredAppMock.mockReturnValue(app)

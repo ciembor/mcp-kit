@@ -1,4 +1,9 @@
-import type { Logger, RequestContext, ToolDefinition } from '../definitions.js'
+import type {
+  Logger,
+  RequestContext,
+  Schema,
+  ToolDefinition
+} from '../definitions.js'
 import { McpKitError } from '../definitions.js'
 import {
   authorizeConsent,
@@ -20,20 +25,9 @@ export function createAuthorizationMiddleware<
 >(): ToolMiddleware<Services> {
   return async ({ tool, context }, next) => {
     await tool.policy?.authorize?.(context)
-    if (tool.policy?.requiredScopes !== undefined) {
-      authorizeScopes(context, tool.policy.requiredScopes)
-    }
-    if (tool.policy?.stepUpScopes !== undefined) {
-      authorizeScopes(context, tool.policy.stepUpScopes, {
-        code: 'STEP_UP_REQUIRED',
-        missingMessage: (scope) =>
-          `Step-up authorization required for scope: ${scope}`,
-        safeMessage: 'Additional authorization is required.'
-      })
-    }
-    if (tool.policy?.requiredConsentScopes !== undefined) {
-      authorizeConsent(context, tool.policy.requiredConsentScopes)
-    }
+    authorizeRequiredScopes(tool, context)
+    authorizeStepUpScopes(tool, context)
+    authorizeConsentScopes(tool, context)
     return next()
   }
 }
@@ -183,13 +177,11 @@ function auditFailureOutcome(error: unknown): 'denied' | 'error' {
 }
 
 function requiresAudit(tool: ToolDefinition): boolean {
+  const policy = tool.policy
   return (
-    tool.policy?.audit === true ||
-    tool.policy?.destructive !== undefined ||
-    tool.policy?.requiredScopes !== undefined ||
-    tool.policy?.stepUpScopes !== undefined ||
-    tool.policy?.requiredConsentScopes !== undefined ||
-    tool.policy?.authorize !== undefined
+    policy?.audit === true ||
+    hasAuthorizationRequirement(policy) ||
+    policy?.destructive !== undefined
   )
 }
 
@@ -225,4 +217,46 @@ function writeAuditEvent(
     ...(event.tenantId === undefined ? {} : { tenantId: event.tenantId }),
     tool: event.tool
   })
+}
+
+function authorizeRequiredScopes<Services>(
+  tool: ToolDefinition<Schema, Services>,
+  context: RequestContext<unknown>
+): void {
+  if (tool.policy?.requiredScopes !== undefined) {
+    authorizeScopes(context, tool.policy.requiredScopes)
+  }
+}
+
+function authorizeStepUpScopes<Services>(
+  tool: ToolDefinition<Schema, Services>,
+  context: RequestContext<unknown>
+): void {
+  if (tool.policy?.stepUpScopes === undefined) return
+  authorizeScopes(context, tool.policy.stepUpScopes, {
+    code: 'STEP_UP_REQUIRED',
+    missingMessage: (scope) =>
+      `Step-up authorization required for scope: ${scope}`,
+    safeMessage: 'Additional authorization is required.'
+  })
+}
+
+function authorizeConsentScopes<Services>(
+  tool: ToolDefinition<Schema, Services>,
+  context: RequestContext<unknown>
+): void {
+  if (tool.policy?.requiredConsentScopes !== undefined) {
+    authorizeConsent(context, tool.policy.requiredConsentScopes)
+  }
+}
+
+function hasAuthorizationRequirement(
+  policy: ToolDefinition['policy']
+): boolean {
+  return (
+    policy?.requiredScopes !== undefined ||
+    policy?.stepUpScopes !== undefined ||
+    policy?.requiredConsentScopes !== undefined ||
+    policy?.authorize !== undefined
+  )
 }

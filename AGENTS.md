@@ -1,6 +1,19 @@
 You must commit every completed task straight after finishing it
 You cannot skip quality check
 Do not commit files ignored by git
+You cannot change configuration and tresholds of the quality tools
+
+When improving mutation testing results, fix surviving mutations in this order:
+
+1. First fix survived mutations in core business logic, especially conditions, boundary checks, boolean logic, calculations, and error handling.
+2. Prefer adding or correcting behavior-level tests over changing production code.
+3. Prioritize mutations that affect public API behavior, persisted data, money, permissions, security, state transitions, or user-visible output.
+4. Fix boundary mutations before cosmetic or literal mutations, for example < vs <=, == vs !=, true vs false.
+5. Fix one semantic area at a time and rerun mutation tests for the smallest affected scope.
+6. Ignore or suppress equivalent mutations only after proving that no observable test can distinguish them.
+7. Do not write tests that assert implementation details only to kill a mutation.
+8. Leave low-value mutations last: logs, messages, DTOs, generated code, trivial getters, glue code.
+9. Stop when the configured threshold is met unless the remaining mutations are clearly high-risk.
 
 # OBEY A Philosophy of Software Design by John Ousterhout
 

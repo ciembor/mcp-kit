@@ -11,6 +11,20 @@ type MockServer = EventEmitter & {
   requestListener?: (req: unknown, res: unknown) => void
 }
 
+type MockNodeRuntime = {
+  options: {
+    host: string
+    path: string
+    port: number
+    requestTimeoutMs: number
+  }
+  handle: ReturnType<
+    typeof vi.fn<(req: unknown, res: unknown) => Promise<void>>
+  >
+  drain: ReturnType<typeof vi.fn<() => Promise<void>>>
+  close: ReturnType<typeof vi.fn<() => Promise<void>>>
+}
+
 const {
   createServerMock,
   createNodeHttpRuntimeMock,
@@ -18,8 +32,15 @@ const {
   processOnceMock,
   processOffMock
 } = vi.hoisted(() => ({
-  createServerMock: vi.fn(),
-  createNodeHttpRuntimeMock: vi.fn(),
+  createServerMock:
+    vi.fn<(listener: (req: unknown, res: unknown) => void) => MockServer>(),
+  createNodeHttpRuntimeMock:
+    vi.fn<
+      (
+        createApp: unknown,
+        options: { host?: string; path?: string; port?: number }
+      ) => MockNodeRuntime
+    >(),
   stderrWriteMock: vi.fn(() => true),
   processOnceMock: vi.fn(),
   processOffMock: vi.fn()
@@ -64,9 +85,9 @@ describe('runStreamableHttp branches', () => {
     createNodeHttpRuntimeMock.mockImplementationOnce((_createApp, options) =>
       createRuntime({
         options: {
-          host: options.host,
-          path: options.path,
-          port: options.port,
+          host: options.host ?? '127.0.0.1',
+          path: options.path ?? '/mcp',
+          port: options.port ?? 8123,
           requestTimeoutMs: 5_000
         }
       })
@@ -84,10 +105,14 @@ describe('runStreamableHttp branches', () => {
   })
 
   it('logs request handler failures and non-Error close failures from signal shutdown', async () => {
-    const server = createServer()
+    const server = createServer({
+      close: vi.fn((callback: (error?: Error | null) => void) => {
+        callback('close failed' as never)
+      })
+    })
     const runtime = createRuntime({
       handle: vi.fn(() => Promise.reject(new Error('request failed'))),
-      close: vi.fn(() => Promise.reject('close failed'))
+      close: vi.fn(() => Promise.resolve())
     })
     let sigtermHandler: (() => void) | undefined
 
@@ -110,14 +135,13 @@ describe('runStreamableHttp branches', () => {
     )
 
     sigtermHandler?.()
+    await expect(result.close()).rejects.toBe('close failed')
     await flushAsyncWork()
 
     expect(stderrWriteMock).toHaveBeenCalledWith(
       '[error] Failed to close MCP HTTP server: close failed\n'
     )
     expect(process.exitCode).toBe(1)
-
-    await expect(result.close()).rejects.toBe('close failed')
   })
 
   it('rejects close when server.close reports an error and memoizes the same promise', async () => {
@@ -147,19 +171,19 @@ describe('runStreamableHttp branches', () => {
   })
 })
 
-function createServer(
-  overrides: Partial<MockServer> = {}
-): MockServer {
+function createServer(overrides: Partial<MockServer> = {}): MockServer {
   const server = new EventEmitter() as MockServer
   server.requestTimeout = 0
   server.listen = vi.fn((port: number, _host: string, onListen: () => void) => {
     onListen()
     return server
   })
-  server.once = vi.fn((event: string, handler: (...args: unknown[]) => void) => {
-    EventEmitter.prototype.once.call(server, event, handler)
-    return server
-  })
+  server.once = vi.fn(
+    (event: string, handler: (...args: unknown[]) => void) => {
+      EventEmitter.prototype.once.call(server, event, handler)
+      return server
+    }
+  )
   server.off = vi.fn((event: string, handler: (...args: unknown[]) => void) => {
     EventEmitter.prototype.off.call(server, event, handler)
     return server
@@ -172,7 +196,9 @@ function createServer(
   return Object.assign(server, overrides)
 }
 
-function createRuntime(overrides: Record<string, unknown> = {}) {
+function createRuntime(
+  overrides: Partial<MockNodeRuntime> = {}
+): MockNodeRuntime {
   return {
     options: {
       host: '127.0.0.1',

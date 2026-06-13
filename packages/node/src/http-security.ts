@@ -10,75 +10,9 @@ const loopbackHosts = new Set(['127.0.0.1', '::1', '[::1]', 'localhost'])
 export function normalizeStreamableHttpOptions(
   options: StreamableHttpOptions = {}
 ): NormalizedStreamableHttpOptions {
-  const mode = options.mode ?? detectDeploymentMode()
-  const host = options.host ?? '127.0.0.1'
-  const port = options.port ?? 3000
-  const path = normalizePath(options.path ?? '/mcp')
-  const healthPath = normalizeOptionalPath(options.healthPath, '/healthz')
-  const readinessPath = normalizeOptionalPath(options.readinessPath, '/readyz')
-  const sessionMode = options.sessionMode ?? 'stateless'
-  const sessionStore =
-    sessionMode === 'stateful'
-      ? (options.sessionStore ?? defaultSessionStore(mode))
-      : undefined
-  const auth = options.auth
-  const trustedProxies = freeze(options.trustedProxies ?? [])
-  const allowedOrigins = freeze(options.allowedOrigins ?? [])
-  const cors = normalizeCors(options.cors)
-
-  if (host === '0.0.0.0') {
-    if (options.mode === undefined) {
-      throw new Error(
-        'Binding Streamable HTTP to 0.0.0.0 requires an explicit deployment mode.'
-      )
-    }
-    if (trustedProxies.length === 0) {
-      throw new Error(
-        'Binding Streamable HTTP to 0.0.0.0 requires explicit trusted proxies.'
-      )
-    }
-  }
-
-  if (mode === 'production' && !isLoopbackHost(host) && auth === undefined) {
-    throw new Error(
-      'Public production Streamable HTTP requires an explicit auth decision.'
-    )
-  }
-
-  if (cors !== false && allowedOrigins.length === 0) {
-    throw new Error(
-      'CORS requires explicit allowedOrigins; wildcard browser access is not enabled by default.'
-    )
-  }
-
-  const allowedHosts = freeze(
-    options.allowedHosts ?? defaultAllowedHosts(host, port)
-  )
-
-  return {
-    mode,
-    host,
-    port,
-    path,
-    healthPath,
-    readinessPath,
-    sessionMode,
-    ...(sessionStore === undefined ? {} : { sessionStore }),
-    ...(options.eventStore === undefined
-      ? {}
-      : { eventStore: options.eventStore }),
-    ...(options.retryIntervalMs === undefined
-      ? {}
-      : { retryIntervalMs: options.retryIntervalMs }),
-    ...(auth === undefined ? {} : { auth }),
-    trustedProxies,
-    allowedHosts,
-    allowedOrigins,
-    cors,
-    maxBodyBytes: options.maxBodyBytes ?? 1024 * 1024,
-    requestTimeoutMs: options.requestTimeoutMs ?? 30_000,
-    maxConcurrency: options.maxConcurrency ?? 16
-  }
+  const normalized = normalizedOptionInputs(options)
+  assertNormalizedPolicies(options.mode, normalized)
+  return buildNormalizedOptions(options, normalized)
 }
 
 export function validateHostHeader(
@@ -135,12 +69,144 @@ export function corsHeaders(
   return headers
 }
 
-export function isLoopbackHost(host: string): boolean {
+function isLoopbackHost(host: string): boolean {
   return loopbackHosts.has(host)
 }
 
 function detectDeploymentMode(): 'development' | 'production' {
   return process.env['NODE_ENV'] === 'production' ? 'production' : 'development'
+}
+
+function normalizedOptionInputs(options: StreamableHttpOptions) {
+  const mode = options.mode ?? detectDeploymentMode()
+  const host = options.host ?? '127.0.0.1'
+  const port = options.port ?? 3000
+  const trustedProxies = freeze(options.trustedProxies ?? [])
+  const auth = options.auth
+  const allowedOrigins = freeze(options.allowedOrigins ?? [])
+  const cors = normalizeCors(options.cors)
+  const sessionMode = options.sessionMode ?? 'stateless'
+
+  return {
+    mode,
+    host,
+    port,
+    trustedProxies,
+    auth,
+    allowedOrigins,
+    cors,
+    sessionMode,
+    sessionStore: resolveSessionStore(options, sessionMode, mode)
+  }
+}
+
+function assertNormalizedPolicies(
+  explicitMode: StreamableHttpOptions['mode'],
+  normalized: ReturnType<typeof normalizedOptionInputs>
+): void {
+  assertBindingPolicy(explicitMode, normalized.host, normalized.trustedProxies)
+  assertPublicAuthPolicy(normalized.mode, normalized.host, normalized.auth)
+  assertCorsPolicy(normalized.cors, normalized.allowedOrigins)
+}
+
+function buildNormalizedOptions(
+  options: StreamableHttpOptions,
+  normalized: ReturnType<typeof normalizedOptionInputs>
+): NormalizedStreamableHttpOptions {
+  return {
+    mode: normalized.mode,
+    host: normalized.host,
+    port: normalized.port,
+    path: normalizePath(options.path ?? '/mcp'),
+    healthPath: normalizeOptionalPath(options.healthPath, '/healthz'),
+    readinessPath: normalizeOptionalPath(options.readinessPath, '/readyz'),
+    sessionMode: normalized.sessionMode,
+    ...optionalSessionStore(normalized.sessionStore),
+    ...optionalEventStore(options),
+    ...optionalRetryInterval(options),
+    ...optionalAuth(normalized.auth),
+    trustedProxies: normalized.trustedProxies,
+    allowedHosts: freeze(
+      options.allowedHosts ??
+        defaultAllowedHosts(normalized.host, normalized.port)
+    ),
+    allowedOrigins: normalized.allowedOrigins,
+    cors: normalized.cors,
+    maxBodyBytes: options.maxBodyBytes ?? 1024 * 1024,
+    requestTimeoutMs: options.requestTimeoutMs ?? 30_000,
+    maxConcurrency: options.maxConcurrency ?? 16
+  }
+}
+
+function resolveSessionStore(
+  options: StreamableHttpOptions,
+  sessionMode: 'stateless' | 'stateful',
+  mode: 'development' | 'production'
+) {
+  if (sessionMode !== 'stateful') return undefined
+  return options.sessionStore ?? defaultSessionStore(mode)
+}
+
+function assertBindingPolicy(
+  explicitMode: StreamableHttpOptions['mode'],
+  host: string,
+  trustedProxies: readonly string[]
+): void {
+  if (host !== '0.0.0.0') return
+  if (explicitMode === undefined) {
+    throw new Error(
+      'Binding Streamable HTTP to 0.0.0.0 requires an explicit deployment mode.'
+    )
+  }
+  if (trustedProxies.length === 0) {
+    throw new Error(
+      'Binding Streamable HTTP to 0.0.0.0 requires explicit trusted proxies.'
+    )
+  }
+}
+
+function assertPublicAuthPolicy(
+  mode: 'development' | 'production',
+  host: string,
+  auth: StreamableHttpOptions['auth']
+): void {
+  if (mode !== 'production' || isLoopbackHost(host) || auth !== undefined)
+    return
+  throw new Error(
+    'Public production Streamable HTTP requires an explicit auth decision.'
+  )
+}
+
+function assertCorsPolicy(
+  cors: false | Required<StreamableHttpCorsOptions>,
+  allowedOrigins: readonly string[]
+): void {
+  if (cors === false || allowedOrigins.length > 0) return
+  throw new Error(
+    'CORS requires explicit allowedOrigins; wildcard browser access is not enabled by default.'
+  )
+}
+
+function optionalSessionStore(
+  sessionStore: NormalizedStreamableHttpOptions['sessionStore']
+) {
+  return sessionStore === undefined ? {} : { sessionStore }
+}
+
+function optionalEventStore(options: StreamableHttpOptions) {
+  return options.eventStore === undefined
+    ? {}
+    : { eventStore: options.eventStore }
+}
+
+function optionalRetryInterval(options: StreamableHttpOptions) {
+  return options.retryIntervalMs === undefined
+    ? {}
+    : { retryIntervalMs: options.retryIntervalMs }
+}
+
+function optionalAuth(auth: StreamableHttpOptions['auth']) {
+  return auth === undefined ? {} : { auth }
 }
 
 function defaultSessionStore(mode: 'development' | 'production') {

@@ -1,4 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { IncomingMessage } from 'node:http'
+
+type MockExchange = {
+  response: Response
+  close: ReturnType<typeof vi.fn<() => Promise<void>>>
+}
+
+type HandlerArgs = {
+  request: Request
+  parsedBody?: unknown
+}
+
+type MockResponse = {
+  headersSent: boolean
+  statusCode: number
+  setHeader: ReturnType<typeof vi.fn>
+  writeHead: ReturnType<typeof vi.fn>
+  end: ReturnType<typeof vi.fn>
+  on: ReturnType<typeof vi.fn>
+}
 
 const {
   correlationHeadersMock,
@@ -11,7 +31,7 @@ const {
 } = vi.hoisted(() => ({
   correlationHeadersMock: vi.fn(),
   setCorrelationHeaderMock: vi.fn(),
-  withCorrelationIdMock: vi.fn(),
+  withCorrelationIdMock: vi.fn<(response: Response) => Response>(),
   controlEndpointResponseMock: vi.fn(),
   createStreamableHttpHandlerMock: vi.fn(),
   requestUrlFromNodeRequestMock: vi.fn(),
@@ -41,7 +61,10 @@ vi.mock('./http-security.js', () => ({
   normalizeStreamableHttpOptions: normalizeStreamableHttpOptionsMock
 }))
 
-import { createNodeHttpRuntime, protectedResourceMetadataPath } from './http-node-runtime.js'
+import {
+  createNodeHttpRuntime,
+  protectedResourceMetadataPath
+} from './http-node-runtime.js'
 
 beforeEach(() => {
   correlationHeadersMock.mockReset()
@@ -56,16 +79,18 @@ beforeEach(() => {
   withCorrelationIdMock.mockImplementation((response) => response)
   controlEndpointResponseMock.mockReturnValue(undefined)
   requestUrlFromNodeRequestMock.mockReturnValue('http://runtime.test/mcp')
-  normalizeStreamableHttpOptionsMock.mockImplementation((options) => ({
-    host: '127.0.0.1',
-    path: '/mcp',
-    port: 0,
-    requestTimeoutMs: 5_000,
-    maxBodyBytes: 16,
-    trustedProxies: [],
-    sessionStore: undefined,
-    ...options
-  }))
+  normalizeStreamableHttpOptionsMock.mockImplementation(
+    (options: Record<string, unknown>) => ({
+      host: '127.0.0.1',
+      path: '/mcp',
+      port: 0,
+      requestTimeoutMs: 5_000,
+      maxBodyBytes: 16,
+      trustedProxies: [],
+      sessionStore: undefined,
+      ...options
+    })
+  )
 })
 
 afterEach(() => {
@@ -80,11 +105,14 @@ describe('createNodeHttpRuntime branches', () => {
   })
 
   it('builds a default GET request and normalizes mixed node headers', async () => {
-    const handler = vi.fn(async ({ request, parsedBody }) => ({
-      response: new Response(null, { status: 204 }),
-      close: vi.fn(() => Promise.resolve()),
-      seen: { request, parsedBody }
-    }))
+    const handler = vi.fn<(args: HandlerArgs) => Promise<MockExchange>>(
+      ({ request, parsedBody }) =>
+        Promise.resolve({
+          response: new Response(null, { status: 204 }),
+          close: vi.fn(() => Promise.resolve()),
+          seen: { request, parsedBody }
+        } as MockExchange)
+    )
     createStreamableHttpHandlerMock.mockReturnValue(handler)
 
     const runtime = createNodeHttpRuntime(vi.fn(), {
@@ -101,18 +129,20 @@ describe('createNodeHttpRuntime branches', () => {
     })
     const res = createResponse()
 
-    await runtime.handle(req, res)
+    await runtime.handle(req, res as never)
 
-    expect(requestUrlFromNodeRequestMock).toHaveBeenCalledWith(req, ['127.0.0.1'])
+    expect(requestUrlFromNodeRequestMock).toHaveBeenCalledWith(req, [
+      '127.0.0.1'
+    ])
     expect(setCorrelationHeaderMock).toHaveBeenCalledWith(
       expect.any(Headers),
       'corr-123'
     )
-    expect(handler).toHaveBeenCalledWith({
-      request: expect.any(Request),
-      parsedBody: undefined
-    })
-    const request = handler.mock.calls[0]?.[0].request as Request
+    expect(handler).toHaveBeenCalledTimes(1)
+    const handlerArgs = handler.mock.calls[0]?.[0]
+    expect(handlerArgs?.parsedBody).toBeUndefined()
+    expect(handlerArgs?.request).toBeInstanceOf(Request)
+    const request = handlerArgs!.request
     expect(request.method).toBe('GET')
     expect(request.headers.get('x-list')).toBe('a, b')
     expect(request.headers.get('x-skip')).toBeNull()
@@ -134,7 +164,7 @@ describe('createNodeHttpRuntime branches', () => {
     })
     const res = createResponse()
 
-    await runtime.handle(req, res)
+    await runtime.handle(req, res as never)
 
     expect(handler).not.toHaveBeenCalled()
     expect(res.writeHead).toHaveBeenCalledWith(413, {
@@ -151,9 +181,7 @@ describe('createNodeHttpRuntime branches', () => {
 
   it('serializes non-Error runtime failures without rewriting sent headers', async () => {
     createStreamableHttpHandlerMock.mockReturnValue(
-      vi.fn(async () => {
-        throw 'boom'
-      })
+      vi.fn(() => rejectWith('boom'))
     )
 
     const runtime = createNodeHttpRuntime(vi.fn(), {})
@@ -164,7 +192,7 @@ describe('createNodeHttpRuntime branches', () => {
     })
     const res = createResponse({ headersSent: true })
 
-    await runtime.handle(req, res)
+    await runtime.handle(req, res as never)
 
     expect(res.writeHead).not.toHaveBeenCalled()
     expect(JSON.parse(String(res.end.mock.calls[0]?.[0]))).toMatchObject({
@@ -181,7 +209,7 @@ function createRequest({
   headers,
   chunks = []
 }: {
-  method?: string
+  method: string | undefined
   headers: Record<string, string | string[] | undefined>
   chunks?: string[]
 }) {
@@ -190,13 +218,13 @@ function createRequest({
     headers,
     async *[Symbol.asyncIterator]() {
       for (const chunk of chunks) {
-        yield Buffer.from(chunk)
+        yield await Promise.resolve(Buffer.from(chunk))
       }
     }
-  }
+  } as IncomingMessage
 }
 
-function createResponse(overrides: Record<string, unknown> = {}) {
+function createResponse(overrides: Partial<MockResponse> = {}): MockResponse {
   return {
     headersSent: false,
     statusCode: 200,
@@ -206,4 +234,12 @@ function createResponse(overrides: Record<string, unknown> = {}) {
     on: vi.fn(),
     ...overrides
   }
+}
+
+function rejectWith<T>(reason: unknown): Promise<T> {
+  return {
+    then: (_resolve, reject) => {
+      reject?.(reason)
+    }
+  } as Promise<T>
 }

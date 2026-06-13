@@ -163,6 +163,54 @@ describe('@mcp-kit/core', () => {
     await client.close()
   })
 
+  it('maps unexpected input-policy validation errors to a generic invalid params message', async () => {
+    const app = createMcpApp({
+      name: 'input-policy-server',
+      version: '1.0.0',
+      services: {}
+    })
+    app.tools([
+      defineTool({
+        name: 'generic-input-error',
+        inputSchema: z.object({}).transform(() => {
+          const value = {}
+          Object.defineProperty(value, 'boom', {
+            enumerable: true,
+            get() {
+              throw new Error('unexpected validation failure')
+            }
+          })
+          return value as { boom: string }
+        }),
+        policy: {
+          effects: 'read',
+          input: {
+            fields: { boom: { kind: 'string', minLength: 1 } }
+          }
+        },
+        handler: () => ({ content: [] })
+      })
+    ])
+
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
+    const client = new Client(
+      { name: 'input-policy-test', version: '1.0.0' },
+      { capabilities: {} }
+    )
+
+    await Promise.all([
+      app.connect(serverTransport),
+      client.connect(clientTransport)
+    ])
+
+    await expect(
+      client.callTool({ name: 'generic-input-error', arguments: {} })
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
+
+    await client.close()
+  })
+
   it('exercises lifecycle helpers, resource templates and prompt validation', async () => {
     const logs: string[] = []
     const logger = {
@@ -257,14 +305,34 @@ describe('@mcp-kit/core', () => {
       client.getPrompt({ name: 'needs-name', arguments: {} })
     ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
     await expect(
+      client.getPrompt({
+        name: 'needs-name',
+        arguments: { name: 'Ada', extra: 'true' }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
+    await expect(
       client.getPrompt({ name: 'needs-name' })
     ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
     await expect(
       client.getPrompt({ name: 'unexpected-prompt', arguments: {} })
     ).rejects.toMatchObject({ code: ErrorCode.InternalError })
     await expect(
+      client.getPrompt({ name: 'unexpected-prompt' })
+    ).rejects.toMatchObject({ code: ErrorCode.InternalError })
+    await expect(
       client.callTool({ name: 'unexpected-error', arguments: {} })
     ).resolves.toMatchObject({ isError: true })
+    await expect(
+      client.callTool({ name: 'unexpected-error' })
+    ).resolves.toMatchObject({
+      isError: true
+    })
+    await expect(
+      client.callTool({
+        name: 'unexpected-error',
+        arguments: { extra: 'field' }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidParams })
     expect(logs).toContain('error:Prompt rendering failed')
     expect(logs).toContain('error:Unexpected tool execution error')
 
@@ -295,14 +363,16 @@ describe('@mcp-kit/core', () => {
         })
       })
     ])
+    const resourceCompletions = {
+      ignored: undefined,
+      id: (value: string) =>
+        ['warsaw', 'wroclaw'].filter((entry) => entry.startsWith(value))
+    }
     app.resources([
       defineResource({
         name: 'cities',
         uriTemplate: 'city://{id}',
-        complete: {
-          id: (value) =>
-            ['warsaw', 'wroclaw'].filter((entry) => entry.startsWith(value))
-        },
+        complete: resourceCompletions,
         read: ({ params }) => ({
           contents: [{ uri: `city://${params.id}`, text: params.id }]
         })
@@ -1218,6 +1288,112 @@ describe('@mcp-kit/core', () => {
     ).resolves.toMatchObject({
       isError: true,
       content: [{ type: 'text', text: 'The operation timed out.' }]
+    })
+    await client.close()
+  })
+
+  it('rejects secrets referenced only in form field descriptions', async () => {
+    const app = createMcpApp({
+      name: 'elicitation-description-server',
+      version: '1.0.0',
+      services: {}
+    })
+    app.tools([
+      defineTool({
+        name: 'elicit-description-secret',
+        inputSchema: z.object({}),
+        handler: async ({ context }) => {
+          await context.client.elicitation.create({
+            message: 'Share your code',
+            requestedSchema: {
+              type: 'object',
+              properties: {
+                code: {
+                  type: 'string',
+                  description: 'Paste your private key here'
+                }
+              },
+              required: ['code']
+            }
+          })
+          return { content: [] }
+        }
+      })
+    ])
+
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
+    const client = new Client(
+      { name: 'elicitation-description-test', version: '1.0.0' },
+      { capabilities: { elicitation: {} } }
+    )
+
+    await Promise.all([
+      app.connect(serverTransport),
+      client.connect(clientTransport)
+    ])
+
+    await expect(
+      client.callTool({ name: 'elicit-description-secret', arguments: {} })
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: 'Form elicitation must not request secrets. Use URL elicitation or another secure flow.'
+        }
+      ]
+    })
+    await client.close()
+  })
+
+  it('rejects secrets in primitive form field values', async () => {
+    const app = createMcpApp({
+      name: 'elicitation-primitive-server',
+      version: '1.0.0',
+      services: {}
+    })
+    app.tools([
+      defineTool({
+        name: 'elicit-primitive-secret',
+        inputSchema: z.object({}),
+        handler: async ({ context }) => {
+          await context.client.elicitation.create({
+            message: 'Share details',
+            requestedSchema: {
+              type: 'object',
+              properties: {
+                apiKey: 'primitive-field'
+              } as never
+            } as never
+          })
+          return { content: [] }
+        }
+      })
+    ])
+
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
+    const client = new Client(
+      { name: 'elicitation-primitive-test', version: '1.0.0' },
+      { capabilities: { elicitation: {} } }
+    )
+
+    await Promise.all([
+      app.connect(serverTransport),
+      client.connect(clientTransport)
+    ])
+
+    await expect(
+      client.callTool({ name: 'elicit-primitive-secret', arguments: {} })
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: 'Form elicitation must not request secrets. Use URL elicitation or another secure flow.'
+        }
+      ]
     })
     await client.close()
   })

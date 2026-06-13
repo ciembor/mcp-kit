@@ -19,13 +19,7 @@ export async function qualityProject(
       exitCodes.usage
     )
   }
-  const mode: QualityMode = fast
-    ? 'fast'
-    : full
-      ? 'full'
-      : release
-        ? 'release'
-        : 'mutation'
+  const mode = selectedQualityMode({ fast, full, release })
   const root = await detectProjectRoot(cwd, false)
   const controller = new AbortController()
   const interrupt = () => controller.abort()
@@ -51,4 +45,15 @@ export async function qualityProject(
     process.removeListener('SIGINT', interrupt)
     process.removeListener('SIGTERM', interrupt)
   }
+}
+
+function selectedQualityMode(options: {
+  fast: boolean
+  full: boolean
+  release: boolean
+}): QualityMode {
+  if (options.fast) return 'fast'
+  if (options.full) return 'full'
+  if (options.release) return 'release'
+  return 'mutation'
 }

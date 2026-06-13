@@ -136,7 +136,10 @@ describe('release check packaging helpers', () => {
     await mkdir(resolve(root, 'packages/missing-manifest/dist'), {
       recursive: true
     })
-    await writeFile(resolve(root, 'packages/missing-manifest/README.md'), '# readme\n')
+    await writeFile(
+      resolve(root, 'packages/missing-manifest/README.md'),
+      '# readme\n'
+    )
     const missingManifestResult = await packReleasePackages({
       root,
       manifests: [missingManifest],
@@ -194,27 +197,28 @@ describe('release check packaging helpers', () => {
 
     const failed = await packReleasePackages({
       ...baseArgs,
-      npmPack: async () => ({
-        exitCode: 1,
-        stdout: '',
-        stderr: 'pack failed'
-      })
+      npmPack: () =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: '',
+          stderr: 'pack failed'
+        })
     })
     expect(failed.diagnostics).toEqual([
       expect.objectContaining({
         file: 'packages/core/package.json',
-        message:
-          'npm pack failed while preparing install tarballs: pack failed'
+        message: 'npm pack failed while preparing install tarballs: pack failed'
       })
     ])
 
     const invalidJson = await packReleasePackages({
       ...baseArgs,
-      npmPack: async () => ({
-        exitCode: 0,
-        stdout: 'not json',
-        stderr: ''
-      })
+      npmPack: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: 'not json',
+          stderr: ''
+        })
     })
     expect(invalidJson.diagnostics).toEqual([
       expect.objectContaining({
@@ -224,11 +228,12 @@ describe('release check packaging helpers', () => {
 
     const noFilenames = await packReleasePackages({
       ...baseArgs,
-      npmPack: async () => ({
-        exitCode: 0,
-        stdout: '[{}]',
-        stderr: ''
-      })
+      npmPack: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '[{}]',
+          stderr: ''
+        })
     })
     expect(noFilenames.diagnostics).toEqual([
       expect.objectContaining({
@@ -238,11 +243,12 @@ describe('release check packaging helpers', () => {
 
     const emptyArray = await packReleasePackages({
       ...baseArgs,
-      npmPack: async () => ({
-        exitCode: 0,
-        stdout: '[]',
-        stderr: ''
-      })
+      npmPack: () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '[]',
+          stderr: ''
+        })
     })
     expect(emptyArray.diagnostics).toEqual([
       expect.objectContaining({
@@ -296,18 +302,18 @@ async function createPackage(
     `${JSON.stringify(packageJson, null, 2)}\n`
   )
   return {
-    name: String(packageJson.name),
-    version: String(packageJson.version),
+    name: String(packageJson['name']),
+    version: String(packageJson['version']),
     path: `packages/${directory}/package.json`,
     directory: `packages/${directory}`,
-    files: packageJson.files
+    files: packageJson['files']
   }
 }
 
-async function successfulPack() {
-  return {
+function successfulPack() {
+  return Promise.resolve({
     exitCode: 0,
     stdout: '[{"filename":"package.tgz"}]',
     stderr: ''
-  }
+  })
 }

@@ -139,7 +139,12 @@ describe('async jobs', () => {
     })
 
     const task = operation.toTask(cancelled, {
-      adapt(job) {
+      adapt(job: {
+        id: string
+        status: string
+        pollAfterMs: number
+        resultAvailable: boolean
+      }) {
         return `${job.id}:${job.status}:${job.pollAfterMs}:${job.resultAvailable}`
       }
     })

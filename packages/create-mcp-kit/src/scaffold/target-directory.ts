@@ -9,33 +9,39 @@ export async function assertTargetWithinRoot(
   const normalizedTarget = resolve(target)
   const relativeTarget = relative(normalizedRoot, normalizedTarget)
 
-  if (
-    relativeTarget === '..' ||
-    relativeTarget.startsWith(`..${sep}`) ||
-    relativeTarget === ''
-  ) {
-    if (relativeTarget === '') return
+  if (relativeTarget === '') return
+  if (isOutsideRoot(relativeTarget)) {
     throw new Error(`Target must stay within the working directory: ${target}`)
   }
 
   let current = normalizedRoot
   for (const segment of relativeTarget.split(sep)) {
     current = resolve(current, segment)
-    try {
-      const entry = await lstat(current)
-      if (entry.isSymbolicLink()) {
-        throw new Error(`Target must not traverse symbolic links: ${current}`)
-      }
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        'code' in error &&
-        error.code === 'ENOENT'
-      ) {
-        return
-      }
-      throw error
+    if (!(await pathExists(current))) return
+    await assertNotSymlink(current)
+  }
+}
+
+function isOutsideRoot(relativeTarget: string): boolean {
+  return relativeTarget === '..' || relativeTarget.startsWith(`..${sep}`)
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await lstat(path)
+    return true
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      return false
     }
+    throw error
+  }
+}
+
+async function assertNotSymlink(path: string): Promise<void> {
+  const entry = await lstat(path)
+  if (entry.isSymbolicLink()) {
+    throw new Error(`Target must not traverse symbolic links: ${path}`)
   }
 }
 

@@ -73,7 +73,9 @@ describe('release check manifests', () => {
       }
     ])
 
-    await expect(releasePackageManifests(resolve(root, 'missing-root'))).resolves.toEqual([])
+    await expect(
+      releasePackageManifests(resolve(root, 'missing-root'))
+    ).resolves.toEqual([])
   })
 
   it('returns undefined for invalid manifests and diagnoses packageInfo issues', async () => {
@@ -112,7 +114,7 @@ describe('release check manifests', () => {
     await mkdir(resolve(root, 'packages/core/src'), { recursive: true })
     await writeFile(
       resolve(root, 'packages/core/src/index.ts'),
-      "export const packageInfo = computedValue()\n"
+      'export const packageInfo = computedValue()\n'
     )
     await expect(packageInfoDiagnostics(root, manifest)).resolves.toEqual([
       expect.objectContaining({
@@ -174,10 +176,9 @@ describe('release check manifests', () => {
     expect(displayValue('1.2.3')).toBe('1.2.3')
     expect(displayValue({ ok: true })).toBe('{"ok":true}')
     expect(displayValue(undefined)).toBe('undefined')
-    expect(exportTargets(['./dist/index.js', { nested: './dist/cli.js' }])).toEqual([
-      './dist/index.js',
-      './dist/cli.js'
-    ])
+    expect(
+      exportTargets(['./dist/index.js', { nested: './dist/cli.js' }])
+    ).toEqual(['./dist/index.js', './dist/cli.js'])
     expect(exportTargets(123)).toEqual([])
     expect(binTargets([undefined, { cli: './dist/bin.js' }])).toEqual([
       './dist/bin.js'

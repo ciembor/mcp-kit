@@ -8,7 +8,14 @@ type MockChildProcess = EventEmitter & {
 }
 
 const { spawnMock } = vi.hoisted(() => ({
-  spawnMock: vi.fn()
+  spawnMock:
+    vi.fn<
+      (
+        program: string,
+        args: string[],
+        options: Record<string, unknown>
+      ) => MockChildProcess
+    >()
 }))
 
 vi.mock('node:child_process', () => ({
@@ -50,14 +57,23 @@ describe('release check support helpers', () => {
     )
     expect(relativePath('/repo', '/other/file.ts')).toBe('/other/file.ts')
 
-    const originalSplit = String.prototype.split
+    const originalSplit = Object.getOwnPropertyDescriptor(
+      String.prototype,
+      'split'
+    )?.value as ((separator: string) => string[]) | undefined
     String.prototype.split = function split() {
       return { at: () => undefined } as unknown as string[]
     }
     try {
       expect(dirtyPath('R  old.ts -> new.ts')).toBe('old.ts -> new.ts')
     } finally {
-      String.prototype.split = originalSplit
+      if (originalSplit !== undefined) {
+        Object.defineProperty(String.prototype, 'split', {
+          value: originalSplit,
+          configurable: true,
+          writable: true
+        })
+      }
     }
   })
 
@@ -198,15 +214,14 @@ describe('release check support helpers', () => {
       2,
       'npm',
       ['pack', '--json', '--dry-run'],
-      expect.objectContaining({
-        cwd: '/repo/pkg',
-        env: expect.objectContaining({
-          HOME: expect.stringContaining('mcp-kit-npm'),
-          npm_config_cache: expect.stringContaining('cache'),
-          npm_config_logs_dir: expect.stringContaining('logs')
-        })
-      })
+      expect.objectContaining({ cwd: '/repo/pkg' })
     )
+    const npmPackOptions = spawnMock.mock.calls[1]?.[2] as {
+      env?: NodeJS.ProcessEnv
+    }
+    expect(npmPackOptions.env?.['HOME']).toContain('mcp-kit-npm')
+    expect(npmPackOptions.env?.['npm_config_cache']).toContain('cache')
+    expect(npmPackOptions.env?.['npm_config_logs_dir']).toContain('logs')
     expect(spawnMock).toHaveBeenNthCalledWith(
       3,
       'npm',
@@ -216,7 +231,13 @@ describe('release check support helpers', () => {
     expect(spawnMock).toHaveBeenNthCalledWith(
       4,
       'npm',
-      ['install', '--ignore-scripts', '--no-package-lock', 'one.tgz', 'two.tgz'],
+      [
+        'install',
+        '--ignore-scripts',
+        '--no-package-lock',
+        'one.tgz',
+        'two.tgz'
+      ],
       expect.objectContaining({ cwd: '/repo/install' })
     )
   })

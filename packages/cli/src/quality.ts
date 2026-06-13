@@ -8,7 +8,6 @@ export { runQuality } from './quality/run-quality.js'
 export type {
   CoverageExclusion,
   CoverageThresholds,
-  QualityCommand,
   QualityConfig,
   QualityExecutor,
   QualityMode,

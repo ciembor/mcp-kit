@@ -39,7 +39,7 @@ describe('release check smoke helpers', () => {
 
   it('builds stable type smoke helpers and packaged script sources', () => {
     expect(typeSmokeImportLine('@mcp-kit/core', 2)).toContain(
-      "import { packageInfo as packageInfo2 } from \"@mcp-kit/core\""
+      'import { packageInfo as packageInfo2 } from "@mcp-kit/core"'
     )
     expect(typeSmokeImportLine('@mcp-kit/core', 2)).toContain(
       'const packageName2: string = packageInfo2.name'
@@ -57,10 +57,14 @@ describe('release check smoke helpers', () => {
 
     expect(stdioServerSource()).toContain("name: 'health'")
     expect(stdioServerSource()).toContain('await runStdio(app)')
-    expect(stdioSmokeSource('/tmp/server.mjs')).toContain('connectStdioTestClient')
+    expect(stdioSmokeSource('/tmp/server.mjs')).toContain(
+      'connectStdioTestClient'
+    )
     expect(stdioSmokeSource('/tmp/server.mjs')).toContain('"/tmp/server.mjs"')
     expect(httpSmokeSource()).toContain('runStreamableHttp')
-    expect(httpSmokeSource()).toContain("throw new Error('unexpected health response')")
+    expect(httpSmokeSource()).toContain(
+      "throw new Error('unexpected health response')"
+    )
     expect(httpSmokeSource()).toContain('await runtime.close()')
   })
 })

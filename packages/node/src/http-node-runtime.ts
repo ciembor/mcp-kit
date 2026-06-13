@@ -6,6 +6,10 @@ import {
   setCorrelationHeader,
   withCorrelationId
 } from './correlation-id.js'
+import {
+  controlEndpointResponse,
+  protectedResourceMetadataPath
+} from './http-control-endpoints.js'
 import type {
   McpAppFactory,
   StreamableHttpOptions,
@@ -13,10 +17,7 @@ import type {
 } from './http-contracts.js'
 import { createStreamableHttpHandler } from './http-handler.js'
 import { requestUrlFromNodeRequest } from './proxy-resolution.js'
-import {
-  normalizeStreamableHttpOptions,
-  validateHostHeader
-} from './http-security.js'
+import { normalizeStreamableHttpOptions } from './http-security.js'
 
 export type NodeHttpRuntime = {
   readonly options: StreamableHttpRuntime['options']
@@ -24,6 +25,8 @@ export type NodeHttpRuntime = {
   drain(): Promise<void>
   close(): Promise<void>
 }
+
+export { protectedResourceMetadataPath }
 
 export function createNodeHttpRuntime<Services>(
   createApp: McpAppFactory<Services>,
@@ -36,51 +39,14 @@ export function createNodeHttpRuntime<Services>(
 
   return {
     options: normalized,
-    async handle(req, res) {
-      const correlationId = correlationHeaders(req, normalized.trustedProxies)
-      const controlResponse = controlEndpointResponse(req, normalized, draining)
-      if (controlResponse !== undefined) {
-        await writeResponse(
-          res,
-          withCorrelationId(controlResponse, correlationId)
-        )
-        return
-      }
-
-      try {
-        const { request, parsedBody } = await buildRequest(
-          req,
-          correlationId,
-          normalized.maxBodyBytes,
-          normalized.trustedProxies
-        )
-        const exchange = await handler({ request, parsedBody })
-        try {
-          await writeResponse(
-            res,
-            withCorrelationId(exchange.response, correlationId)
-          )
-        } finally {
-          await exchange.close()
-        }
-      } catch (error) {
-        const status = error instanceof HttpError ? error.status : 500
-        const message = error instanceof Error ? error.message : String(error)
-        if (!res.headersSent) {
-          res.writeHead(status, {
-            'content-type': 'application/json; charset=utf-8',
-            'x-correlation-id': correlationId
-          })
-        }
-        res.end(
-          JSON.stringify({
-            jsonrpc: '2.0',
-            error: { code: status === 500 ? -32603 : -32000, message },
-            id: null
-          })
-        )
-      }
-    },
+    handle: (req, res) =>
+      handleNodeRequest({
+        req,
+        res,
+        options: normalized,
+        handler,
+        draining
+      }),
     drain() {
       draining = true
       return Promise.resolve()
@@ -89,6 +55,50 @@ export function createNodeHttpRuntime<Services>(
       closing ??= closeSessions(normalized)
       return closing
     }
+  }
+}
+
+async function handleNodeRequest(args: {
+  req: IncomingMessage
+  res: ServerResponse
+  options: StreamableHttpRuntime['options']
+  handler: ReturnType<typeof createStreamableHttpHandler>
+  draining: boolean
+}): Promise<void> {
+  const correlationId = correlationHeaders(
+    args.req,
+    args.options.trustedProxies
+  )
+  const controlResponse = controlEndpointResponse(
+    args.req,
+    args.options,
+    args.draining
+  )
+  if (controlResponse !== undefined) {
+    await writeResponse(
+      args.res,
+      withCorrelationId(controlResponse, correlationId)
+    )
+    return
+  }
+
+  try {
+    const exchange = await dynamicRequestExchange(
+      args.req,
+      correlationId,
+      args.options,
+      args.handler
+    )
+    try {
+      await writeResponse(
+        args.res,
+        withCorrelationId(exchange.response, correlationId)
+      )
+    } finally {
+      await exchange.close()
+    }
+  } catch (error) {
+    writeRuntimeError(args.res, correlationId, error)
   }
 }
 
@@ -122,6 +132,21 @@ async function buildRequest(
   }
 }
 
+async function dynamicRequestExchange(
+  req: IncomingMessage,
+  correlationId: string,
+  options: StreamableHttpRuntime['options'],
+  handler: ReturnType<typeof createStreamableHttpHandler>
+) {
+  const { request, parsedBody } = await buildRequest(
+    req,
+    correlationId,
+    options.maxBodyBytes,
+    options.trustedProxies
+  )
+  return await handler({ request, parsedBody })
+}
+
 async function readBody(
   req: IncomingMessage,
   maxBodyBytes: number
@@ -139,8 +164,7 @@ async function readBody(
   let size = 0
 
   for await (const chunk of req) {
-    const buffer =
-      typeof chunk === 'string' ? Buffer.from(chunk) : Buffer.from(chunk)
+    const buffer = Buffer.from(chunk)
     size += buffer.byteLength
     if (size > maxBodyBytes) {
       throw new HttpError(413, `Request body exceeds ${maxBodyBytes} bytes.`)
@@ -192,112 +216,24 @@ async function writeResponse(
   })
 }
 
-function controlEndpointResponse(
-  req: IncomingMessage,
-  options: StreamableHttpRuntime['options'],
-  draining: boolean
-): Response | undefined {
-  if (req.method !== 'GET') return undefined
-  const requestUrl = new URL(
-    requestUrlFromNodeRequest(req, options.trustedProxies)
-  )
-  const request = new Request(requestUrl, {
-    method: req.method,
-    headers: toHeaders(req)
-  })
-  const hostError = validateHostHeader(request, options.allowedHosts)
-  if (hostError !== undefined) {
-    return jsonErrorResponse(403, hostError)
+function writeRuntimeError(
+  res: ServerResponse,
+  correlationId: string,
+  error: unknown
+): void {
+  const status = error instanceof HttpError ? error.status : 500
+  const message = error instanceof Error ? error.message : String(error)
+  if (!res.headersSent) {
+    res.writeHead(status, {
+      'content-type': 'application/json; charset=utf-8',
+      'x-correlation-id': correlationId
+    })
   }
-  const pathname = requestUrl.pathname
-
-  if (options.healthPath !== false && pathname === options.healthPath) {
-    return new Response(
-      JSON.stringify({
-        status: 'ok'
-      }),
-      {
-        status: 200,
-        headers: { 'content-type': 'application/json; charset=utf-8' }
-      }
-    )
-  }
-
-  if (options.readinessPath !== false && pathname === options.readinessPath) {
-    return new Response(
-      JSON.stringify({
-        status: draining ? 'draining' : 'ready'
-      }),
-      {
-        status: draining ? 503 : 200,
-        headers: { 'content-type': 'application/json; charset=utf-8' }
-      }
-    )
-  }
-
-  const metadataPath = protectedResourceMetadataPath(options.path)
-  if (
-    options.auth !== false &&
-    options.auth !== undefined &&
-    options.auth.metadata !== undefined &&
-    pathname === metadataPath
-  ) {
-    return new Response(
-      JSON.stringify({
-        resource: canonicalResourceUrl(requestUrl, options.path).toString(),
-        ...(options.auth.metadata.authorizationServers === undefined
-          ? {}
-          : {
-              authorization_servers: [
-                ...options.auth.metadata.authorizationServers
-              ]
-            }),
-        ...(options.auth.metadata.scopesSupported === undefined
-          ? {}
-          : { scopes_supported: [...options.auth.metadata.scopesSupported] }),
-        ...(options.auth.metadata.resourceName === undefined
-          ? {}
-          : { resource_name: options.auth.metadata.resourceName }),
-        ...(options.auth.metadata.serviceDocumentationUrl === undefined
-          ? {}
-          : {
-              resource_documentation:
-                options.auth.metadata.serviceDocumentationUrl
-            }),
-        bearer_methods_supported: ['header']
-      }),
-      {
-        status: 200,
-        headers: { 'content-type': 'application/json; charset=utf-8' }
-      }
-    )
-  }
-
-  return undefined
-}
-
-function jsonErrorResponse(status: number, message: string): Response {
-  return new Response(
+  res.end(
     JSON.stringify({
       jsonrpc: '2.0',
-      error: { code: -32000, message },
+      error: { code: status === 500 ? -32603 : -32000, message },
       id: null
-    }),
-    {
-      status,
-      headers: { 'content-type': 'application/json; charset=utf-8' }
-    }
+    })
   )
-}
-
-export function protectedResourceMetadataPath(path: string): string {
-  return `/.well-known/oauth-protected-resource${path}`
-}
-
-function canonicalResourceUrl(requestUrl: URL, path: string): URL {
-  const url = new URL(requestUrl.toString())
-  url.pathname = path
-  url.search = ''
-  url.hash = ''
-  return url
 }

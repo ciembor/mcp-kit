@@ -34,10 +34,18 @@ describe('quality command execution', () => {
       cwd: root,
       signal
     })
+    const singleQuoted = await executeCommand(
+      `node -e 'require("node:process").exit(0)'`,
+      {
+        cwd: root,
+        signal
+      }
+    )
     const empty = await executeCommand('', { cwd: root, signal })
 
     expect(success).toBe(0)
     expect(quoted).toBe(0)
+    expect(singleQuoted).toBe(0)
     expect(empty).toBe(70)
     await expect(writeFile(output, 'still there')).resolves.toBeUndefined()
   })

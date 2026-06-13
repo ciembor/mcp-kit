@@ -117,7 +117,9 @@ describe('cli plan helpers', () => {
 
     expect(registry).toContain('startSyncReportTool')
     expect(registry).toContain('cancelSyncReportTool')
-    expect(contract).toContain("expect(startSyncReportTool.name).toBe('start-sync-report')")
+    expect(contract).toContain(
+      "expect(startSyncReportTool.name).toBe('start-sync-report')"
+    )
     expect(featureModule).toContain('createAsyncJobOperation')
   })
 })

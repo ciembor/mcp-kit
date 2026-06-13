@@ -34,11 +34,7 @@ export async function planAddCapability(
     )
   )
   operations.push(
-    await featureIndexUpdateOperation(
-      root,
-      input,
-      asyncExports ?? [exported]
-    )
+    await featureIndexUpdateOperation(root, input, asyncExports ?? [exported])
   )
   operations.push(
     await createOrMergeOperation(
@@ -96,11 +92,11 @@ async function registryUpdateOperation(
       .split(',')
       .map((item: string) => item.trim())
       .filter(Boolean)
-      return `export const ${registryName} = defineRegistry([${[
-        ...existing,
-        ...exported
-      ].join(', ')}])`
-    })
+    return `export const ${registryName} = defineRegistry([${[
+      ...existing,
+      ...exported
+    ].join(', ')}])`
+  })
   return { kind: 'overwrite', path, content: updated }
 }
 

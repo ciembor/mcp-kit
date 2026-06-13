@@ -54,7 +54,8 @@ vi.mock('./release-checks-install.js', () => ({
 vi.mock('./release-checks-smoke.js', () => ({
   httpSmokeSource: () => 'console.log("http")\n',
   stdioServerSource: () => 'console.log("server")\n',
-  stdioSmokeSource: (serverPath: string) => `console.log(${JSON.stringify(serverPath)})\n`,
+  stdioSmokeSource: (serverPath: string) =>
+    `console.log(${JSON.stringify(serverPath)})\n`,
   supportsHttpSmoke: supportsHttpSmokeMock,
   supportsStdioSmoke: supportsStdioSmokeMock
 }))
@@ -105,15 +106,23 @@ afterEach(async () => {
 
 describe('release checks branches', () => {
   it('dispatches version, package export/file, and npm pack checks through helpers', async () => {
-    checkVersionsMock.mockResolvedValueOnce([{ rule: 'version', file: 'a', message: 'b' }])
-    checkPackageExportsMock.mockResolvedValueOnce([{ rule: 'exports', file: 'a', message: 'b' }])
-    checkPackageFilesMock.mockResolvedValueOnce([{ rule: 'files', file: 'a', message: 'b' }])
-    checkNpmPackMock.mockResolvedValueOnce([{ rule: 'pack', file: 'a', message: 'b' }])
-
-    const signal = new AbortController().signal
-    await expect(runReleaseCheck('version', { root: '/repo', signal })).resolves.toEqual([
+    checkVersionsMock.mockResolvedValueOnce([
       { rule: 'version', file: 'a', message: 'b' }
     ])
+    checkPackageExportsMock.mockResolvedValueOnce([
+      { rule: 'exports', file: 'a', message: 'b' }
+    ])
+    checkPackageFilesMock.mockResolvedValueOnce([
+      { rule: 'files', file: 'a', message: 'b' }
+    ])
+    checkNpmPackMock.mockResolvedValueOnce([
+      { rule: 'pack', file: 'a', message: 'b' }
+    ])
+
+    const signal = new AbortController().signal
+    await expect(
+      runReleaseCheck('version', { root: '/repo', signal })
+    ).resolves.toEqual([{ rule: 'version', file: 'a', message: 'b' }])
     await expect(
       runReleaseCheck('package-exports', { root: '/repo', signal })
     ).resolves.toEqual([{ rule: 'exports', file: 'a', message: 'b' }])
@@ -132,7 +141,9 @@ describe('release checks branches', () => {
       stdout: '',
       stderr: ''
     })
-    await expect(runReleaseCheck('clean-git', { root: '/repo', signal })).resolves.toEqual([
+    await expect(
+      runReleaseCheck('clean-git', { root: '/repo', signal })
+    ).resolves.toEqual([
       {
         rule: 'release-clean-git',
         file: '.git',
@@ -144,11 +155,12 @@ describe('release checks branches', () => {
       runReleaseCheck('clean-git', {
         root: '/repo',
         signal,
-        gitStatus: async () => ({
-          exitCode: 0,
-          stdout: ' M packages/core/package.json\nR  old.ts -> new.ts\n',
-          stderr: ''
-        })
+        gitStatus: () =>
+          Promise.resolve({
+            exitCode: 0,
+            stdout: ' M packages/core/package.json\nR  old.ts -> new.ts\n',
+            stderr: ''
+          })
       })
     ).resolves.toEqual([
       expect.objectContaining({ file: 'packages/core/package.json' }),
@@ -161,26 +173,37 @@ describe('release checks branches', () => {
     temporaryDirectories.push(root)
     const signal = new AbortController().signal
 
-    await expect(runReleaseCheck('changelog', { root, signal })).resolves.toEqual([
+    await expect(
+      runReleaseCheck('changelog', { root, signal })
+    ).resolves.toEqual([
       expect.objectContaining({
         message: 'CHANGELOG.md is required for release quality'
       })
     ])
 
     await writeFile(resolve(root, 'CHANGELOG.md'), '   ')
-    await expect(runReleaseCheck('changelog', { root, signal })).resolves.toEqual([
+    await expect(
+      runReleaseCheck('changelog', { root, signal })
+    ).resolves.toEqual([
       expect.objectContaining({
         message: 'CHANGELOG.md cannot be empty'
       })
     ])
 
     await rm(resolve(root, 'package.json'), { force: true })
-    await writeFile(resolve(root, 'CHANGELOG.md'), '# Changelog\n\n## [Unreleased]\n')
-    await expect(runReleaseCheck('changelog', { root, signal })).resolves.toEqual([])
+    await writeFile(
+      resolve(root, 'CHANGELOG.md'),
+      '# Changelog\n\n## [Unreleased]\n'
+    )
+    await expect(
+      runReleaseCheck('changelog', { root, signal })
+    ).resolves.toEqual([])
 
     await writeFile(resolve(root, 'package.json'), '{broken json')
     await writeFile(resolve(root, 'CHANGELOG.md'), '# Changelog\n\n## 1.2.3\n')
-    await expect(runReleaseCheck('changelog', { root, signal })).resolves.toEqual([
+    await expect(
+      runReleaseCheck('changelog', { root, signal })
+    ).resolves.toEqual([
       expect.objectContaining({
         message:
           'CHANGELOG.md must include an Unreleased or current version section'
@@ -191,13 +214,17 @@ describe('release checks branches', () => {
       resolve(root, 'package.json'),
       JSON.stringify({ version: '1.2.3' })
     )
-    await expect(runReleaseCheck('changelog', { root, signal })).resolves.toEqual([])
+    await expect(
+      runReleaseCheck('changelog', { root, signal })
+    ).resolves.toEqual([])
   })
 
   it('returns prepared install diagnostics and always cleans up', async () => {
     prepareInstalledReleasePackagesMock.mockResolvedValueOnce({
       tempRoot: '/tmp/prepared',
-      diagnostics: [{ rule: 'install', file: 'package.json', message: 'failed' }]
+      diagnostics: [
+        { rule: 'install', file: 'package.json', message: 'failed' }
+      ]
     })
     cleanupPreparedReleaseMock.mockResolvedValueOnce(undefined)
 
@@ -211,7 +238,9 @@ describe('release checks branches', () => {
     ])
     expect(cleanupPreparedReleaseMock).toHaveBeenCalledWith({
       tempRoot: '/tmp/prepared',
-      diagnostics: [{ rule: 'install', file: 'package.json', message: 'failed' }]
+      diagnostics: [
+        { rule: 'install', file: 'package.json', message: 'failed' }
+      ]
     })
   })
 
@@ -221,15 +250,17 @@ describe('release checks branches', () => {
       tempRoot: '/tmp/a',
       diagnostics: [{ rule: 'prepared', file: 'a', message: 'b' }]
     })
-    await expect(runReleaseCheck('package-usage', { root: '/repo', signal })).resolves.toEqual([
-      { rule: 'prepared', file: 'a', message: 'b' }
-    ])
+    await expect(
+      runReleaseCheck('package-usage', { root: '/repo', signal })
+    ).resolves.toEqual([{ rule: 'prepared', file: 'a', message: 'b' }])
 
     prepareInstalledReleasePackagesMock.mockResolvedValueOnce({
       tempRoot: '/tmp/b',
       diagnostics: []
     })
-    await expect(runReleaseCheck('package-usage', { root: '/repo', signal })).resolves.toEqual([])
+    await expect(
+      runReleaseCheck('package-usage', { root: '/repo', signal })
+    ).resolves.toEqual([])
 
     prepareInstalledReleasePackagesMock.mockResolvedValueOnce({
       tempRoot: '/tmp/c',
@@ -237,10 +268,12 @@ describe('release checks branches', () => {
       manifests: [{ name: 'pkg' }],
       diagnostics: []
     })
-    runInstalledImportSmokeMock.mockResolvedValueOnce([{ rule: 'import', file: 'x', message: 'y' }])
-    await expect(runReleaseCheck('package-usage', { root: '/repo', signal })).resolves.toEqual([
+    runInstalledImportSmokeMock.mockResolvedValueOnce([
       { rule: 'import', file: 'x', message: 'y' }
     ])
+    await expect(
+      runReleaseCheck('package-usage', { root: '/repo', signal })
+    ).resolves.toEqual([{ rule: 'import', file: 'x', message: 'y' }])
 
     prepareInstalledReleasePackagesMock.mockResolvedValueOnce({
       tempRoot: '/tmp/d',
@@ -249,10 +282,12 @@ describe('release checks branches', () => {
       diagnostics: []
     })
     runInstalledImportSmokeMock.mockResolvedValueOnce([])
-    runInstalledTypeSmokeMock.mockResolvedValueOnce([{ rule: 'type', file: 'x', message: 'y' }])
-    await expect(runReleaseCheck('package-usage', { root: '/repo', signal })).resolves.toEqual([
+    runInstalledTypeSmokeMock.mockResolvedValueOnce([
       { rule: 'type', file: 'x', message: 'y' }
     ])
+    await expect(
+      runReleaseCheck('package-usage', { root: '/repo', signal })
+    ).resolves.toEqual([{ rule: 'type', file: 'x', message: 'y' }])
 
     prepareInstalledReleasePackagesMock.mockResolvedValueOnce({
       tempRoot: '/tmp/e',
@@ -262,10 +297,12 @@ describe('release checks branches', () => {
     })
     runInstalledImportSmokeMock.mockResolvedValueOnce([])
     runInstalledTypeSmokeMock.mockResolvedValueOnce([])
-    runInstalledCliSmokeMock.mockResolvedValueOnce([{ rule: 'cli', file: 'x', message: 'y' }])
-    await expect(runReleaseCheck('package-usage', { root: '/repo', signal })).resolves.toEqual([
+    runInstalledCliSmokeMock.mockResolvedValueOnce([
       { rule: 'cli', file: 'x', message: 'y' }
     ])
+    await expect(
+      runReleaseCheck('package-usage', { root: '/repo', signal })
+    ).resolves.toEqual([{ rule: 'cli', file: 'x', message: 'y' }])
   })
 
   it('skips unsupported stdio/http smoke and maps script failures', async () => {
@@ -277,37 +314,55 @@ describe('release checks branches', () => {
     supportsStdioSmokeMock.mockReturnValueOnce(false)
     releasePackageManifestsMock.mockResolvedValueOnce([])
     await expect(
-      runReleaseCheck('stdio-smoke', { root, signal: new AbortController().signal })
+      runReleaseCheck('stdio-smoke', {
+        root,
+        signal: new AbortController().signal
+      })
     ).resolves.toEqual([])
 
     supportsHttpSmokeMock.mockReturnValueOnce(false)
     releasePackageManifestsMock.mockResolvedValueOnce([])
     await expect(
-      runReleaseCheck('http-smoke', { root, signal: new AbortController().signal })
+      runReleaseCheck('http-smoke', {
+        root,
+        signal: new AbortController().signal
+      })
     ).resolves.toEqual([])
 
     supportsStdioSmokeMock.mockReturnValueOnce(true)
-    releasePackageManifestsMock.mockResolvedValueOnce([{ name: '@mcp-kit/core' }])
+    releasePackageManifestsMock.mockResolvedValueOnce([
+      { name: '@mcp-kit/core' }
+    ])
     prepareInstalledReleasePackagesMock.mockResolvedValueOnce({
       tempRoot: '/tmp/s1',
       diagnostics: [{ rule: 'prepared', file: 'x', message: 'y' }]
     })
     await expect(
-      runReleaseCheck('stdio-smoke', { root, signal: new AbortController().signal })
+      runReleaseCheck('stdio-smoke', {
+        root,
+        signal: new AbortController().signal
+      })
     ).resolves.toEqual([{ rule: 'prepared', file: 'x', message: 'y' }])
 
     supportsStdioSmokeMock.mockReturnValueOnce(true)
-    releasePackageManifestsMock.mockResolvedValueOnce([{ name: '@mcp-kit/core' }])
+    releasePackageManifestsMock.mockResolvedValueOnce([
+      { name: '@mcp-kit/core' }
+    ])
     prepareInstalledReleasePackagesMock.mockResolvedValueOnce({
       tempRoot: '/tmp/f',
       diagnostics: []
     })
     await expect(
-      runReleaseCheck('stdio-smoke', { root, signal: new AbortController().signal })
+      runReleaseCheck('stdio-smoke', {
+        root,
+        signal: new AbortController().signal
+      })
     ).resolves.toEqual([])
 
     supportsStdioSmokeMock.mockReturnValueOnce(true)
-    releasePackageManifestsMock.mockResolvedValueOnce([{ name: '@mcp-kit/core' }])
+    releasePackageManifestsMock.mockResolvedValueOnce([
+      { name: '@mcp-kit/core' }
+    ])
     prepareInstalledReleasePackagesMock.mockResolvedValueOnce({
       tempRoot: '/tmp/g',
       installDirectory,
@@ -320,39 +375,54 @@ describe('release checks branches', () => {
       stderr: ''
     })
     await expect(
-      runReleaseCheck('stdio-smoke', { root, signal: new AbortController().signal })
+      runReleaseCheck('stdio-smoke', {
+        root,
+        signal: new AbortController().signal
+      })
     ).resolves.toEqual([
       expect.objectContaining({
         file: 'stdio-smoke.mjs',
         message: 'Packaged stdio smoke failed: stdio smoke failed'
       })
     ])
-    await expect(readFile(resolve(installDirectory, 'stdio-server.mjs'), 'utf8')).resolves.toContain(
-      'console.log("server")'
-    )
+    await expect(
+      readFile(resolve(installDirectory, 'stdio-server.mjs'), 'utf8')
+    ).resolves.toContain('console.log("server")')
 
     supportsHttpSmokeMock.mockReturnValueOnce(true)
-    releasePackageManifestsMock.mockResolvedValueOnce([{ name: '@mcp-kit/core' }])
+    releasePackageManifestsMock.mockResolvedValueOnce([
+      { name: '@mcp-kit/core' }
+    ])
     prepareInstalledReleasePackagesMock.mockResolvedValueOnce({
       tempRoot: '/tmp/h1',
       diagnostics: [{ rule: 'prepared', file: 'x', message: 'y' }]
     })
     await expect(
-      runReleaseCheck('http-smoke', { root, signal: new AbortController().signal })
+      runReleaseCheck('http-smoke', {
+        root,
+        signal: new AbortController().signal
+      })
     ).resolves.toEqual([{ rule: 'prepared', file: 'x', message: 'y' }])
 
     supportsHttpSmokeMock.mockReturnValueOnce(true)
-    releasePackageManifestsMock.mockResolvedValueOnce([{ name: '@mcp-kit/core' }])
+    releasePackageManifestsMock.mockResolvedValueOnce([
+      { name: '@mcp-kit/core' }
+    ])
     prepareInstalledReleasePackagesMock.mockResolvedValueOnce({
       tempRoot: '/tmp/h2',
       diagnostics: []
     })
     await expect(
-      runReleaseCheck('http-smoke', { root, signal: new AbortController().signal })
+      runReleaseCheck('http-smoke', {
+        root,
+        signal: new AbortController().signal
+      })
     ).resolves.toEqual([])
 
     supportsHttpSmokeMock.mockReturnValueOnce(true)
-    releasePackageManifestsMock.mockResolvedValueOnce([{ name: '@mcp-kit/core' }])
+    releasePackageManifestsMock.mockResolvedValueOnce([
+      { name: '@mcp-kit/core' }
+    ])
     prepareInstalledReleasePackagesMock.mockResolvedValueOnce({
       tempRoot: '/tmp/h',
       installDirectory,
@@ -365,10 +435,13 @@ describe('release checks branches', () => {
       stderr: ''
     })
     await expect(
-      runReleaseCheck('http-smoke', { root, signal: new AbortController().signal })
+      runReleaseCheck('http-smoke', {
+        root,
+        signal: new AbortController().signal
+      })
     ).resolves.toEqual([])
-    await expect(readFile(resolve(installDirectory, 'http-smoke.mjs'), 'utf8')).resolves.toContain(
-      'console.log("http")'
-    )
+    await expect(
+      readFile(resolve(installDirectory, 'http-smoke.mjs'), 'utf8')
+    ).resolves.toContain('console.log("http")')
   })
 })

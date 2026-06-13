@@ -174,6 +174,28 @@ describe('project render', () => {
         }
       )
     ).toMatchObject({ path: 'src/main.js' })
+
+    expect(
+      renderPackageJson(
+        JSON.stringify({
+          scripts: [],
+          devDependencies: []
+        }),
+        {
+          transport: 'stdio',
+          quality: 'standard',
+          language: 'javascript',
+          packageManager: 'pnpm',
+          git: false,
+          hooks: false,
+          ci: false,
+          install: false,
+          agent: 'none',
+          force: false,
+          dryRun: false
+        }
+      )
+    ).toContain('"start": "node src/main.js"')
   })
 
   it('renders ci workflow and agent-specific files', () => {

@@ -98,11 +98,13 @@ describe('release check install helpers', () => {
       diagnostics: []
     })
 
-    const npmInstall = vi.fn(async () => ({
-      exitCode: 0,
-      stdout: '',
-      stderr: ''
-    }))
+    const npmInstall = vi.fn(() =>
+      Promise.resolve({
+        exitCode: 0,
+        stdout: '',
+        stderr: ''
+      })
+    )
 
     const prepared = await prepareInstalledReleasePackages(
       root,
@@ -149,11 +151,12 @@ describe('release check install helpers', () => {
       root,
       new AbortController().signal,
       {
-        npmInstall: async () => ({
-          exitCode: 1,
-          stdout: '',
-          stderr: 'install failed'
-        })
+        npmInstall: () =>
+          Promise.resolve({
+            exitCode: 1,
+            stdout: '',
+            stderr: 'install failed'
+          })
       }
     )
 
@@ -200,7 +203,9 @@ describe('release check install helpers', () => {
       throw new Error('expected install directory')
     }
     await cleanupPreparedRelease(prepared)
-    await expect(readFile(resolve(prepared.tempRoot, 'package.json'), 'utf8')).rejects.toThrow()
+    await expect(
+      readFile(resolve(prepared.tempRoot, 'package.json'), 'utf8')
+    ).rejects.toThrow()
   })
 
   it('reports install failures from the default npm install helper', async () => {
@@ -312,11 +317,7 @@ describe('release check install helpers', () => {
     ])
 
     await expect(
-      runInstalledTypeSmoke(
-        installDirectory,
-        [],
-        new AbortController().signal
-      )
+      runInstalledTypeSmoke(installDirectory, [], new AbortController().signal)
     ).resolves.toEqual([])
 
     runCommandMock.mockResolvedValueOnce({
@@ -380,7 +381,10 @@ async function createPackage(
   const packageRoot = resolve(root, 'packages', directory)
   await mkdir(resolve(packageRoot, 'dist'), { recursive: true })
   await writeFile(resolve(packageRoot, 'dist/index.js'), 'export {}\n')
-  await writeFile(resolve(packageRoot, 'dist/index.d.ts'), 'export declare const x: number\n')
+  await writeFile(
+    resolve(packageRoot, 'dist/index.d.ts'),
+    'export declare const x: number\n'
+  )
   await writeFile(resolve(packageRoot, 'dist/bin.js'), 'console.log("help")\n')
   await writeFile(resolve(packageRoot, 'README.md'), '# readme\n')
   await writeFile(
@@ -388,11 +392,11 @@ async function createPackage(
     `${JSON.stringify(packageJson, null, 2)}\n`
   )
   return {
-    name: String(packageJson.name),
-    version: String(packageJson.version),
+    name: String(packageJson['name']),
+    version: String(packageJson['version']),
     path: `packages/${directory}/package.json`,
     directory: `packages/${directory}`,
-    files: packageJson.files,
+    files: packageJson['files'],
     exports: {
       '.': {
         import: './dist/index.js',

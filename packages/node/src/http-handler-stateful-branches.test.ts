@@ -199,6 +199,73 @@ describe('stateful handler branches', () => {
     )
   })
 
+  it('persists authorization details into stateful session auth info', async () => {
+    const sessionStore = {
+      get: vi.fn(() =>
+        Promise.resolve({
+          close: vi.fn(() => Promise.resolve())
+        })
+      ),
+      set: vi.fn<(sessionId: string, session: unknown) => Promise<void>>(() =>
+        Promise.resolve()
+      ),
+      delete: vi.fn(() => Promise.resolve())
+    }
+    const app: MockApp = {
+      setLogger: vi.fn(),
+      connect: vi.fn(() => Promise.resolve()),
+      close: vi.fn(() => Promise.resolve())
+    }
+    const transport: MockTransportInstance = {
+      sessionId: 'session-authz',
+      handleRequest: vi.fn(() => Promise.resolve(new Response('ok'))),
+      close: vi.fn(() => Promise.resolve())
+    }
+    transportCtorMock.mockReturnValueOnce(transport)
+
+    await newStatefulSessionExchange({
+      createApp: () => app as never,
+      options: {
+        sessionStore,
+        cors: false
+      } as never,
+      request: new Request('http://runtime.test/mcp'),
+      parsedBody: undefined,
+      auth: {
+        source: 'oauth',
+        scopes: ['tools:read'],
+        authorization: {
+          availableScopes: ['tools:read'],
+          consent: {
+            clientId: 'client-1',
+            scopes: ['tools:read'],
+            subject: 'alice'
+          }
+        }
+      },
+      sessionStore: sessionStore as never
+    })
+
+    expect(sessionStore.set).toHaveBeenCalledOnce()
+    const setCall = sessionStore.set.mock.calls[0]
+    expect(setCall).toBeDefined()
+    if (setCall) {
+      const [, session] = setCall
+      expect(session).toMatchObject({
+        auth: {
+          authorization: {
+            availableScopes: ['tools:read'],
+            consent: {
+              clientId: 'client-1',
+              scopes: ['tools:read'],
+              subject: 'alice'
+            }
+          }
+        }
+      })
+    }
+  })
+
   it('builds transport options only from configured resumability settings', () => {
     expect(
       createTransportOptions({

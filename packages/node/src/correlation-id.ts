@@ -8,7 +8,7 @@ const internalCorrelationHeader = 'x-mcp-kit-correlation-id'
 const publicCorrelationHeader = 'x-correlation-id'
 const correlationIdPattern = /^[A-Za-z0-9._:/=-]{1,128}$/
 
-export function assignCorrelationId(
+function assignCorrelationId(
   req: IncomingMessage,
   trustedProxies: readonly string[]
 ): string {

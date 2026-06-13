@@ -197,6 +197,32 @@ describe('quality config', () => {
     expect(config.mutation.runInRelease).toBe(true)
     expect(config.mutation.threshold).toBe(90)
   })
+
+  it('keeps the base mutation command when there are no exclusions', () => {
+    const config = resolveQualityConfig(
+      {
+        preset: 'standard',
+        mutation: {
+          command: 'pnpm stryker run'
+        }
+      },
+      '/project'
+    )
+
+    expect(config.mutation.command).toBe('pnpm stryker run')
+  })
+
+  it('defaults the mutation command when exclusions are absent', () => {
+    const config = resolveQualityConfig(
+      {
+        preset: 'standard',
+        mutation: {}
+      } as QualityConfig,
+      '/project'
+    )
+
+    expect(config.mutation.command).toBe('stryker run')
+  })
 })
 
 async function createTempDirectory(prefix: string): Promise<string> {

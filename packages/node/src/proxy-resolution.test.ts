@@ -29,7 +29,7 @@ describe('proxy resolution', () => {
       remoteAddress: '::ffff:127.0.0.1',
       headers: {
         forwarded:
-          'for=192.0.2.10;proto=https;host=\"public.example\", for=192.0.2.20'
+          'for=192.0.2.10;proto=https;host="public.example", for=192.0.2.20'
       }
     })
 
@@ -37,6 +37,21 @@ describe('proxy resolution', () => {
       'https://public.example/mcp'
     )
     expect(isTrustedProxy(request, ['::ffff:127.0.0.1'])).toBe(true)
+  })
+
+  it('ignores empty forwarded headers from trusted proxies', () => {
+    const request = createRequest({
+      url: '/mcp',
+      remoteAddress: '127.0.0.1',
+      headers: {
+        host: 'internal.example',
+        forwarded: ''
+      }
+    })
+
+    expect(requestUrlFromNodeRequest(request, ['127.0.0.1'])).toBe(
+      'http://internal.example/mcp'
+    )
   })
 
   it('falls back to x-forwarded headers and prefers the first array value', () => {
@@ -92,7 +107,7 @@ describe('proxy resolution', () => {
   })
 
   it('returns false when the request has no remote address', () => {
-    const request = createRequest({})
+    const request = createRequest({ url: undefined })
 
     expect(isTrustedProxy(request, ['127.0.0.1'])).toBe(false)
     expect(requestUrlFromNodeRequest(request, ['127.0.0.1'])).toBe(
@@ -123,13 +138,15 @@ function createRequest({
   encrypted = false,
   headers = {}
 }: {
-  url?: string
+  url: string | undefined
   host?: string
   remoteAddress?: string
   encrypted?: boolean
   headers?: Record<string, string | string[] | undefined>
 }): IncomingMessage {
-  const socket = encrypted ? { remoteAddress, encrypted: true } : { remoteAddress }
+  const socket = encrypted
+    ? { remoteAddress, encrypted: true }
+    : { remoteAddress }
   return {
     url: url === undefined ? '/' : url,
     headers: {

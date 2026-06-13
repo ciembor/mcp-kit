@@ -223,10 +223,7 @@ function validateCoverageThresholds(config: QualityConfig): void {
 
 function validateMutationConfig(config: QualityConfig): void {
   const mutation = config.mutation
-  if (
-    mutation?.threshold !== undefined &&
-    (mutation.threshold < 0 || mutation.threshold > 100)
-  ) {
+  if (!mutationThresholdIsValid(mutation?.threshold)) {
     throw new Error('Mutation threshold must be between 0 and 100')
   }
   for (const exclusion of mutation?.exclude ?? []) {
@@ -238,11 +235,11 @@ function validateMutationConfig(config: QualityConfig): void {
 
 function mutationCommand(config: MutationConfig): string {
   const exclusions = config.exclude ?? []
-  if (exclusions.length === 0) return config.command ?? 'stryker run'
+  if (exclusions.length === 0) return config.command
   return [
-    config.command ?? 'stryker run',
+    config.command,
     ...exclusions.map(
-      (exclusion) => `--mutate ${shellQuote(`!${exclusion.pattern}`)}`
+      (exclusion) => `--mutate ${shellQuote(negatedMutationPattern(exclusion))}`
     )
   ].join(' ')
 }
@@ -264,4 +261,12 @@ function isQualityConfig(value: unknown): value is QualityConfig {
     'preset' in value &&
     typeof value.preset === 'string'
   )
+}
+
+function mutationThresholdIsValid(threshold: number | undefined): boolean {
+  return threshold === undefined || (threshold >= 0 && threshold <= 100)
+}
+
+function negatedMutationPattern(exclusion: { pattern: string }): string {
+  return `!${exclusion.pattern}`
 }

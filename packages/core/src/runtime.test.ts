@@ -603,7 +603,9 @@ describe('runtime helpers', () => {
           )
         ).toBe('Filesystem access is outside the configured roots.')
         expect(
-          safeMessage(() => context.io.http.assertAllowed('https://[::1]/admin'))
+          safeMessage(() =>
+            context.io.http.assertAllowed('https://[::1]/admin')
+          )
         ).toBe('Requests to private network targets are not allowed.')
         return {
           content: [],
@@ -613,9 +615,14 @@ describe('runtime helpers', () => {
     })
 
     await expect(
-      validateToolInputPolicies(tool, { filePath: '../secret.txt' }, makeContext())
+      validateToolInputPolicies(
+        tool,
+        { filePath: '../secret.txt' },
+        makeContext()
+      )
     ).rejects.toMatchObject({
-      safeMessage: 'Input "filePath" must not contain parent traversal segments.'
+      safeMessage:
+        'Input "filePath" must not contain parent traversal segments.'
     })
 
     await expect(
@@ -948,7 +955,9 @@ function safeMessage(action: () => unknown): string {
   throw new Error('Expected McpKitError')
 }
 
-async function safeMessageAsync(action: () => Promise<unknown>): Promise<string> {
+async function safeMessageAsync(
+  action: () => Promise<unknown>
+): Promise<string> {
   try {
     await action()
   } catch (error) {

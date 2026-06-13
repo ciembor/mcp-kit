@@ -12,7 +12,7 @@ export type CoverageExclusion = {
   pattern: string
   reason: string
 }
-export type MutationExclusion = {
+type MutationExclusion = {
   pattern: string
   reason: string
 }
@@ -118,7 +118,7 @@ export type ReleaseGitStatusResult = {
   stderr: string
 }
 
-export type ReleaseGitStatus = (
+type ReleaseGitStatus = (
   root: string,
   signal: AbortSignal
 ) => Promise<ReleaseGitStatusResult>
@@ -129,7 +129,7 @@ export type ReleaseNpmPackResult = {
   stderr: string
 }
 
-export type ReleaseNpmPack = (
+type ReleaseNpmPack = (
   packageRoot: string,
   signal: AbortSignal
 ) => Promise<ReleaseNpmPackResult>
@@ -140,7 +140,7 @@ export type ReleaseNpmInstallResult = {
   stderr: string
 }
 
-export type ReleaseNpmInstall = (
+type ReleaseNpmInstall = (
   installRoot: string,
   tarballs: readonly string[],
   signal: AbortSignal

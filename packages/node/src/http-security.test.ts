@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type {
+  SessionStore,
+  StreamableHttpAuthOptions
+} from './http-contracts.js'
+
 const { createInMemorySessionStoreMock } = vi.hoisted(() => ({
   createInMemorySessionStoreMock: vi.fn()
 }))
@@ -63,10 +68,15 @@ describe('normalizeStreamableHttpOptions', () => {
   })
 
   it('normalizes explicit stateful options, custom paths and optional adapters', () => {
-    const sessionStore = { list: vi.fn() }
+    const sessionStore: SessionStore = {
+      get: vi.fn(() => Promise.resolve(undefined)),
+      set: vi.fn(() => Promise.resolve()),
+      delete: vi.fn(() => Promise.resolve()),
+      list: vi.fn(() => Promise.resolve([]))
+    }
     const eventStore = { replayEventsAfter: vi.fn(), storeEvent: vi.fn() }
-    const auth = {
-      verifyBearerToken: async () => ({ scopes: [] as string[] })
+    const auth: StreamableHttpAuthOptions = {
+      verifyBearerToken: () => ({ source: 'oauth', scopes: [] as string[] })
     }
 
     const normalized = normalizeStreamableHttpOptions({
@@ -268,7 +278,9 @@ describe('validateOriginHeader and corsHeaders', () => {
     expect(validateOriginHeader(noOrigin, ['https://client.example'])).toBe(
       undefined
     )
-    expect(corsHeaders(noOrigin, corsOptions()).entries().next().done).toBe(true)
+    expect(corsHeaders(noOrigin, corsOptions()).entries().next().done).toBe(
+      true
+    )
   })
 
   it('accepts allowed origins and includes credentials only when enabled', () => {

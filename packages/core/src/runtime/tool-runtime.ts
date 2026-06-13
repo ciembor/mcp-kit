@@ -98,21 +98,9 @@ export async function requireCapabilityAccess(
   context: RequestContext<unknown>
 ): Promise<void> {
   await policy?.authorize?.(context)
-  const requiredScopes = policy?.requiredScopes
-  if (requiredScopes !== undefined) {
-    authorizeScopes(context, requiredScopes)
-  }
-  if (policy?.stepUpScopes !== undefined) {
-    authorizeScopes(context, policy.stepUpScopes, {
-      code: 'STEP_UP_REQUIRED',
-      missingMessage: (scope) =>
-        `Step-up authorization required for scope: ${scope}`,
-      safeMessage: 'Additional authorization is required.'
-    })
-  }
-  if (policy?.requiredConsentScopes !== undefined) {
-    authorizeConsent(context, policy.requiredConsentScopes)
-  }
+  requireScopes(policy, context)
+  requireStepUp(policy, context)
+  requireConsent(policy, context)
 }
 
 export function toolConfig(tool: ToolDefinition): {
@@ -157,5 +145,36 @@ function createErrorMappingMiddleware<Services>(): ToolMiddleware<Services> {
         `Operation failed. Correlation id: ${context.correlationId}`
       )
     }
+  }
+}
+
+function requireScopes(
+  policy: CapabilityPolicy | undefined,
+  context: RequestContext<unknown>
+): void {
+  if (policy?.requiredScopes !== undefined) {
+    authorizeScopes(context, policy.requiredScopes)
+  }
+}
+
+function requireStepUp(
+  policy: CapabilityPolicy | undefined,
+  context: RequestContext<unknown>
+): void {
+  if (policy?.stepUpScopes === undefined) return
+  authorizeScopes(context, policy.stepUpScopes, {
+    code: 'STEP_UP_REQUIRED',
+    missingMessage: (scope) =>
+      `Step-up authorization required for scope: ${scope}`,
+    safeMessage: 'Additional authorization is required.'
+  })
+}
+
+function requireConsent(
+  policy: CapabilityPolicy | undefined,
+  context: RequestContext<unknown>
+): void {
+  if (policy?.requiredConsentScopes !== undefined) {
+    authorizeConsent(context, policy.requiredConsentScopes)
   }
 }

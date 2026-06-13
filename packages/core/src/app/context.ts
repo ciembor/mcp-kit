@@ -83,17 +83,15 @@ function requestCorrelationId(extra: ServerRequestContext): string {
 }
 
 function authContext(authInfo: ServerRequestContext['authInfo']): AuthContext {
-  const authorization = authInfo?.extra?.['authorization']
-  return {
+  const base = {
     scopes: authInfo?.scopes ?? [],
-    source: authSource(),
-    ...authExtraField(authInfo, 'subject', 'subject'),
-    ...authExtraField(authInfo, 'tenantId', 'tenantId'),
-    ...optionalAuthField('clientId', authInfo?.clientId),
-    ...optionalAuthField('expiresAt', authInfo?.expiresAt),
-    ...optionalAuthField('resource', authInfo?.resource),
-    ...(isAuthorizationDetails(authorization) ? { authorization } : {}),
-    ...optionalAuthField('extra', authInfo?.extra)
+    source: authSource()
+  }
+  return {
+    ...base,
+    ...authExtraFields(authInfo),
+    ...authOptionalFields(authInfo),
+    ...optionalAuthorizationField(authInfo?.extra?.['authorization'])
   }
 }
 
@@ -168,6 +166,32 @@ function authExtraField(
 ): Partial<Pick<AuthContext, 'subject' | 'tenantId'>> {
   const value = authInfo?.extra?.[key]
   return typeof value === 'string' ? { [field]: value } : {}
+}
+
+function authExtraFields(
+  authInfo: ServerRequestContext['authInfo']
+): Partial<Pick<AuthContext, 'subject' | 'tenantId'>> {
+  return {
+    ...authExtraField(authInfo, 'subject', 'subject'),
+    ...authExtraField(authInfo, 'tenantId', 'tenantId')
+  }
+}
+
+function optionalAuthorizationField(
+  authorization: unknown
+): Partial<Pick<AuthContext, 'authorization'>> {
+  return isAuthorizationDetails(authorization) ? { authorization } : {}
+}
+
+function authOptionalFields(
+  authInfo: ServerRequestContext['authInfo']
+): Partial<Pick<AuthContext, 'clientId' | 'expiresAt' | 'resource' | 'extra'>> {
+  return {
+    ...optionalAuthField('clientId', authInfo?.clientId),
+    ...optionalAuthField('expiresAt', authInfo?.expiresAt),
+    ...optionalAuthField('resource', authInfo?.resource),
+    ...optionalAuthField('extra', authInfo?.extra)
+  }
 }
 
 function optionalAuthField<Key extends keyof AuthContext>(
@@ -246,8 +270,5 @@ function authSource(): AuthContext['source'] {
 function isAuthorizationDetails(
   value: unknown
 ): value is NonNullable<AuthContext['authorization']> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return false
-  }
-  return true
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }

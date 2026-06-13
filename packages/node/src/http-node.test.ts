@@ -89,6 +89,35 @@ vi.mock(
             }
           }
         ) => {
+          const lastEventId = request.headers.get('last-event-id')
+          if (
+            lastEventId !== null &&
+            this.options?.eventStore?.replayEventsAfter !== undefined
+          ) {
+            const replayed: Array<{ eventId: string; message: unknown }> = []
+            const streamId = await this.options.eventStore.replayEventsAfter(
+              lastEventId,
+              {
+                send: (eventId, message) => {
+                  replayed.push({ eventId, message })
+                  return Promise.resolve()
+                }
+              }
+            )
+
+            return new Response(
+              JSON.stringify({
+                resumed: true,
+                streamId,
+                replayed
+              }),
+              {
+                status: 200,
+                headers: { 'content-type': 'application/json; charset=utf-8' }
+              }
+            )
+          }
+
           if (
             request.method === 'POST' &&
             this.sessionId === undefined &&
@@ -301,6 +330,72 @@ describe('@mcp-kit/node streamable http', () => {
       eventStore,
       retryInterval: 2_500
     })
+  })
+
+  it('resumes long-running streams on another worker via shared event storage without sticky SSE', async () => {
+    const primaryApps = createAppFactory()
+    const secondaryApps = createAppFactory()
+    const eventStore = createReplayableEventStore()
+    const primary = await runStreamableHttp(primaryApps.createApp, {
+      port: 0,
+      eventStore
+    })
+    const secondary = await runStreamableHttp(secondaryApps.createApp, {
+      port: 0,
+      eventStore
+    })
+    runtimes.push(primary, secondary)
+
+    await eventStore.storeEvent('stream-1', {
+      jsonrpc: '2.0',
+      method: 'notifications/progress',
+      params: { progress: 50, total: 100 }
+    })
+    const lastEventId = await eventStore.storeEvent('stream-1', {
+      jsonrpc: '2.0',
+      method: 'notifications/progress',
+      params: { progress: 75, total: 100 }
+    })
+    await eventStore.storeEvent('stream-1', {
+      jsonrpc: '2.0',
+      method: 'notifications/progress',
+      params: { progress: 100, total: 100 }
+    })
+
+    const response = await fetch(secondary.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'last-event-id': lastEventId
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+    })
+
+    expect(response.status).toBe(200)
+    const body = JSON.parse(await response.text()) as {
+      resumed: boolean
+      streamId: string
+      replayed: Array<{
+        eventId: string
+        message: {
+          jsonrpc: string
+          method: string
+          params: { progress: number; total: number }
+        }
+      }>
+    }
+    expect(body.resumed).toBe(true)
+    expect(body.streamId).toBe('stream-1')
+    expect(body.replayed).toHaveLength(1)
+    expect(body.replayed[0]?.eventId).toBe('event-3')
+    expect(body.replayed[0]?.message).toEqual({
+      jsonrpc: '2.0',
+      method: 'notifications/progress',
+      params: { progress: 100, total: 100 }
+    })
+    expect(primaryApps.instances).toHaveLength(0)
+    expect(secondaryApps.instances).toHaveLength(1)
+    expect(transportInstances).toHaveLength(1)
   })
 
   it('returns 413 when the body exceeds the configured limit', async () => {
@@ -1167,6 +1262,42 @@ function createVerifier() {
         }
       default:
         throw new Error(`Unknown token: ${token}`)
+    }
+  }
+}
+
+function createReplayableEventStore() {
+  const events: Array<{
+    eventId: string
+    streamId: string
+    message: unknown
+  }> = []
+  let sequence = 0
+
+  return {
+    storeEvent(streamId: string, message: unknown) {
+      sequence += 1
+      const eventId = `event-${sequence}`
+      events.push({ eventId, streamId, message })
+      return Promise.resolve(eventId)
+    },
+    getStreamIdForEventId(eventId: string) {
+      return Promise.resolve(
+        events.find((event) => event.eventId === eventId)?.streamId
+      )
+    },
+    async replayEventsAfter(
+      lastEventId: string,
+      options: { send: (eventId: string, message: unknown) => Promise<void> }
+    ) {
+      const start = events.findIndex((event) => event.eventId === lastEventId)
+      if (start === -1) return ''
+      const streamId = events[start]?.streamId ?? ''
+      for (const event of events.slice(start + 1)) {
+        if (event.streamId !== streamId) continue
+        await options.send(event.eventId, event.message)
+      }
+      return streamId
     }
   }
 }

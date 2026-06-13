@@ -144,7 +144,9 @@ describe('create-mcp-kit', () => {
 
   it('restores bundled template test filenames when copying from a bundled template', async () => {
     const cwd = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-'))
-    const template = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-template-'))
+    const template = await mkdtemp(
+      resolve(tmpdir(), 'create-mcp-kit-template-')
+    )
     temporaryDirectories.push(cwd, template)
 
     await mkdir(resolve(template, 'test/contracts'), { recursive: true })
@@ -178,7 +180,9 @@ describe('create-mcp-kit', () => {
 
   it('tolerates templates without a test directory and restores bundled js test filenames', async () => {
     const cwd = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-'))
-    const template = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-template-'))
+    const template = await mkdtemp(
+      resolve(tmpdir(), 'create-mcp-kit-template-')
+    )
     temporaryDirectories.push(cwd, template)
 
     await writeFile(
@@ -219,7 +223,9 @@ describe('create-mcp-kit', () => {
 
   it('rethrows non-ENOENT errors while restoring bundled template tests', async () => {
     const cwd = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-'))
-    const template = await mkdtemp(resolve(tmpdir(), 'create-mcp-kit-template-'))
+    const template = await mkdtemp(
+      resolve(tmpdir(), 'create-mcp-kit-template-')
+    )
     temporaryDirectories.push(cwd, template)
 
     await writeFile(

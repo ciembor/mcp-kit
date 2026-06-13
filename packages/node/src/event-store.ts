@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
 
 import type { StreamableHttpEventStore } from './http-contracts.js'
@@ -12,7 +13,7 @@ export function createInMemoryEventStore(): StreamableHttpEventStore {
 
   return {
     storeEvent(streamId, message) {
-      const eventId = `${streamId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+      const eventId = `${streamId}_${randomUUID()}`
       events.set(eventId, { streamId, message })
       return Promise.resolve(eventId)
     },

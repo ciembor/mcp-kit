@@ -23,7 +23,9 @@ afterEach(async () => {
 
 describe('release package validations extra coverage', () => {
   it('fails version checks when the root package is missing or invalid', async () => {
-    const root = await mkdtemp(resolve(tmpdir(), 'mcp-kit-release-validations-'))
+    const root = await mkdtemp(
+      resolve(tmpdir(), 'mcp-kit-release-validations-')
+    )
     temporaryDirectories.push(root)
     await mkdir(resolve(root, 'packages/core'), { recursive: true })
 
@@ -194,11 +196,13 @@ describe('release package validations extra coverage', () => {
     })
 
     await expect(
-      checkNpmPack(root, new AbortController().signal, async () => ({
-        exitCode: 0,
-        stdout: 'invalid json',
-        stderr: ''
-      }))
+      checkNpmPack(root, new AbortController().signal, () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: 'invalid json',
+          stderr: ''
+        })
+      )
     ).resolves.toEqual([
       expect.objectContaining({
         message: 'npm pack must return JSON output for @mcp-kit/core'
@@ -206,11 +210,13 @@ describe('release package validations extra coverage', () => {
     ])
 
     await expect(
-      checkNpmPack(root, new AbortController().signal, async () => ({
-        exitCode: 0,
-        stdout: '[]',
-        stderr: ''
-      }))
+      checkNpmPack(root, new AbortController().signal, () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '[]',
+          stderr: ''
+        })
+      )
     ).resolves.toEqual([
       expect.objectContaining({
         message:
@@ -219,11 +225,13 @@ describe('release package validations extra coverage', () => {
     ])
 
     await expect(
-      checkNpmPack(root, new AbortController().signal, async () => ({
-        exitCode: 0,
-        stdout: '[{"filename":"core.tgz"}]',
-        stderr: ''
-      }))
+      checkNpmPack(root, new AbortController().signal, () =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: '[{"filename":"core.tgz"}]',
+          stderr: ''
+        })
+      )
     ).resolves.toEqual([])
 
     await expect(

@@ -3,7 +3,6 @@ export {
   sdkResourceListCallback
 } from './runtime/resource-runtime.js'
 export {
-  authorizeScopes,
   requireCapabilityAccess,
   silentLogger,
   runToolPipeline,

@@ -7,23 +7,27 @@ import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/proto
 import type {
   CallToolResult,
   ClientCapabilities,
-  CreateMessageRequest,
-  CreateMessageResult,
-  CreateMessageResultWithTools,
-  ElicitRequestFormParams,
-  ElicitRequestURLParams,
-  ElicitResult,
   GetPromptResult,
   Implementation,
-  Root,
   ListResourcesResult,
-  ProgressNotificationParams,
   ReadResourceResult,
   Resource,
   ServerNotification,
   ServerRequest,
   ToolAnnotations
 } from '@modelcontextprotocol/sdk/types.js'
+import type {
+  AuthContext,
+  AuthorizationConsent,
+  AuthorizationDetails,
+  AuthorizationStepUp
+} from './contracts-auth.js'
+import type {
+  ClientElicitation,
+  ClientRoots,
+  ClientSampling,
+  ProgressReporter
+} from './contracts-client.js'
 
 export const packageInfo = {
   name: '@mcp-kit/core',
@@ -68,36 +72,11 @@ export type CapabilityPolicy = {
   authorize?(context: RequestContext<unknown>): Promise<void> | void
 }
 
-export type AuthorizationConsent = {
-  subject: string
-  clientId: string
-  scopes: readonly string[]
-  grantedAt?: number
-  expiresAt?: number
-}
-
-export type AuthorizationStepUp = {
-  scopes: readonly string[]
-  authorizationUrl?: string
-}
-
-export type AuthorizationDetails = {
-  availableScopes?: readonly string[]
-  consent?: AuthorizationConsent
-  stepUp?: AuthorizationStepUp
-}
-
-export type AuthContext = {
-  subject?: string
-  scopes: readonly string[]
-  tenantId?: string
-  source: 'anonymous' | 'local' | 'oauth'
-  clientId?: string
-  expiresAt?: number
-  resource?: URL
-  token?: string
-  authorization?: AuthorizationDetails
-  extra?: Record<string, unknown>
+export type {
+  AuthContext,
+  AuthorizationConsent,
+  AuthorizationDetails,
+  AuthorizationStepUp
 }
 
 export type ServerRequestContext = RequestHandlerExtra<
@@ -105,34 +84,7 @@ export type ServerRequestContext = RequestHandlerExtra<
   ServerNotification
 >
 
-export type ProgressReporter = {
-  report(
-    update: Omit<ProgressNotificationParams, 'progressToken'>
-  ): Promise<void>
-}
-
-export type ClientRoots = {
-  supported: boolean
-  listChanged: boolean
-  list(): Promise<readonly Root[] | undefined>
-}
-
-export type ClientSampling = {
-  supported: boolean
-  createMessage(
-    params: CreateMessageRequest['params']
-  ): Promise<CreateMessageResult | CreateMessageResultWithTools>
-}
-
-export type ClientElicitation = {
-  supported: boolean
-  form: boolean
-  url: boolean
-  create(
-    params: ElicitRequestFormParams | ElicitRequestURLParams
-  ): Promise<ElicitResult>
-  complete(elicitationId: string): Promise<void>
-}
+export type { ClientElicitation, ClientRoots, ClientSampling, ProgressReporter }
 
 export type ToolFilesystemPolicy = {
   roots?: readonly (string | URL)[]

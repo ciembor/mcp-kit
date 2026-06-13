@@ -1,7 +1,6 @@
 export { applyPlan, createOrMergeOperation } from './files/operations.js'
 export {
   assertSafeNewTarget,
-  detectLanguage,
   detectPackageManager,
   detectProjectContext,
   detectProjectRoot

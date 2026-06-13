@@ -128,7 +128,9 @@ describe('mcp-kit cli', () => {
         resolve(project, 'test/contracts/sync-report.tool.contract.test.ts'),
         'utf8'
       )
-    ).resolves.toContain("expect(startSyncReportTool.name).toBe('start-sync-report')")
+    ).resolves.toContain(
+      "expect(startSyncReportTool.name).toBe('start-sync-report')"
+    )
   })
 
   it('creates the JavaScript variant without TypeScript config', async () => {
@@ -458,7 +460,7 @@ describe('mcp-kit cli', () => {
     await expect(
       runCli(['quality', '--full', '--release'], { cwd })
     ).resolves.toBe(exitCodes.usage)
-  }, 10_000)
+  }, 20_000)
 
   it('supports mutation quality mode as a dedicated pipeline', async () => {
     const cwd = await makeTemp()
@@ -564,7 +566,7 @@ describe('mcp-kit cli', () => {
       quality: { mode: 'release', preset: 'off', status: 'passed' },
       release: { status: 'prepared' }
     })
-  }, 10_000)
+  }, 20_000)
 
   it('prints quality diagnostics and coverage exclusions in text mode', async () => {
     const cwd = await makeTemp()

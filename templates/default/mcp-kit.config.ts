@@ -1,5 +1,5 @@
 export default {
   boundedContext: 'default',
-  transport: 'stdio',
+  transport: 'both',
   quality: 'standard'
 }

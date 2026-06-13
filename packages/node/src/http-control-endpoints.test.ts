@@ -1,6 +1,8 @@
 import type { IncomingMessage } from 'node:http'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { StreamableHttpRuntime } from './http-contracts.js'
+
 const { requestUrlFromNodeRequestMock, validateHostHeaderMock } = vi.hoisted(
   () => ({
     requestUrlFromNodeRequestMock: vi.fn(),
@@ -40,7 +42,9 @@ describe('controlEndpointResponse', () => {
 
   it('returns a host validation error before any control endpoint response', async () => {
     requestUrlFromNodeRequestMock.mockReturnValue('http://runtime.test/healthz')
-    validateHostHeaderMock.mockReturnValue('Host "evil.example" is not allowed.')
+    validateHostHeaderMock.mockReturnValue(
+      'Host "evil.example" is not allowed.'
+    )
 
     const response = controlEndpointResponse(
       createRequest({
@@ -55,10 +59,9 @@ describe('controlEndpointResponse', () => {
       false
     )
 
-    expect(validateHostHeaderMock).toHaveBeenCalledWith(
-      expect.any(Request),
-      ['runtime.test']
-    )
+    expect(validateHostHeaderMock).toHaveBeenCalledWith(expect.any(Request), [
+      'runtime.test'
+    ])
     const request = validateHostHeaderMock.mock.calls[0]?.[0] as Request
     expect(request.headers.get('x-forwarded-host')).toBe(
       'edge.example, ignored.example'
@@ -113,17 +116,27 @@ describe('controlEndpointResponse', () => {
 
   it('serves protected resource metadata only for authenticated metadata paths', async () => {
     requestUrlFromNodeRequestMock
-      .mockReturnValueOnce('https://runtime.test/.well-known/oauth-protected-resource/mcp?foo=1#frag')
-      .mockReturnValueOnce('https://runtime.test/.well-known/oauth-protected-resource/other')
-      .mockReturnValueOnce('https://runtime.test/.well-known/oauth-protected-resource/mcp')
-      .mockReturnValueOnce('https://runtime.test/.well-known/oauth-protected-resource/mcp')
-      .mockReturnValueOnce('https://runtime.test/.well-known/oauth-protected-resource/mcp')
+      .mockReturnValueOnce(
+        'https://runtime.test/.well-known/oauth-protected-resource/mcp?foo=1#frag'
+      )
+      .mockReturnValueOnce(
+        'https://runtime.test/.well-known/oauth-protected-resource/other'
+      )
+      .mockReturnValueOnce(
+        'https://runtime.test/.well-known/oauth-protected-resource/mcp'
+      )
+      .mockReturnValueOnce(
+        'https://runtime.test/.well-known/oauth-protected-resource/mcp'
+      )
+      .mockReturnValueOnce(
+        'https://runtime.test/.well-known/oauth-protected-resource/mcp'
+      )
 
     const metadata = controlEndpointResponse(
       createRequest({ method: 'GET', headers: {} }),
       runtimeOptions({
         auth: {
-          verifyBearerToken: async () => ({ scopes: [] }),
+          verifyBearerToken: () => ({ source: 'oauth', scopes: [] }),
           metadata: {
             authorizationServers: ['https://auth.example/.well-known/oauth'],
             scopesSupported: ['users:read'],
@@ -138,7 +151,7 @@ describe('controlEndpointResponse', () => {
       createRequest({ method: 'GET', headers: {} }),
       runtimeOptions({
         auth: {
-          verifyBearerToken: async () => ({ scopes: [] }),
+          verifyBearerToken: () => ({ source: 'oauth', scopes: [] }),
           metadata: {}
         }
       }),
@@ -153,7 +166,7 @@ describe('controlEndpointResponse', () => {
       createRequest({ method: 'GET', headers: {} }),
       runtimeOptions({
         auth: {
-          verifyBearerToken: async () => ({ scopes: [] }),
+          verifyBearerToken: () => ({ source: 'oauth', scopes: [] }),
           metadata: {}
         }
       }),
@@ -163,7 +176,7 @@ describe('controlEndpointResponse', () => {
       createRequest({ method: 'GET', headers: {} }),
       runtimeOptions({
         auth: {
-          verifyBearerToken: async () => ({ scopes: [] })
+          verifyBearerToken: () => ({ source: 'oauth', scopes: [] })
         }
       }),
       false
@@ -196,14 +209,24 @@ describe('protectedResourceMetadataPath', () => {
   })
 })
 
-function runtimeOptions(overrides: Record<string, unknown> = {}) {
+function runtimeOptions(
+  overrides: Partial<StreamableHttpRuntime['options']> = {}
+): StreamableHttpRuntime['options'] {
   return {
+    mode: 'development',
+    host: '127.0.0.1',
+    port: 3000,
     trustedProxies: ['127.0.0.1'],
     allowedHosts: ['runtime.test'],
+    allowedOrigins: [],
+    cors: false,
     healthPath: '/healthz',
     readinessPath: '/readyz',
     path: '/mcp',
-    auth: undefined,
+    sessionMode: 'stateless',
+    maxBodyBytes: 1024,
+    requestTimeoutMs: 1_000,
+    maxConcurrency: 4,
     ...overrides
   }
 }

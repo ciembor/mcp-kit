@@ -3,8 +3,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { contextFactory, requestContext } from './context.js'
 
+type MockSdk = {
+  server: {
+    getClientCapabilities: ReturnType<
+      typeof vi.fn<() => Record<string, unknown> | undefined>
+    >
+    getClientVersion: ReturnType<
+      typeof vi.fn<() => { name: string; version: string } | undefined>
+    >
+    listRoots: ReturnType<typeof vi.fn<() => Promise<{ roots: [] }>>>
+    createMessage: ReturnType<typeof vi.fn>
+    elicitInput: ReturnType<typeof vi.fn>
+    createElicitationCompletionNotifier: ReturnType<
+      typeof vi.fn<(elicitationId: string) => () => Promise<void>>
+    >
+  }
+}
+
 beforeEach(() => {
-  vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('uuid-123')
+  vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(
+    'uuid-123' as `${string}-${string}-${string}-${string}-${string}`
+  )
 })
 
 afterEach(() => {
@@ -36,7 +55,7 @@ describe('requestContext branches', () => {
       {
         services: { db: 'ok' },
         logger: { info: vi.fn() } as never,
-        sdk,
+        sdk: sdk as never,
         protocolVersion: ''
       }
     )
@@ -50,7 +69,11 @@ describe('requestContext branches', () => {
     await expect(context.client.roots.list()).resolves.toBeUndefined()
     expect(context.client.sampling.supported).toBe(false)
     expect(context.client.elicitation.supported).toBe(false)
-    await context.progress?.report({ progress: 1, total: 2, message: 'halfway' })
+    await context.progress?.report({
+      progress: 1,
+      total: 2,
+      message: 'halfway'
+    })
     expect(sendNotification).toHaveBeenCalledWith({
       method: 'notifications/progress',
       params: {
@@ -62,7 +85,9 @@ describe('requestContext branches', () => {
     })
     await expect(
       context.client.elicitation.complete('elicitation-1')
-    ).rejects.toThrow('Client does not support notifications/elicitation/complete')
+    ).rejects.toThrow(
+      'Client does not support notifications/elicitation/complete'
+    )
   })
 
   it('falls back to generated correlation ids and anonymous auth details when headers are empty', () => {
@@ -90,7 +115,7 @@ describe('requestContext branches', () => {
       {
         services: {},
         logger: {} as never,
-        sdk,
+        sdk: sdk as never,
         protocolVersion: '2026-06-12'
       }
     )
@@ -108,7 +133,7 @@ describe('requestContext branches', () => {
   })
 
   it('supports complete() when elicitation is available and contextFactory reuses runtime values', async () => {
-    const completionNotifier = vi.fn(async () => undefined)
+    const completionNotifier = vi.fn(() => Promise.resolve())
     const sdk = createSdk({
       capabilities: {
         elicitation: {},
@@ -120,22 +145,20 @@ describe('requestContext branches', () => {
     const runtime = {
       services: { cache: true },
       logger: { warn: vi.fn() } as never,
-      sdk,
+      sdk: sdk as never,
       protocolVersion: '2026-06-12'
     }
     const buildContext = contextFactory(() => runtime)
     const signal = new AbortController().signal
 
-    const context = buildContext(
-      {
-        requestId: 'factory-1',
-        signal,
-        authInfo: undefined,
-        requestInfo: {
-          headers: {}
-        }
-      } as never
-    )
+    const context = buildContext({
+      requestId: 'factory-1',
+      signal,
+      authInfo: undefined,
+      requestInfo: {
+        headers: {}
+      }
+    } as never)
 
     expect(context.services).toBe(runtime.services)
     expect(context.logger).toBe(runtime.logger)
@@ -143,28 +166,30 @@ describe('requestContext branches', () => {
     expect(context.client.roots.listChanged).toBe(true)
     expect(context.client.sampling.supported).toBe(true)
     await context.client.elicitation.complete('elicitation-2')
-    expect(
-      sdk.server.createElicitationCompletionNotifier
-    ).toHaveBeenCalledWith('elicitation-2')
+    expect(sdk.server.createElicitationCompletionNotifier).toHaveBeenCalledWith(
+      'elicitation-2'
+    )
     expect(completionNotifier).toHaveBeenCalledTimes(1)
   })
 })
 
-function createSdk(overrides: {
-  capabilities?: Record<string, unknown> | undefined
-  clientVersion?: { name: string; version: string } | undefined
-  createElicitationCompletionNotifier?: ReturnType<typeof vi.fn>
-} = {}) {
+function createSdk(
+  overrides: {
+    capabilities?: Record<string, unknown> | undefined
+    clientVersion?: { name: string; version: string } | undefined
+    createElicitationCompletionNotifier?: MockSdk['server']['createElicitationCompletionNotifier']
+  } = {}
+): MockSdk {
   return {
     server: {
       getClientCapabilities: vi.fn(() => overrides.capabilities),
       getClientVersion: vi.fn(() => overrides.clientVersion),
-      listRoots: vi.fn(async () => ({ roots: [] })),
+      listRoots: vi.fn(() => Promise.resolve({ roots: [] })),
       createMessage: vi.fn(),
       elicitInput: vi.fn(),
       createElicitationCompletionNotifier:
         overrides.createElicitationCompletionNotifier ??
-        vi.fn(() => vi.fn(async () => undefined))
+        vi.fn(() => vi.fn(() => Promise.resolve()))
     }
-  } as never
+  }
 }

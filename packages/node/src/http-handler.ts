@@ -1,10 +1,6 @@
-import { randomUUID } from 'node:crypto'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 
-import type { AuthContext, McpApp } from '@mcp-kit/core'
-
 import type {
-  ManagedSession,
   McpAppFactory,
   NormalizedStreamableHttpOptions,
   StreamableHttpCorsOptions,
@@ -13,19 +9,22 @@ import type {
   StreamableHttpOptions,
   StreamableHttpRequest
 } from './http-contracts.js'
-import { authenticateRequest, sameAuthIdentity } from './http-auth.js'
+import { authenticateRequest } from './http-auth.js'
+import {
+  closeManagedResources,
+  createConfiguredApp,
+  createResponseExchange,
+  createTransportOptions,
+  existingSession,
+  existingSessionExchange,
+  newStatefulSessionExchange
+} from './http-handler-stateful.js'
 import {
   corsHeaders,
   normalizeStreamableHttpOptions,
   validateHostHeader,
   validateOriginHeader
 } from './http-security.js'
-import { createStderrLogger } from './stderr-logger.js'
-
-type ManagedTransportSession<Services> = ManagedSession & {
-  readonly app: McpApp<Services>
-  readonly transport: WebStandardStreamableHTTPServerTransport
-}
 
 export function createStreamableHttpHandler<Services>(
   createApp: McpAppFactory<Services>,
@@ -33,7 +32,6 @@ export function createStreamableHttpHandler<Services>(
 ): StreamableHttpHandler {
   const normalized = normalizeStreamableHttpOptions(options)
   let activeRequests = 0
-  const closeSession = createSessionCloser(normalized)
 
   return async ({ request, parsedBody }: StreamableHttpRequest) => {
     const rejected = rejectRequest(request, normalized)
@@ -56,8 +54,7 @@ export function createStreamableHttpHandler<Services>(
           createApp,
           normalized,
           request,
-          parsedBody,
-          closeSession
+          parsedBody
         )
       }
       return await handleStatelessRequest(
@@ -94,13 +91,10 @@ async function handleStatelessRequest<Services>(
       ...(parsedBody === undefined ? {} : { parsedBody }),
       ...(auth.authInfo === undefined ? {} : { authInfo: auth.authInfo })
     })
-    return createClosableExchange(
-      withCorsHeaders(response, request, options.cors),
-      async () => {
-        await transport.close()
-        await app.close()
-      }
-    )
+    return createResponseExchange(response, request, options.cors, async () => {
+      await transport.close()
+      await app.close()
+    })
   } catch (error) {
     await closeManagedResources(app, transport)
     throw error
@@ -111,19 +105,15 @@ async function handleStatefulRequest<Services>(
   createApp: McpAppFactory<Services>,
   options: NormalizedStreamableHttpOptions,
   request: Request,
-  parsedBody: unknown,
-  closeSession: (sessionId: string) => Promise<void>
+  parsedBody: unknown
 ): Promise<StreamableHttpExchange> {
   const sessionStore = options.sessionStore
   if (sessionStore === undefined) {
     throw new Error('Stateful Streamable HTTP requires a SessionStore.')
   }
 
-  const sessionId = request.headers.get('mcp-session-id')
-  const session =
-    sessionId === null ? undefined : await sessionStore.get(sessionId)
-
-  if (sessionId !== null && session === undefined) {
+  const session = await existingSession(request, sessionStore)
+  if (session === 'missing') {
     return staticExchange(jsonError(404, 'Unknown MCP session.'))
   }
 
@@ -133,117 +123,23 @@ async function handleStatefulRequest<Services>(
   }
 
   if (session !== undefined) {
-    if (!sameAuthIdentity(session.auth, auth.auth)) {
-      return staticExchange(
-        jsonError(403, 'Session subject or tenant does not match this request.')
-      )
-    }
-    const response = await session.handleRequest(request, parsedBody, auth.auth)
-    return createClosableExchange(
-      withCorsHeaders(response, request, options.cors),
-      () => Promise.resolve()
-    )
-  }
-
-  const nextSession = await createStatefulSession(
-    createApp,
-    options,
-    closeSession
-  )
-  try {
-    const response = await nextSession.handleRequest(
+    return await existingSessionExchange({
+      session,
+      auth: auth.auth,
       request,
       parsedBody,
-      auth.auth
-    )
-    if (nextSession.transport.sessionId === undefined) {
-      await nextSession.close()
-    } else {
-      await sessionStore.set(nextSession.transport.sessionId, nextSession)
-    }
-    return createClosableExchange(
-      withCorsHeaders(response, request, options.cors),
-      () => Promise.resolve()
-    )
-  } catch (error) {
-    await closeSession(nextSession.id)
-    throw error
-  }
-}
-
-async function createStatefulSession<Services>(
-  createApp: McpAppFactory<Services>,
-  options: NormalizedStreamableHttpOptions,
-  closeSession: (sessionId: string) => Promise<void>
-): Promise<ManagedTransportSession<Services>> {
-  const sessionStore = options.sessionStore
-  if (sessionStore === undefined) {
-    throw new Error('Stateful Streamable HTTP requires a SessionStore.')
+      cors: options.cors
+    })
   }
 
-  const app = createConfiguredApp(createApp)
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    ...createTransportOptions(options),
-    sessionIdGenerator: randomUUID,
-    onsessionclosed: async (sessionId) => {
-      await closeSession(sessionId)
-    }
+  return await newStatefulSessionExchange({
+    createApp,
+    options,
+    request,
+    parsedBody,
+    auth: auth.auth,
+    sessionStore
   })
-
-  const session: ManagedTransportSession<Services> = {
-    get id() {
-      return transport.sessionId ?? ''
-    },
-    get auth() {
-      return activeAuth
-    },
-    app,
-    transport,
-    async close() {
-      if (transport.sessionId !== undefined) {
-        await sessionStore.delete(transport.sessionId)
-      }
-      await closeManagedResources(app, transport)
-    },
-    handleRequest(request, parsedBody, auth) {
-      activeAuth = auth
-      return transport.handleRequest(request, {
-        ...(parsedBody === undefined ? {} : { parsedBody }),
-        ...(auth === undefined ? {} : { authInfo: toAuthInfo(auth) })
-      })
-    }
-  }
-  let activeAuth: AuthContext | undefined
-
-  try {
-    await app.connect(transport)
-  } catch (error) {
-    await closeManagedResources(app, transport)
-    throw error
-  }
-
-  return session
-}
-
-function createConfiguredApp<Services>(
-  createApp: McpAppFactory<Services>
-): McpApp<Services> {
-  const app = createApp()
-  app.setLogger(createStderrLogger())
-  return app
-}
-
-function createTransportOptions(
-  options: NormalizedStreamableHttpOptions
-): ConstructorParameters<typeof WebStandardStreamableHTTPServerTransport>[0] {
-  return {
-    ...(options.eventStore === undefined
-      ? {}
-      : { eventStore: options.eventStore }),
-    ...(options.retryIntervalMs === undefined
-      ? {}
-      : { retryInterval: options.retryIntervalMs })
-  }
 }
 
 function rejectRequest(
@@ -284,54 +180,6 @@ function preflightExchange(
   )
 }
 
-function createSessionCloser(options: NormalizedStreamableHttpOptions) {
-  return async (sessionId: string): Promise<void> => {
-    const sessionStore = options.sessionStore
-    if (sessionStore === undefined) return
-    const session = await sessionStore.get(sessionId)
-    if (session === undefined) return
-    await sessionStore.delete(sessionId)
-    await session.close()
-  }
-}
-
-async function closeManagedResources(
-  app: McpApp<unknown>,
-  transport: WebStandardStreamableHTTPServerTransport
-): Promise<void> {
-  await transport.close().catch(() => undefined)
-  await app.close().catch(() => undefined)
-}
-
-function toAuthInfo(auth: AuthContext) {
-  return {
-    token: auth.token ?? '',
-    clientId: auth.clientId ?? 'mcp-kit',
-    scopes: [...auth.scopes],
-    ...(auth.expiresAt === undefined ? {} : { expiresAt: auth.expiresAt }),
-    ...(auth.resource === undefined ? {} : { resource: auth.resource }),
-    extra: {
-      ...(auth.extra ?? {}),
-      ...(auth.subject === undefined ? {} : { subject: auth.subject }),
-      ...(auth.tenantId === undefined ? {} : { tenantId: auth.tenantId })
-    }
-  }
-}
-
-function createClosableExchange(
-  response: Response,
-  close: () => Promise<void>
-): StreamableHttpExchange {
-  let closing: Promise<void> | undefined
-  return {
-    response,
-    close() {
-      closing ??= close()
-      return closing
-    }
-  }
-}
-
 function jsonError(status: number, message: string): Response {
   return new Response(
     JSON.stringify({
@@ -351,21 +199,4 @@ function staticExchange(response: Response): StreamableHttpExchange {
     response,
     close: () => Promise.resolve()
   }
-}
-
-function withCorsHeaders(
-  response: Response,
-  request: Request,
-  cors: false | Required<StreamableHttpCorsOptions>
-): Response {
-  if (cors === false) return response
-  const headers = new Headers(response.headers)
-  for (const [key, value] of corsHeaders(request, cors).entries()) {
-    headers.set(key, value)
-  }
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers
-  })
 }

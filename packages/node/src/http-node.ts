@@ -1,4 +1,8 @@
-import { createServer } from 'node:http'
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse
+} from 'node:http'
 
 import type {
   McpAppFactory,
@@ -12,24 +16,10 @@ export async function runStreamableHttp<Services>(
   options: StreamableHttpOptions = {}
 ): Promise<StreamableHttpRuntime> {
   const runtime = createNodeHttpRuntime(createApp, options)
-  const server = createServer((req, res) => {
-    void runtime.handle(req, res)
-  })
+  const server = createServer(createRequestListener(runtime))
   server.requestTimeout = runtime.options.requestTimeoutMs
 
-  let port = runtime.options.port
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(runtime.options.port, runtime.options.host, () => {
-      server.off('error', reject)
-      const address = server.address()
-      port =
-        typeof address === 'object' && address !== null
-          ? address.port
-          : runtime.options.port
-      resolve()
-    })
-  })
+  const port = await listen(server, runtime.options.port, runtime.options.host)
   const runtimeOptions = { ...runtime.options, port }
 
   let closing: Promise<void> | undefined
@@ -39,27 +29,13 @@ export async function runStreamableHttp<Services>(
       process.off('SIGTERM', onSignal)
       await runtime.drain()
       await runtime.close()
-      await new Promise<void>((resolve, reject) => {
-        server.close((error) => {
-          if (error) {
-            reject(error)
-            return
-          }
-          resolve()
-        })
-      })
+      await closeServer(server)
     })()
     return closing
   }
 
   const onSignal = (): void => {
-    void close().catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error)
-      process.stderr.write(
-        `[error] Failed to close MCP HTTP server: ${message}\n`
-      )
-      process.exitCode = 1
-    })
+    close().catch(reportCloseError)
   }
 
   process.once('SIGINT', onSignal)
@@ -71,4 +47,49 @@ export async function runStreamableHttp<Services>(
     drain: () => runtime.drain(),
     close
   }
+}
+
+function createRequestListener<Services>(
+  runtime: ReturnType<typeof createNodeHttpRuntime<Services>>
+) {
+  return (req: IncomingMessage, res: ServerResponse) => {
+    runtime.handle(req, res).catch(reportCloseError)
+  }
+}
+
+async function listen(
+  server: ReturnType<typeof createServer>,
+  port: number,
+  host: string
+): Promise<number> {
+  return await new Promise<number>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(port, host, () => {
+      server.off('error', reject)
+      const address = server.address()
+      resolve(
+        typeof address === 'object' && address !== null ? address.port : port
+      )
+    })
+  })
+}
+
+async function closeServer(
+  server: ReturnType<typeof createServer>
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve()
+    })
+  })
+}
+
+function reportCloseError(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error)
+  process.stderr.write(`[error] Failed to close MCP HTTP server: ${message}\n`)
+  process.exitCode = 1
 }
