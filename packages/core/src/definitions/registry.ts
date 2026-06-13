@@ -12,12 +12,10 @@ export function defineRegistry<const Item extends RegistryItem>(
   }
 
   return Object.freeze(
-    items
-      .map((item, index) => ({ item, index }))
-      .sort((left, right) => {
-        if (left.item.name < right.item.name) return -1
-        return 1
-      })
-      .map(({ item }) => item)
+    [...items].sort((left, right) => {
+      if (left.name < right.name) return -1
+      if (left.name > right.name) return 1
+      return 0
+    })
   )
 }
