@@ -75,3 +75,37 @@ npx mcp-kit release
 - audit retention and compliance requirements
 
 Those details must stay in outer adapters and application-owned ports.
+
+## External authorization server integration
+
+`@mcp-kit/node` can validate OAuth access tokens as a protected resource without
+embedding authorization-server policy into your MCP app. Keep your auth server
+outside, and wire token verification into `auth.verifyBearerToken`:
+
+```ts
+import { createJwtBearerVerifier, runStreamableHttp } from '@mcp-kit/node'
+
+const verifyBearerToken = createJwtBearerVerifier({
+  issuer: 'https://auth.example',
+  audience: 'https://mcp.example/mcp',
+  discoveryUrl: 'https://auth.example/.well-known/openid-configuration',
+  resource: 'https://mcp.example/mcp'
+})
+
+await runStreamableHttp(createApp, {
+  mode: 'production',
+  auth: {
+    verifyBearerToken,
+    metadata: {
+      authorizationServers: ['https://auth.example'],
+      resourceName: 'Example MCP server',
+      scopesSupported: ['tools:read', 'tools:write']
+    }
+  }
+})
+```
+
+The verifier checks signature, `iss`, `aud`, and `exp`, and will reject tokens
+that are not yet active via `nbf`. Scope mapping stays explicit through JWT
+claims such as `scope` or `scp`, while consent, downstream token exchange, and
+step-up rules remain caller-owned outer-layer concerns.

@@ -25,12 +25,16 @@ servers.
 - Node.js 22.13+ or Node.js 24.x
 - pnpm 11.5.2
 
+The repository pins Node with `.nvmrc` and `.node-version`. If your shell does
+not auto-switch runtimes, use `./scripts/pnpmw` to run `pnpm` on the pinned
+Node version directly.
+
 ## Development
 
 ```sh
 corepack enable
-pnpm install --frozen-lockfile
-pnpm quality
+./scripts/pnpmw install --frozen-lockfile
+./scripts/pnpmw quality
 ```
 
 ## Documentation

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+required_node_version="$(tr -d '[:space:]' < "$root_dir/.nvmrc")"
+
+if [[ -z "$required_node_version" ]]; then
+  echo "Missing required Node.js version in .nvmrc." >&2
+  exit 1
+fi
+
+node_bin=""
+for candidate in \
+  "$HOME/.nvm/versions/node/v$required_node_version/bin/node" \
+  "$HOME/.nvm/versions/node/$required_node_version/bin/node"
+do
+  if [[ -x "$candidate" ]]; then
+    node_bin="$candidate"
+    break
+  fi
+done
+
+if [[ -z "$node_bin" ]] && command -v node >/dev/null 2>&1; then
+  current_version="$(node -p 'process.versions.node' 2>/dev/null || true)"
+  if [[ "$current_version" == "$required_node_version" ]]; then
+    node_bin="$(command -v node)"
+  fi
+fi
+
+if [[ -z "$node_bin" ]]; then
+  echo "Node.js $required_node_version is required. Install it in nvm or activate it before running pnpm." >&2
+  exit 1
+fi
+
+corepack_bin="$(dirname "$node_bin")/corepack"
+if [[ ! -x "$corepack_bin" ]]; then
+  echo "corepack was not found next to $node_bin." >&2
+  exit 1
+fi
+
+export PATH="$(dirname "$node_bin"):$PATH"
+exec "$node_bin" "$corepack_bin" pnpm "$@"

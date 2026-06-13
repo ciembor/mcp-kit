@@ -3,6 +3,7 @@ import type { McpApp } from '@mcp-kit/core'
 export { runStreamableHttp } from './http-node.js'
 export { createInMemoryEventStore } from './event-store.js'
 export { createInMemorySessionStore } from './session-store.js'
+export { createJwtBearerVerifier } from './oauth-jwt.js'
 export type {
   DeploymentMode,
   ManagedSession,
@@ -15,6 +16,10 @@ export type {
   StreamableHttpOptions,
   StreamableHttpRuntime
 } from './http-contracts.js'
+export type {
+  JwtBearerVerifierOptions,
+  JwtSigningAlgorithm
+} from './oauth-jwt.js'
 import { createStderrLogger } from './stderr-logger.js'
 
 export const packageInfo = {
