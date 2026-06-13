@@ -21,6 +21,8 @@ await runStreamableHttp(createApp, {
 
 `trustedProxies` should name only infrastructure you control. Do not accept forwarded host or protocol headers from direct clients.
 
+`allowedHosts` entries match exactly. `mcp.example.com` does not accept `mcp.example.com:8443`; write the port explicitly, or use `mcp.example.com:*` if any port is intentional.
+
 ## Bearer Tokens
 
 `@mcp-kit/node` can validate JWT access tokens for a protected MCP resource.

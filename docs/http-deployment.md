@@ -38,6 +38,8 @@ await runStreamableHttp(createApp, {
 
 Only trusted proxies can affect the public URL through `Forwarded` or `X-Forwarded-*`. Requests from normal clients get their host and protocol from the direct request, not from spoofed headers.
 
+`allowedHosts` matches exactly. Use `mcp.example.com:443` when the public port matters, or `mcp.example.com:*` only when you intentionally accept that host on any port.
+
 Use `/healthz` for liveness probes and `/readyz` for readiness probes unless you override those paths.
 
 ## Fastify

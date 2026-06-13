@@ -57,10 +57,13 @@ describe('normalizeStreamableHttpOptions', () => {
     expect(normalized.allowedHosts).toEqual([
       '127.0.0.1',
       '127.0.0.1:3000',
+      '127.0.0.1:*',
       'localhost',
       'localhost:3000',
+      'localhost:*',
       '[::1]',
-      '[::1]:3000'
+      '[::1]:3000',
+      '[::1]:*'
     ])
     expect(Object.isFrozen(normalized.allowedHosts)).toBe(true)
     expect(Object.isFrozen(normalized.allowedOrigins)).toBe(true)
@@ -219,11 +222,11 @@ describe('normalizeStreamableHttpOptions', () => {
 })
 
 describe('validateHostHeader', () => {
-  it('accepts exact, case-insensitive and hostname-only matches', () => {
+  it('accepts exact, case-insensitive and explicit any-port matches', () => {
     expect(
       validateHostHeader(
         new Request('http://runtime.test', {
-          headers: { host: 'LOCALHOST:3000' }
+          headers: { host: 'LOCALHOST' }
         }),
         ['localhost']
       )
@@ -232,9 +235,18 @@ describe('validateHostHeader', () => {
     expect(
       validateHostHeader(
         new Request('http://runtime.test', {
+          headers: { host: 'LOCALHOST:3000' }
+        }),
+        ['localhost:*']
+      )
+    ).toBeUndefined()
+
+    expect(
+      validateHostHeader(
+        new Request('http://runtime.test', {
           headers: { host: '[::1]:3000' }
         }),
-        ['[::1]']
+        ['[::1]:*']
       )
     ).toBeUndefined()
 
@@ -248,7 +260,7 @@ describe('validateHostHeader', () => {
     ).toBeUndefined()
   })
 
-  it('rejects missing and disallowed host headers', () => {
+  it('rejects missing, disallowed and implicit any-port host headers', () => {
     const missing = {
       headers: {
         get(name: string) {
@@ -268,6 +280,15 @@ describe('validateHostHeader', () => {
         ['localhost']
       )
     ).toBe('Host "evil.example" is not allowed.')
+
+    expect(
+      validateHostHeader(
+        new Request('http://runtime.test', {
+          headers: { host: 'LOCALHOST:3000' }
+        }),
+        ['localhost']
+      )
+    ).toBe('Host "LOCALHOST:3000" is not allowed.')
   })
 })
 

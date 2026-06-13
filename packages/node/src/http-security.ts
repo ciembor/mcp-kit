@@ -23,15 +23,8 @@ export function validateHostHeader(
   if (hostHeader === null) return 'Missing Host header.'
 
   const normalized = normalizeHostValue(hostHeader)
-  const hostname = hostNameOnly(normalized)
   if (
-    allowedHosts.some((allowedHost) => {
-      const normalizedAllowed = normalizeHostValue(allowedHost)
-      return (
-        normalizedAllowed === normalized ||
-        hostNameOnly(normalizedAllowed) === hostname
-      )
-    })
+    allowedHosts.some((allowedHost) => hostMatches(normalized, allowedHost))
   ) {
     return undefined
   }
@@ -255,10 +248,13 @@ function defaultAllowedHosts(host: string, port: number): readonly string[] {
     return freeze([
       '127.0.0.1',
       `127.0.0.1:${port}`,
+      '127.0.0.1:*',
       'localhost',
       `localhost:${port}`,
+      'localhost:*',
       '[::1]',
-      `[::1]:${port}`
+      `[::1]:${port}`,
+      '[::1]:*'
     ])
   }
   return freeze([host])
@@ -269,6 +265,14 @@ function normalizeHostValue(host: string): string {
   const separator = host.lastIndexOf(':')
   if (separator === -1) return host.toLowerCase()
   return `${host.slice(0, separator).toLowerCase()}${host.slice(separator)}`
+}
+
+function hostMatches(host: string, allowedHost: string): boolean {
+  const normalizedAllowed = normalizeHostValue(allowedHost)
+  if (normalizedAllowed.endsWith(':*')) {
+    return hostNameOnly(host) === hostNameOnly(normalizedAllowed.slice(0, -2))
+  }
+  return normalizedAllowed === host
 }
 
 function hostNameOnly(host: string): string {
