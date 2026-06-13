@@ -1,7 +1,10 @@
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { resolve } from 'node:path'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { requestContext } from './app/context.js'
 import {
@@ -21,7 +24,20 @@ import {
   trackProtocolVersion
 } from './runtime.js'
 import { unknownInputPaths } from './runtime/input-validation.js'
-import { unavailableToolIo } from './runtime/tool-io.js'
+import {
+  unavailableToolIo,
+  validateToolInputPolicies
+} from './runtime/tool-io.js'
+
+const temporaryDirectories: string[] = []
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { recursive: true, force: true }))
+  )
+})
 
 describe('runtime helpers', () => {
   it('builds timeout and cancellation errors', () => {
@@ -552,6 +568,64 @@ describe('runtime helpers', () => {
     )
   })
 
+  it('rejects path traversal, symlink escape and private-network SSRF targets', async () => {
+    const workspace = await mkdtemp(resolve(tmpdir(), 'mcp-kit-runtime-'))
+    temporaryDirectories.push(workspace)
+    const root = resolve(workspace, 'root')
+    const external = resolve(workspace, 'external')
+    await mkdir(root)
+    await mkdir(external)
+    await writeFile(resolve(external, 'secret.txt'), 'secret')
+    await symlink(external, resolve(root, 'linked'))
+
+    const tool = defineTool({
+      name: 'security-guards',
+      inputSchema: z.object({ filePath: z.string() }),
+      outputSchema: z.object({ ok: z.boolean() }),
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      policy: {
+        effects: 'read',
+        filesystem: { roots: [root] },
+        outboundHttp: { allowHosts: ['api.example.com'] },
+        input: {
+          fields: {
+            filePath: {
+              kind: 'filesystemPath',
+              roots: [root]
+            }
+          }
+        }
+      },
+      handler: async ({ context }) => {
+        expect(
+          await safeMessageAsync(() =>
+            context.io.files.resolvePath(resolve(root, 'linked/secret.txt'))
+          )
+        ).toBe('Filesystem access is outside the configured roots.')
+        expect(
+          safeMessage(() => context.io.http.assertAllowed('https://[::1]/admin'))
+        ).toBe('Requests to private network targets are not allowed.')
+        return {
+          content: [],
+          structuredContent: { ok: true }
+        }
+      }
+    })
+
+    await expect(
+      validateToolInputPolicies(tool, { filePath: '../secret.txt' }, makeContext())
+    ).rejects.toMatchObject({
+      safeMessage: 'Input "filePath" must not contain parent traversal segments.'
+    })
+
+    await expect(
+      runToolPipeline(tool, { filePath: 'safe.txt' }, makeContext(), [])
+    ).resolves.toEqual({
+      content: [],
+      structuredContent: { ok: true }
+    })
+  })
+
   it('maps authInfo into auth context and checks capability scopes', async () => {
     const context = requestContext(
       {
@@ -867,6 +941,16 @@ function makeContext(
 function safeMessage(action: () => unknown): string {
   try {
     action()
+  } catch (error) {
+    if (error instanceof McpKitError) return error.safeMessage
+    throw error
+  }
+  throw new Error('Expected McpKitError')
+}
+
+async function safeMessageAsync(action: () => Promise<unknown>): Promise<string> {
+  try {
+    await action()
   } catch (error) {
     if (error instanceof McpKitError) return error.safeMessage
     throw error
