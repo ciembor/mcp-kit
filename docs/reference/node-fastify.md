@@ -1,47 +1,31 @@
 # `@mcp-kit/node/fastify`
 
-Fastify adapter for teams that already own the HTTP server lifecycle and only
-want to mount the MCP Streamable HTTP runtime into that process.
+Use this subpath when your process already has a Fastify server and MCP should be mounted as another route group.
 
-## Main Entrypoint
+## `registerFastifyStreamableHttp(fastify, createApp, options?)`
 
-### `registerFastifyStreamableHttp(fastify, createApp, options?)`
+```ts
+import { registerFastifyStreamableHttp } from '@mcp-kit/node/fastify'
 
-Registers MCP routes on an existing Fastify instance.
+const runtime = await registerFastifyStreamableHttp(fastify, createApp, {
+  mode: 'production',
+  path: '/mcp',
+  auth: { verifyBearerToken }
+})
+```
 
-Use this when:
+Fastify owns `listen()` and global shutdown. The MCP runtime owns MCP routes, sessions, auth checks, proxy handling, and drain behavior.
 
-- another subsystem already owns `fastify.listen()`
-- the MCP server must share process lifecycle with other HTTP routes
-- you want `mcp-kit` security, auth, and resumability behavior without using
-  `runStreamableHttp()`
+## Return Value
 
-The function returns `Promise<FastifyStreamableHttpRuntime>`.
+| Field     | Use                                                      |
+| --------- | -------------------------------------------------------- |
+| `options` | Normalized `StreamableHttpOptions`.                      |
+| `drain()` | Stop accepting new MCP work and wait for in-flight work. |
+| `close()` | Close the mounted MCP runtime.                           |
 
-## Returned Runtime
+## Fastify Contract
 
-### `FastifyStreamableHttpRuntime`
+The adapter needs a Fastify-like object with `route(definition)` and `addHook('onClose', handler)`. That keeps the package lightly coupled while still matching normal Fastify usage.
 
-- `options`: normalized `StreamableHttpOptions`
-- `drain()`: stop accepting new MCP work and wait for in-flight work
-- `close()`: close the MCP runtime mounted inside Fastify
-
-## Fastify Boundary Type
-
-### `FastifyInstanceLike`
-
-Minimal adapter contract required by `registerFastifyStreamableHttp()`:
-
-- `route(definition)`: register MCP GET/POST/DELETE handlers
-- `addHook('onClose', handler)`: attach cleanup
-
-This keeps the package loosely coupled to Fastify while still documenting the
-shape the adapter expects.
-
-## Relationship To `runStreamableHttp()`
-
-- `runStreamableHttp()` owns the Node HTTP server and port binding.
-- `registerFastifyStreamableHttp()` only mounts routes into an existing
-  Fastify process.
-- Both paths share the same auth, control endpoints, proxy rules, and session
-  behavior because they are backed by the same HTTP runtime internals.
+Use [`runStreamableHttp()`](./node.md) instead when MCP should own the HTTP server and port.

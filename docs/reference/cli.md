@@ -1,94 +1,41 @@
 # `@mcp-kit/cli`
 
-Workspace-facing CLI library for generation, diagnostics, analysis, quality,
-and release preparation.
+`@mcp-kit/cli` powers the `mcp-kit` command and exposes a small programmatic API for tools that need the same project checks.
 
-## Package Exports
+## Commands
 
-- `runCli()`
-- `analyzeProject()`
-- `defineQualityConfig()`
-- `loadQualityConfig()`
-- `resolveQualityConfig()`
-- `runQuality()`
-- `executeCommand()`
-- `packageInfo`
-- `exitCodes`
+| Command           | Use                                                           |
+| ----------------- | ------------------------------------------------------------- |
+| `mcp-kit new`     | Create a new project from the official template.              |
+| `mcp-kit init`    | Add or refresh managed project files.                         |
+| `mcp-kit add`     | Generate a tool, prompt, or resource and update the registry. |
+| `mcp-kit doctor`  | Inspect project shape and report diagnostics.                 |
+| `mcp-kit quality` | Run quality checks using the project quality config.          |
+| `mcp-kit release` | Run the release gate before publishing packages.              |
 
-## Main Runtime Entrypoint
+Day to day, prefer the scripts generated in your project. Use the CLI package directly when another Node process needs to run the same checks.
 
-### `runCli(args, io?)`
+## Exports
 
-Executes the CLI programmatically and returns a structured result instead of
-exiting the process directly.
+| Export                   | Use                                                                  |
+| ------------------------ | -------------------------------------------------------------------- |
+| `runCli(args, io?)`      | Run the CLI in-process and receive a `CliResult` instead of exiting. |
+| `analyzeProject()`       | Reuse the project analysis behind `doctor` and `quality`.            |
+| `defineQualityConfig()`  | Type a project `quality.config.*` file.                              |
+| `loadQualityConfig()`    | Load config from disk.                                               |
+| `resolveQualityConfig()` | Merge defaults, presets, and project config.                         |
+| `runQuality()`           | Run the quality pipeline from Node code.                             |
+| `executeCommand()`       | Low-level process runner used by quality steps.                      |
+| `packageInfo`            | Published package name and version.                                  |
+| `exitCodes`              | Stable exit-code values used by the CLI.                             |
 
-Use this when another Node process should embed the CLI without shelling out.
-All command parsing, diagnostics, and formatted output stay inside the package.
+## Main Types
 
-## Analysis API
+| Area               | Types                                                                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CLI                | `CliIo`, `CliResult`, `ExitCode`, `DoctorDiagnostic`                                                                                                                         |
+| Project generation | `FileOperation`, `FileOperationKind`, `FilePlan`, `PackageManager`, `ProjectLanguage`, `TransportPreset`, `AgentPreset`                                                      |
+| Quality            | `QualityConfig`, `ResolvedQualityConfig`, `QualityMode`, `QualityPreset`, `QualityReport`, `QualityStepResult`, `CoverageThresholds`, `CoverageExclusion`, `QualityExecutor` |
+| JSON               | `JsonObject`, `JsonValue`                                                                                                                                                    |
 
-- `analyzeProject()`
-- `ProjectAnalysis`
-- `ProjectDiagnostic`
-
-Use this surface when another tool needs the same project-structure and rule
-analysis that powers `doctor` and `quality`.
-
-## Quality API
-
-- `defineQualityConfig()`
-- `loadQualityConfig()`
-- `resolveQualityConfig()`
-- `runQuality()`
-- `executeCommand()`
-
-Main config and report types:
-
-- `QualityConfig`
-- `ResolvedQualityConfig`
-- `QualityMode`
-- `QualityPreset`
-- `QualityReport`
-- `QualityStepResult`
-- `CoverageThresholds`
-- `CoverageExclusion`
-- `QualityExecutor`
-
-`executeCommand()` is the lowest-level process runner used by the quality
-pipeline. Prefer `runQuality()` unless you are extending the quality engine
-itself.
-
-## CLI Support Contracts
-
-- `packageInfo`
-- `exitCodes`
-- `CliIo`
-- `CliResult`
-- `ExitCode`
-- `DoctorDiagnostic`
-- `FileOperation`
-- `FileOperationKind`
-- `FilePlan`
-- `JsonObject`
-- `JsonValue`
-- `PackageManager`
-- `ProjectLanguage`
-- `TransportPreset`
-- `AgentPreset`
-
-`exitCodes` defines the stable process contract used by the CLI binary and
-`runCli()` callers.
-
-## Command Overview
-
-The main user-facing commands are:
-
-- `mcp-kit new`
-- `mcp-kit init`
-- `mcp-kit add`
-- `mcp-kit doctor`
-- `mcp-kit quality`
-- `mcp-kit release`
-
-Use the generated project-local scripts for day-to-day work, and keep the CLI
-package as the authoritative source of workspace generation and quality policy.
+Use `runQuality()` before reaching for `executeCommand()`. The lower-level runner is mainly useful when extending the quality engine itself.

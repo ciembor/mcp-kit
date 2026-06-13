@@ -1,152 +1,104 @@
 # `@mcp-kit/node`
 
-Node.js runtime package for stdio, Streamable HTTP, resumability, and OAuth
-resource-server behavior.
+`@mcp-kit/node` runs an `@mcp-kit/core` app on Node.js. It supports stdio, Streamable HTTP, Fastify mounting, OAuth resource-server helpers, stateful sessions, and event replay.
 
-## Package Exports
+## Entrypoints
 
-- `runStdio()`
-- `runStreamableHttp()`
-- `createJwtBearerVerifier()`
-- `exchangeDownstreamAccessToken()`
-- `createInMemoryEventStore()`
-- `createInMemorySessionStore()`
-- `createStderrLogger()`
-- `packageInfo`
+| Export                                               | Use                                                       |
+| ---------------------------------------------------- | --------------------------------------------------------- |
+| `runStdio(app)`                                      | Connect an app to the MCP stdio transport.                |
+| `runStreamableHttp(createApp, options?)`             | Start a Streamable HTTP server.                           |
+| `createJwtBearerVerifier(options)`                   | Build a bearer-token verifier for HTTP auth.              |
+| `exchangeDownstreamAccessToken(port, auth, request)` | Exchange the current auth context for a downstream token. |
+| `createInMemoryEventStore()`                         | Event replay store for tests and local development.       |
+| `createInMemorySessionStore()`                       | Session store for tests and local development.            |
+| `createStderrLogger()`                               | Default process-safe logger.                              |
+| `packageInfo`                                        | Published package name and version.                       |
 
-## Server Entrypoints
+## Stdio
 
-### `runStdio(app)`
+```ts
+import { runStdio } from '@mcp-kit/node'
+import { app } from './app.js'
 
-Connects an `McpApp` to the MCP stdio transport and installs signal-aware
-shutdown handling.
+const runtime = await runStdio(app)
+```
 
-Returns `StdioRuntime`:
+`runStdio()` installs signal-aware shutdown handling and returns `StdioRuntime` with `close()`.
 
-- `close()`: close the app and remove process signal handlers
+## Streamable HTTP
 
-### `runStreamableHttp(createApp, options?)`
+```ts
+import { runStreamableHttp } from '@mcp-kit/node'
+import { createApp } from './app.js'
 
-Creates and starts a production-oriented HTTP runtime around
-`WebStandardStreamableHTTPServerTransport`.
+const runtime = await runStreamableHttp(createApp, {
+  mode: 'production',
+  host: '0.0.0.0',
+  path: '/mcp',
+  auth: { verifyBearerToken }
+})
+```
 
-Returns `StreamableHttpRuntime`:
+`runStreamableHttp()` returns `StreamableHttpRuntime` with:
 
-- `url`: bound runtime URL
-- `options`: normalized runtime options
-- `drain()`: stop admitting new work and drain active sessions
-- `close()`: drain and fully close the runtime
+| Field     | Use                                               |
+| --------- | ------------------------------------------------- |
+| `url`     | Bound runtime URL.                                |
+| `options` | Normalized runtime options.                       |
+| `drain()` | Stop accepting new work and wait for active work. |
+| `close()` | Drain and close the runtime.                      |
 
-`createApp` is a factory, not an app instance. The HTTP layer owns app
-construction so it can create isolated sessions and runtime state when needed.
+Pass an app factory as `createApp`. The HTTP runtime decides when it needs a fresh app instance.
 
-## HTTP Runtime Types
+## HTTP Options
 
-### `StreamableHttpOptions`
+| Option                                               | Use                                                        |
+| ---------------------------------------------------- | ---------------------------------------------------------- |
+| `mode`                                               | `development` or `production`.                             |
+| `host`, `port`, `path`                               | Bind address and MCP path.                                 |
+| `healthPath`, `readinessPath`                        | Probe paths.                                               |
+| `sessionMode`, `sessionStore`                        | Stateful session support.                                  |
+| `eventStore`, `retryIntervalMs`                      | Stream replay and reconnect hints.                         |
+| `auth`                                               | Bearer-token verification and protected resource metadata. |
+| `trustedProxies`                                     | Proxy addresses allowed to set forwarded headers.          |
+| `allowedHosts`, `allowedOrigins`, `cors`             | Host and browser-origin restrictions.                      |
+| `maxBodyBytes`, `requestTimeoutMs`, `maxConcurrency` | Request limits.                                            |
 
-Main fields:
+Use external `SessionStore` and `StreamableHttpEventStore` implementations in production when state must survive a restart.
 
-- `mode?`: `development` or `production`
-- `host?`, `port?`, `path?`
-- `healthPath?`, `readinessPath?`
-- `sessionMode?`: `stateless` or `stateful`
-- `sessionStore?`
-- `eventStore?`
-- `retryIntervalMs?`
-- `auth?`
-- `trustedProxies?`
-- `allowedHosts?`
-- `allowedOrigins?`
-- `cors?`
-- `maxBodyBytes?`
-- `requestTimeoutMs?`
-- `maxConcurrency?`
+## Auth
 
-### `StreamableHttpAuthOptions`
+`StreamableHttpAuthOptions` accepts `verifyBearerToken(token, request)`, optional `allowAnonymous`, optional `challenge`, and optional protected-resource `metadata`.
 
-Auth integration boundary:
+`verifyBearerToken()` must return an `AuthContext`. The runtime checks the HTTP boundary; your verifier maps tokens to subjects, tenants, scopes, and consent.
 
-- `verifyBearerToken(token, request)`: caller-owned token verification
-- `allowAnonymous?`
-- `challenge?`
-- `metadata?`: protected resource metadata fields exposed through
-  `/.well-known/oauth-protected-resource/*`
+## JWT Verifier
 
-`verifyBearerToken()` must return an `AuthContext`. The runtime validates the
-HTTP boundary, but your verifier owns identity mapping and token policy.
+```ts
+import { createJwtBearerVerifier } from '@mcp-kit/node'
 
-### Stateful and resumability contracts
+const verifyBearerToken = createJwtBearerVerifier({
+  issuer: 'https://auth.example',
+  audience: 'https://mcp.example/mcp',
+  discoveryUrl: 'https://auth.example/.well-known/openid-configuration'
+})
+```
 
-- `SessionStore`
-- `ManagedSession`
-- `StreamableHttpEventStore`
-- `McpAppFactory`
+Supported options include `issuer`, `audience`, `jwksUri`, `discoveryUrl`, `algorithms`, `clockSkewSeconds`, `subjectClaim`, `clientIdClaim`, `tenantIdClaim`, `scopesClaim`, `availableScopesClaim`, `resource`, `jwksCacheTtlMs`, and `consent`.
 
-Use external implementations for production if sessions or replay must survive
-process restarts.
+The verifier checks RSA JWT signatures through JWKS, issuer, audience, expiry, `nbf`, and configured scope claims.
 
-## Built-In OAuth Helpers
+## Downstream Token Exchange
 
-### `createJwtBearerVerifier(options)`
+`exchangeDownstreamAccessToken(port, auth, request)` fills `clientId`, `subject`, and `resource` from the current auth context when the request does not provide them.
 
-Creates a `verifyBearerToken` callback compatible with `StreamableHttpAuthOptions`.
+Related types are `OAuthConsentPort`, `OAuthConsentRecord`, `OAuthTokenExchangePort`, `OAuthTokenExchangeRequest`, and `OAuthTokenExchangeResult`.
 
-Supported behavior:
+Use this helper when a tool needs a downstream credential. It avoids passing the caller's bearer token through your app by accident.
 
-- RSA JWT signature validation via JWKS
-- issuer, audience, expiry, and `nbf` checks
-- OIDC discovery or explicit `jwksUri`
-- scope extraction from `scope` / `scp` or caller-specified claims
-- optional consent loading through a caller-owned port
-- available-scope and consent projection into `AuthContext.authorization`
+## Fastify
 
-Main option fields:
+The package publishes [`@mcp-kit/node/fastify`](./node-fastify.md) for mounting the same HTTP runtime inside an existing Fastify process.
 
-- `issuer`
-- `audience`
-- `jwksUri?`
-- `discoveryUrl?`
-- `algorithms?`
-- `clockSkewSeconds?`
-- `subjectClaim?`
-- `clientIdClaim?`
-- `tenantIdClaim?`
-- `scopesClaim?`
-- `availableScopesClaim?`
-- `resource?`
-- `jwksCacheTtlMs?`
-- `consent?`
-
-### `exchangeDownstreamAccessToken(port, auth, request)`
-
-Token-exchange helper that fills `clientId`, `subject`, and `resource` from
-the current auth context when the caller does not provide them explicitly.
-
-Related types:
-
-- `OAuthConsentPort`
-- `OAuthConsentRecord`
-- `OAuthTokenExchangePort`
-- `OAuthTokenExchangeRequest`
-- `OAuthTokenExchangeResult`
-
-Use this helper instead of forwarding the caller token downstream. That keeps
-resource-server boundaries explicit and prevents token passthrough by default.
-
-## Utility Exports
-
-- `createInMemoryEventStore()`: in-memory event replay store for tests and
-  development
-- `createInMemorySessionStore()`: in-memory session store for tests and
-  development
-- `createStderrLogger()`: default process-safe logger used by Node runtimes
-
-## Published Subpath
-
-The package also publishes [`@mcp-kit/node/fastify`](./node-fastify) for
-mounting the MCP runtime inside an existing Fastify process.
-
-See also:
-
-- [HTTP deployment guide](../http-deployment)
-- [Security guide](../security-guide)
+Deployment guidance lives in [HTTP Deployment](../http-deployment.md). Auth and policy guidance lives in [Security](../security-guide.md).

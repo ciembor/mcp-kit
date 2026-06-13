@@ -1,67 +1,37 @@
 # `@mcp-kit/testing`
 
-Testing helpers for contracts, in-memory app exercise, and stdio integration.
+`@mcp-kit/testing` helps tests talk to your app like an MCP client.
 
-## Package Exports
+## Exports
 
-- `createMcpTestClient()`
-- `createInMemoryMcpTestClient()`
-- `connectStdioTestClient()`
-- `assertPromptContracts()`
-- `assertRegistryContracts()`
-- `assertResourceContracts()`
-- `assertToolContracts()`
-- `packageInfo`
+| Export                          | Use                                                                    |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| `createMcpTestClient()`         | Connect an `McpApp` to an SDK client through in-memory transports.     |
+| `createInMemoryMcpTestClient()` | Alias for `createMcpTestClient()` when the name reads better in tests. |
+| `connectStdioTestClient()`      | Start a real stdio client against a spawned server process.            |
+| `assertPromptContracts()`       | Check prompt definitions.                                              |
+| `assertRegistryContracts()`     | Check a registry.                                                      |
+| `assertResourceContracts()`     | Check resource definitions.                                            |
+| `assertToolContracts()`         | Check tool definitions.                                                |
+| `packageInfo`                   | Published package name and version.                                    |
 
-## In-Memory Client Helpers
+## In-Memory Client
 
-### `createMcpTestClient(app, options?)`
+```ts
+import { createMcpTestClient } from '@mcp-kit/testing'
+import { app } from '../src/app.js'
 
-Connects an `McpApp` to an MCP SDK client through linked in-memory transports.
+const testClient = await createMcpTestClient(app)
+```
 
-Returns `McpTestClient`:
+The returned object contains `client` and `close()`. Use this for fast behavior tests where the transport itself is not the subject.
 
-- `client`: connected SDK client instance
-- `close()`: close the client connection
+## Stdio Client
 
-`options` supports:
+`connectStdioTestClient(server, clientInfo?)` starts a real stdio transport against a child process. The return value includes `client`, `transport`, `stderr()`, `protocolVersion()`, and `close()`.
 
-- `clientInfo?`
-- `clientOptions?`
-
-### `createInMemoryMcpTestClient(app, options?)`
-
-Alias for `createMcpTestClient()` kept for clarity at call sites.
-
-## Stdio Client Helper
-
-### `connectStdioTestClient(server, clientInfo?)`
-
-Starts a real stdio client transport against a spawned server process.
-
-Returns `StdioTestClient`:
-
-- `client`: connected SDK client
-- `transport`: stdio transport instance
-- `stderr()`: buffered stderr output from the server process
-- `protocolVersion()`: last negotiated MCP protocol revision
-- `close()`: close the client transport
-
-Use this helper for black-box tests that should exercise the real stdio
-transport, process startup, and protocol negotiation.
+Use it when the test should cover process startup, stdio wiring, stderr output, or protocol negotiation.
 
 ## Contract Assertions
 
-- `assertPromptContracts()`
-- `assertRegistryContracts()`
-- `assertResourceContracts()`
-- `assertToolContracts()`
-
-Use these to verify shape and semantic expectations of your exported
-capabilities in tests without rebuilding the assertions yourself.
-
-## Metadata And Types
-
-- `packageInfo`
-- `McpTestClient`
-- `StdioTestClient`
+Contract assertions are useful next to exported registries. They catch broken names, schemas, metadata, and handler contracts without forcing tests to know private implementation details.

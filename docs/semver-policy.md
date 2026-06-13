@@ -1,57 +1,15 @@
-# Semver Policy
+# Semver
 
-`mcp-kit` uses semantic versioning for every package published from this repo.
+`mcp-kit` uses semantic versioning for published packages.
 
-## Public API boundary
+Public API includes package root exports, documented subpaths, CLI commands and flags, generated project contracts, and documented runtime behavior.
 
-The following are semver-governed public surface:
+Internal files under `src/**`, undocumented generated details, test-only internals, and implementation comments are not public API.
 
-- root exports from each published package
-- documented CLI commands, flags, JSON output, and exit-code behavior
-- generated project structure and managed file contracts
-- documented runtime behavior that callers are expected to depend on
+| Release | Use it for                                                                                                                                  |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Patch   | Bug fixes, documentation fixes, stricter rejection of already-invalid input, and internal refactors with no caller-visible behavior change. |
+| Minor   | New exports, new optional CLI flags, and new capabilities that existing users do not opt into automatically.                                |
+| Major   | Removed or renamed exports, incompatible generated files, changed runtime defaults, or incompatible CLI output and exit behavior.           |
 
-The following are not public API:
-
-- deep imports into package internals
-- undocumented generated file details
-- test-only helpers not exported from package roots
-- internal diagnostics or implementation-only comments
-
-## Versioning rules
-
-### Patch
-
-Use a patch release for:
-
-- bug fixes that preserve public contracts
-- stricter validation of already-invalid input
-- internal refactors with no caller-visible behavior change
-- documentation-only fixes
-
-### Minor
-
-Use a minor release for:
-
-- new backward-compatible exports
-- new CLI flags that do not change existing behavior
-- optional new capabilities behind explicit opt-in
-
-### Major
-
-Use a major release for:
-
-- removing or renaming public exports
-- changing documented runtime defaults in a caller-visible way
-- changing generated file contracts incompatibly
-- changing CLI behavior or JSON output incompatibly
-
-## Required process for breaking changes
-
-Every major or otherwise breaking change must include:
-
-- an entry in [docs/migration-guide.md](./migration-guide.md)
-- changelog notes that describe impact at the user level
-- verification that release smoke tests still pass for supported packages
-
-Breaking changes must not be introduced through undocumented internal drift.
+Breaking changes need changelog notes and migration notes that explain the user impact and the validation command to run after upgrading.

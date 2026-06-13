@@ -10,10 +10,10 @@ export default defineConfig({
   themeConfig: {
     siteTitle: 'mcp-kit',
     nav: [
-      { text: 'Guide', link: '/index' },
+      { text: 'Start', link: '/index' },
       { text: 'Tutorial', link: '/tutorial' },
-      { text: 'Reference', link: '/reference/' },
-      { text: 'Architecture', link: '/architecture/runtime-ecosystem' }
+      { text: 'Deploy', link: '/http-deployment' },
+      { text: 'Reference', link: '/reference/' }
     ],
     sidebar: [
       {
@@ -21,19 +21,16 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/index' },
           { text: 'Tutorial', link: '/tutorial' },
-          { text: 'Compatibility', link: '/compatibility' },
-          { text: 'Migration Guide', link: '/migration-guide' }
+          { text: 'Compatibility', link: '/compatibility' }
         ]
       },
       {
         text: 'Guides',
         items: [
-          { text: 'Security Guide', link: '/security-guide' },
           { text: 'HTTP Deployment', link: '/http-deployment' },
-          { text: 'Release', link: '/release' },
-          { text: 'Mutation Testing', link: '/mutation-testing' },
-          { text: 'SDK Update Policy', link: '/sdk-update-policy' },
-          { text: 'Semver Policy', link: '/semver-policy' }
+          { text: 'Security', link: '/security-guide' },
+          { text: 'Testing', link: '/mutation-testing' },
+          { text: 'Migration Notes', link: '/migration-guide' }
         ]
       },
       {
@@ -49,18 +46,21 @@ export default defineConfig({
         ]
       },
       {
-        text: 'Architecture',
+        text: 'Maintainers',
         items: [
+          { text: 'Release', link: '/release' },
+          { text: 'Semver', link: '/semver-policy' },
+          { text: 'SDK Updates', link: '/sdk-update-policy' },
           {
-            text: 'Bounded Context',
+            text: 'Server Scope',
             link: '/architecture/bounded-context'
           },
           {
-            text: 'Package Boundaries',
+            text: 'Package Notes',
             link: '/architecture/package-boundaries'
           },
           {
-            text: 'Runtime Ecosystem',
+            text: 'Runtime Notes',
             link: '/architecture/runtime-ecosystem'
           },
           {

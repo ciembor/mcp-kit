@@ -1,69 +1,28 @@
 # `create-mcp-kit`
 
-Programmatic and `npm create` entrypoint for scaffolding official `mcp-kit`
-projects.
+`create-mcp-kit` is the package behind:
 
-## Package Exports
+```sh
+corepack pnpm create mcp-kit my-server
+```
 
-- `runCreateMcpKit()`
-- `createMcpKitProject()`
-- `findTemplateDirectory()`
-- `toPackageName()`
-- `errorMessage()`
-- `packageInfo`
+Most users only need the command. Use the programmatic API when another tool has to scaffold the same project template.
 
-## Main Entrypoints
+## Exports
 
-### `runCreateMcpKit(args?)`
+| Export                                       | Use                                                                             |
+| -------------------------------------------- | ------------------------------------------------------------------------------- |
+| `runCreateMcpKit(args?)`                     | Run the `npm create mcp-kit` entrypoint and return a numeric status.            |
+| `createMcpKitProject(projectPath, options?)` | Copy the official template into a target directory and replace template tokens. |
+| `findTemplateDirectory()`                    | Locate the bundled template.                                                    |
+| `toPackageName()`                            | Convert a directory or user value into a valid package name.                    |
+| `errorMessage()`                             | Convert unknown thrown values into CLI-safe text.                               |
+| `packageInfo`                                | Published package name and version.                                             |
 
-Runs the `npm create mcp-kit` entrypoint.
+## `createMcpKitProject(projectPath, options?)`
 
-Behavior:
+The target directory must be missing or empty. The generated package name is normalized from the directory unless you pass another value through the template options.
 
-- expects a project directory argument
-- writes status and failures to stderr
-- returns numeric process status instead of exiting directly
-
-### `createMcpKitProject(projectPath, options?)`
-
-Copies the official template into a target directory, restores bundled test
-filenames, and replaces template tokens.
-
-`CreateMcpKitOptions`:
-
-- `cwd?`
-- `corePackage?`
-- `nodePackage?`
-- `cliPackage?`
-- `testingPackage?`
-- `templateDirectory?`
+`CreateMcpKitOptions` supports `cwd`, package version overrides, and `templateDirectory` for tests or custom scaffolding.
 
 The function returns the absolute target path.
-
-## Utility Exports
-
-### `findTemplateDirectory()`
-
-Resolves the bundled template from a list of candidate locations.
-
-### `toPackageName()`
-
-Normalizes generated package names from a directory or user-supplied value.
-
-### `errorMessage()`
-
-Converts unknown thrown values into stable error text for CLI surfaces.
-
-### `packageInfo`
-
-Published package metadata with stable `name` and `version` fields.
-
-## What The Generator Guarantees
-
-- target path must stay inside the requested root
-- target directory must be empty or missing
-- the official template is the source of truth unless a custom template
-  directory is passed explicitly
-- generated package names are normalized through `toPackageName()`
-
-Start with the end-user flow in the [tutorial](../tutorial).

@@ -1,65 +1,15 @@
-# Package Boundary Evaluation
+# Package Notes
 
-## `@mcp-kit/security`
+Use the existing packages before creating another one.
 
-Decision: do not extract `@mcp-kit/security` yet.
+| Package                 | Boundary                                                                               |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| `@mcp-kit/core`         | Application-facing MCP definitions, policy contracts, request context, and async jobs. |
+| `@mcp-kit/node`         | Node stdio and HTTP runtime behavior.                                                  |
+| `@mcp-kit/node/fastify` | Fastify mounting for the Node HTTP runtime.                                            |
+| `@mcp-kit/cli`          | Project generation, project checks, quality, and release commands.                     |
+| `@mcp-kit/testing`      | Test clients and contract assertions.                                                  |
 
-Reasoning:
+Do not add a package only to move code into a new name. A new package should hide a real difference in runtime, ownership, dependency weight, or public API.
 
-- Current security policy is inseparable from the Node HTTP adapter:
-  trusted proxies, host/origin validation, session behavior, auth decisions,
-  and audit flow depend on transport and deployment context.
-- Extracting now would move names, not knowledge. Callers would still need to
-  understand Node transport semantics, which means the new package would be
-  shallow.
-
-Revisit when:
-
-- security policy is reused by more than one outer adapter
-- ports are stable enough that transport packages consume them instead of
-  re-defining them
-
-## `@mcp-kit/quality`
-
-Decision: do not extract `@mcp-kit/quality` yet.
-
-Reasoning:
-
-- Quality rules are intentionally coupled to the official generator output and
-  the single feature-first architecture. They are product policy, not a generic
-  standalone library.
-- A package split would force version choreography across CLI, templates, and
-  tests without giving users a simpler API.
-
-Revisit when:
-
-- quality rules are consumed independently of the CLI
-- templates and quality policy need different release cadence
-
-## `@mcp-kit/architecture`
-
-Decision: do not extract `@mcp-kit/architecture` yet.
-
-Reasoning:
-
-- Architecture analysis is one of the CLI's main use cases. Its current value
-  comes from being wired directly into generation, doctor, and quality flows.
-- Splitting now would expose unstable intermediate analysis shapes and create a
-  second public boundary before the rules have settled.
-
-Revisit when:
-
-- architecture checks need to be embedded by third-party tooling
-- rule data structures and diagnostics are stable enough to document as public
-  contracts
-
-## Summary
-
-Keep the current package boundaries:
-
-- `@mcp-kit/core` for transport-independent MCP behavior
-- `@mcp-kit/node` for production HTTP and stdio runtime details
-- `@mcp-kit/cli` for generation, architecture analysis, and quality policy
-- `@mcp-kit/testing` for test harnesses and contract assertions
-
-No extraction is justified until it hides more complexity than it adds.
+The project does not currently ship separate `@mcp-kit/security`, `@mcp-kit/quality`, or `@mcp-kit/architecture` packages. Security behavior is part of the Node runtime, and quality and architecture checks are part of the CLI because they are tied to the generated project shape.

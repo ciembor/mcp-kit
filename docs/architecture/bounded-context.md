@@ -1,9 +1,7 @@
-# One bounded context per MCP server
+# Server Scope
 
-The deployment unit is a small MCP server owned by one bounded context, such
-as billing, CRM, source control, or internal documentation.
+An MCP server should usually belong to one product area or bounded context: billing, CRM, source control, internal docs, or another domain your team can name clearly.
 
-Tools, resources, prompts, authorization rules, and release ownership should
-form one coherent domain boundary. Unrelated domains must not be collected in
-a single super-server. Cross-domain integration uses an explicit API, event,
-or application port rather than a shared database contract.
+Keep tools, prompts, resources, authorization rules, and release ownership together. If two areas have different owners, data models, or release pressure, make them separate servers and connect them through normal APIs or events.
+
+This keeps a server small enough that users can understand what it can do before they connect it to a client.

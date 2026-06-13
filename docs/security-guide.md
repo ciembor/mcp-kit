@@ -1,86 +1,29 @@
-# Security Guide
+# Security
 
-`mcp-kit` treats security as part of the runtime contract, not an optional
-afterthought.
+This page covers the security decisions you make when an MCP server stops being a local prototype.
 
-## Core principles
+## HTTP Defaults
 
-- keep business logic transport-independent
-- keep deployment-sensitive validation in the outer runtime
-- prefer stateless production defaults
-- require explicit opt-in for risky behavior
+Development servers bind to `127.0.0.1`. A public bind such as `0.0.0.0` requires `mode: 'production'` and an explicit auth configuration.
 
-## HTTP deployment defaults
+For production HTTP, start with:
 
-For `@mcp-kit/node` Streamable HTTP:
-
-- development binds to `127.0.0.1`
-- public production bind requires explicit deployment mode
-- public production bind requires an explicit auth decision
-- trusted proxy handling is opt-in, not inferred
-
-See [http-deployment.md](./http-deployment.md) for the deployment shape.
-
-## Session and scaling policy
-
-- stateless mode is the default production path
-- stateful mode is explicit and should use an external `SessionStore`
-- every request must be authorized independently of session reuse
-- sticky sessions must not be a correctness requirement
-
-## Tool and capability policy
-
-Application code should use policy and context contracts instead of raw
-transport assumptions:
-
-- `ToolPolicy` for effects, scopes, rate limits, timeouts, and concurrency
-- `RequestContext.auth` for subject and tenant-aware decisions
-- `RequestContext.client.*` helpers for capability-aware client interactions
-
-## Client-side capability safety
-
-Capability helpers in `RequestContext.client` intentionally reject unsupported
-flows with stable errors instead of leaking raw SDK exceptions:
-
-- `client.roots`
-- `client.sampling`
-- `client.elicitation`
-
-Form elicitation additionally blocks secret-like fields such as passwords,
-tokens, private keys, and similar credentials. Sensitive collection should use
-URL elicitation or another explicit secure flow.
-
-## Release-time expectations
-
-Before publishing or deploying:
-
-```sh
-corepack pnpm quality:fast
-corepack pnpm quality:full
+```ts
+await runStreamableHttp(createApp, {
+  mode: 'production',
+  host: '0.0.0.0',
+  trustedProxies: ['10.0.0.10'],
+  allowedHosts: ['mcp.example.com'],
+  allowedOrigins: ['https://app.example.com'],
+  auth: { verifyBearerToken }
+})
 ```
 
-For package release preparation:
+`trustedProxies` should name only infrastructure you control. Do not accept forwarded host or protocol headers from direct clients.
 
-```sh
-npx mcp-kit release
-```
+## Bearer Tokens
 
-## Security boundaries that remain caller-owned
-
-`mcp-kit` does not replace:
-
-- your OAuth or authorization server
-- downstream secret storage
-- tenant policy specific to your domain
-- audit retention and compliance requirements
-
-Those details must stay in outer adapters and application-owned ports.
-
-## External authorization server integration
-
-`@mcp-kit/node` can validate OAuth access tokens as a protected resource without
-embedding authorization-server policy into your MCP app. Keep your auth server
-outside, and wire token verification into `auth.verifyBearerToken`:
+`@mcp-kit/node` can validate JWT access tokens for a protected MCP resource.
 
 ```ts
 import { createJwtBearerVerifier, runStreamableHttp } from '@mcp-kit/node'
@@ -105,39 +48,59 @@ await runStreamableHttp(createApp, {
 })
 ```
 
-The verifier checks signature, `iss`, `aud`, and `exp`, and will reject tokens
-that are not yet active via `nbf`. Scope mapping stays explicit through JWT
-claims such as `scope` or `scp`.
+The verifier checks signature, issuer, audience, expiry, and `nbf`. It can read scopes from `scope`, `scp`, or a configured claim. It returns an auth context for handlers; it does not pass the raw bearer token into application code.
 
-For protected capabilities:
+## Capability Policy
 
-- `requiredScopes` expresses the minimum scope set
-- `stepUpScopes` expresses additional scopes that should fail with a step-up
-  style denial instead of a generic forbidden error
-- `requiredConsentScopes` checks consent tied to `subject`, `clientId`, and
-  scopes when the verifier is configured with a consent port
-
-Raw bearer tokens are not passed through to `RequestContext.auth`, so inner
-layers see authorization state, not transport credentials.
-
-For downstream credentials or token exchange, keep the concrete implementation
-outside your use cases and expose it via an outer-layer port:
+Put MCP-facing policy on the capability definition. Keep domain permission rules in your application code.
 
 ```ts
-import {
-  createJwtBearerVerifier,
-  exchangeDownstreamAccessToken
-} from '@mcp-kit/node'
-
-const verifyBearerToken = createJwtBearerVerifier({
-  issuer: 'https://auth.example',
-  audience: 'https://mcp.example/mcp',
-  jwksUri: 'https://auth.example/jwks',
-  consent: {
-    getConsent: ({ subject, clientId, scopes }) =>
-      consentStore.find(subject, clientId, scopes)
-  }
+export const deleteUserTool = defineTool({
+  name: 'delete-user',
+  inputSchema,
+  outputSchema,
+  policy: {
+    effects: 'write',
+    requiredScopes: ['users.write'],
+    destructive: {
+      requireConfirmation: true
+    }
+  },
+  handler
 })
+```
+
+Use `requiredScopes` for normal scope checks. Use `stepUpScopes` when a tool should fail with a step-up style denial. Use `requiredConsentScopes` when the verifier is configured with a consent store.
+
+## Files And Outbound HTTP
+
+Tools that touch files or make network calls should use `context.io`, not raw filesystem or fetch calls. That gives the runtime one place to enforce roots, host allowlists, private-network blocking, and result-size limits.
+
+```ts
+const path = await context.io.files.resolvePath(input.path)
+context.io.http.assertAllowed(input.url)
+```
+
+If a tool uses outbound HTTP policy, give it an `outputSchema`. The result should be shaped before it crosses the MCP boundary.
+
+## Client Capabilities
+
+`RequestContext.client` wraps optional MCP client capabilities:
+
+| Helper               | Use                                                   |
+| -------------------- | ----------------------------------------------------- |
+| `client.roots`       | Read client-provided roots.                           |
+| `client.sampling`    | Ask the client model to create a message.             |
+| `client.elicitation` | Ask the user for additional input through the client. |
+
+Unsupported flows fail with `McpKitError`, so handlers can handle a known error shape. Form elicitation blocks secret-like fields such as passwords, tokens, and private keys. Use a secure URL flow for credential collection.
+
+## Downstream Services
+
+Do not forward the caller's bearer token to downstream systems by default. If a tool needs a downstream token, keep the exchange code in an outer adapter and call it through a port.
+
+```ts
+import { exchangeDownstreamAccessToken } from '@mcp-kit/node'
 
 const downstream = await exchangeDownstreamAccessToken(
   tokenExchangePort,
@@ -145,3 +108,5 @@ const downstream = await exchangeDownstreamAccessToken(
   { scopes: ['calendar:write'] }
 )
 ```
+
+Your application still owns tenant policy, audit retention, secret storage, and authorization-server configuration. `mcp-kit` gives you the runtime hooks; it does not replace those systems.

@@ -1,60 +1,8 @@
 # `@mcp-kit/core`
 
-Transport-independent core APIs for assembling MCP servers.
-
-## Package Exports
-
-- `createMcpApp()`
-- `defineTool()`
-- `defineResource()`
-- `definePrompt()`
-- `defineRegistry()`
-- `completable()`
-- `getCompleter()`
-- `isCompletable()`
-- `unwrapCompletable()`
-- `McpKitError`
-- `packageInfo`
-- `silentLogger`
-- `timeoutAbortError()`
-- `trackProtocolVersion()`
-- `createAsyncJobOperation()`
+`@mcp-kit/core` is the application API. Use it to assemble an MCP app, define capabilities, describe runtime policy, and handle long-running jobs. It does not start stdio or HTTP; runtimes live in outer packages.
 
 ## App Assembly
-
-### `createMcpApp(options)`
-
-Builds an MCP application without binding it to stdio or HTTP.
-
-`McpAppOptions<Services>`:
-
-- `name`: server name reported to MCP clients
-- `version`: server version reported to MCP clients
-- `services`: dependency container injected into handlers through
-  `RequestContext.services`
-- `logger?`: optional logger override
-- `instructions?`: optional MCP server instructions
-- `middleware?`: custom tool middleware appended after built-in policy,
-  audit, concurrency, timeout, and rate-limit middleware
-
-## Main Runtime Object
-
-### `McpApp<Services>`
-
-Public methods and properties:
-
-- `sdk`: underlying MCP SDK server instance
-- `connected`: whether the app is currently connected to a transport
-- `tools(definitions)`: register tool definitions
-- `resources(definitions)`: register resource definitions
-- `prompts(definitions)`: register prompt definitions
-- `connect(transport)`: bind to an SDK transport
-- `close()`: release the transport and registered lifecycle state
-- `setLogger(logger)`: replace the logger before connection
-- `notifyResourceListChanged()`: emit MCP list-change notifications
-- `notifyResourceUpdated(uri)`: emit MCP resource update notifications
-
-Typical usage:
 
 ```ts
 import { createMcpApp, defineRegistry } from '@mcp-kit/core'
@@ -62,206 +10,126 @@ import { createMcpApp, defineRegistry } from '@mcp-kit/core'
 const app = createMcpApp({
   name: 'example',
   version: '1.0.0',
-  services: {}
+  services
 })
 
-app.tools(defineRegistry([]))
-app.resources(defineRegistry([]))
-app.prompts(defineRegistry([]))
+app.tools(defineRegistry([tool]))
+app.resources(defineRegistry([resource]))
+app.prompts(defineRegistry([prompt]))
 ```
 
-## Capability Definition Helpers
+| Export                  | Use                                                      |
+| ----------------------- | -------------------------------------------------------- |
+| `createMcpApp(options)` | Build an app without binding it to a transport.          |
+| `defineRegistry(items)` | Register public tools, resources, or prompts explicitly. |
+| `packageInfo`           | Published package name and version.                      |
 
-### `defineTool(options)`
+`McpAppOptions` includes `name`, `version`, `services`, optional `logger`, optional `instructions`, and optional tool `middleware`.
 
-Defines a tool with:
+`McpApp` exposes `sdk`, `connected`, `tools()`, `resources()`, `prompts()`, `connect()`, `close()`, `setLogger()`, `notifyResourceListChanged()`, and `notifyResourceUpdated(uri)`.
 
-- `name`
-- `inputSchema`
-- optional `outputSchema`
-- optional `annotations`
-- optional `policy`
-- `handler({ input, context })`
+## Capabilities
 
-### `defineResource(options)`
+| Export                    | Use                                                         |
+| ------------------------- | ----------------------------------------------------------- |
+| `defineTool(options)`     | Define a tool with schemas, policy, and a handler.          |
+| `defineResource(options)` | Define a static or templated resource.                      |
+| `definePrompt(options)`   | Define a prompt with argument schema, policy, and renderer. |
 
-Defines either:
+Tool handlers receive `{ input, context }` and return MCP content plus optional structured output. Prompt renderers receive `{ input, context }`. Resource handlers use either a static URI or a URI template.
 
-- a static resource via `uri`
-- a templated resource via `uriTemplate`
+Keep MCP definitions near the feature that owns the behavior. Keep registration at the composition root.
 
-Resource definitions can add:
+## Request Context
 
-- `policy`
-- `subscriptions`
-- template parameter completion through `complete`
-- template listing through `list`
+`RequestContext` is what handlers use at runtime.
 
-### `definePrompt(options)`
+| Field                        | Use                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `requestId`, `correlationId` | Request tracing.                                                         |
+| `signal`                     | Cancellation and timeout handling.                                       |
+| `services`                   | Application dependencies injected at app creation.                       |
+| `logger`                     | Transport-independent logging.                                           |
+| `auth`                       | Authenticated subject, tenant, scopes, and consent state when available. |
+| `progress`                   | Progress reporting for clients that support it.                          |
+| `sdk`                        | Escape hatch for advanced SDK access.                                    |
 
-Defines a prompt with:
+`RequestContext.client` wraps optional client capabilities:
 
-- `name`
-- `argsSchema`
-- optional `policy`
-- `render({ input, context })`
+| Helper      | Method                                                              |
+| ----------- | ------------------------------------------------------------------- |
+| Roots       | `roots.list()`                                                      |
+| Sampling    | `sampling.createMessage(params)`                                    |
+| Elicitation | `elicitation.create(params)`, `elicitation.complete(elicitationId)` |
 
-### `defineRegistry(items)`
+`RequestContext.io` wraps guarded tool I/O:
 
-Builds an explicit readonly registry from tools, prompts, or resources. Use it
-at the composition root instead of implicit auto-discovery.
+| Helper                 | Method                                          |
+| ---------------------- | ----------------------------------------------- |
+| Files                  | `files.resolvePath(candidate)`, `files.roots()` |
+| HTTP                   | `http.assertAllowed(url)`                       |
+| Results                | `results.paginate({ items, limit, cursor })`    |
+| Destructive operations | `destructive.assertConfirmation(input)`         |
 
-## Completable Helpers
+## Policy
 
-The package re-exports SDK completable helpers so templated resources can
-expose parameter completion without another direct SDK dependency:
+`ToolPolicy` and `CapabilityPolicy` describe checks the runtime can enforce around a capability.
 
-- `completable()`
-- `getCompleter()`
-- `isCompletable()`
-- `unwrapCompletable()`
-- `CompleteCallback`
-- `CompletableSchema`
+| Field                   | Use                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| `requiredScopes`        | Minimum scopes needed to run.                                                              |
+| `stepUpScopes`          | Stronger scopes that should return a step-up denial.                                       |
+| `requiredConsentScopes` | Consent scopes tied to subject and client.                                                 |
+| `input`                 | Per-field validation for strings, numbers, collections, URLs, hosts, and filesystem paths. |
+| `filesystem`            | File roots for `context.io.files`.                                                         |
+| `outboundHttp`          | Host allowlist and SSRF guard for `context.io.http`.                                       |
+| `output`                | Result size and pagination limits.                                                         |
+| `destructive`           | Confirmation rules for destructive writes.                                                 |
+| `authorize(context)`    | Custom authorization hook.                                                                 |
+| `rateLimit`             | Subject and tenant aware rate limits.                                                      |
+| `timeoutMs`             | Tool timeout.                                                                              |
+| `concurrency`           | Per-tool in-flight limit.                                                                  |
+| `audit`                 | Force audit logging.                                                                       |
 
-## Main Types
+`outboundHttp` requires an `outputSchema`. That keeps downstream responses shaped before they leave the tool.
 
-### Request and app contracts
+Auth-related types include `AuthContext`, `AuthorizationDetails`, `AuthorizationConsent`, and `AuthorizationStepUp`.
 
-- `McpApp`
-- `McpAppOptions`
-- `RequestContext`
-- `ToolDefinition`
-- `ToolOptions`
-- `PromptDefinition`
-- `ResourceDefinition`
-- `StaticResourceDefinition`
-- `TemplateResourceDefinition`
-- `AnyResourceDefinition`
-- `ResourceMetadata`
-- `RegistryItem`
-- `Schema`
-- `InferSchemaOutput`
-- `ToolHandlerArgs`
-- `Logger`
-- `ProgressReporter`
-- `ServerRequestContext`
-- `ClientRoots`
-- `ClientSampling`
-- `ClientElicitation`
+## Errors And Utilities
 
-### Policy contracts
+| Export                                       | Use                                                                 |
+| -------------------------------------------- | ------------------------------------------------------------------- |
+| `McpKitError`                                | Application error with `code`, `safeMessage`, and internal `cause`. |
+| `silentLogger`                               | No-op logger.                                                       |
+| `timeoutAbortError(signal, timeoutSignal)`   | Build the timeout error used by middleware.                         |
+| `trackProtocolVersion(transport, onVersion)` | Track negotiated MCP protocol version around a transport.           |
+| `ToolMiddleware`, `ToolMiddlewareArgs`       | Extend cross-cutting tool behavior.                                 |
 
-`ToolPolicy` and `CapabilityPolicy` are the main authorization boundary.
+Middleware wraps tool execution. It does not wrap prompt or resource handlers.
 
-Supported fields:
+## Completion Helpers
 
-- `requiredScopes?`: minimum scopes required to proceed
-- `stepUpScopes?`: stronger scopes that should fail with a step-up style denial
-- `requiredConsentScopes?`: scopes that must be present in consent metadata
-- `input?`: per-field input validation for string, number, collection, URL, host,
-  and filesystem path arguments
-- `filesystem?`: file-root policy for `context.io.files`
-- `outboundHttp?`: outbound host allowlist and SSRF guard for `context.io.http`
-- `output?`: result-size and pagination policy for `context.io.results`
-- `destructive?`: explicit confirmation policy for destructive writes
-- `authorize?(context)`: custom authorization hook
-- `rateLimit?`: per-tool subject and tenant aware rate limiting
-- `timeoutMs?`: execution timeout
-- `concurrency?`: max in-flight calls per tool
-- `audit?`: force audit logging
+`completable()`, `getCompleter()`, `isCompletable()`, and `unwrapCompletable()` are re-exported from the MCP SDK so resources and prompts can support completion without importing the SDK directly.
 
-`outboundHttp` requires `outputSchema`. The intent is to force a shaped,
-validated response contract instead of passing raw downstream payloads through
-the tool boundary.
-
-### Auth contracts
-
-- `AuthContext`
-- `AuthorizationDetails`
-- `AuthorizationConsent`
-- `AuthorizationStepUp`
-
-`AuthContext` intentionally carries authorization state, not transport
-credentials. Raw bearer tokens are not propagated to inner layers.
-
-## Class And Utility Exports
-
-### `McpKitError`
-
-Stable application error with:
-
-- `code`
-- `safeMessage`
-- internal `cause`
-
-Use this when you want outer layers to distinguish safe client-facing failures
-from internal exceptions.
-
-### Runtime utilities
-
-- `silentLogger`: no-op logger implementation
-- `timeoutAbortError(signal, timeoutSignal)`: helper used by timeout middleware
-- `trackProtocolVersion(transport, onVersion)`: outer transport wrapper for MCP
-  protocol negotiation tracking
-- `ToolMiddleware`
-- `ToolMiddlewareArgs`
-
-`ToolMiddleware` is the extension boundary for cross-cutting tool behavior.
-Middleware runs around tool execution, not around prompt or resource handlers.
+Related types are `CompleteCallback` and `CompletableSchema`.
 
 ## Async Jobs
 
-`createAsyncJobOperation(options)` builds a transport-independent long-running
-job workflow around explicit external ports:
+`createAsyncJobOperation(options)` builds a start/status/result/cancel workflow for long-running work.
 
-- `JobStore`: persisted job state and worker leasing
-- `JobQueue`: wake-up signaling for workers
+It uses a `JobStore` for persisted state and worker leases, and a `JobQueue` for waking workers. The returned operation exposes `start(input)`, `status(jobId)`, `result(jobId)`, `cancel(jobId)`, `worker(workerId).runNext()`, `worker(workerId).runUntilIdle()`, `worker(workerId).waitForWork(signal)`, and `toTask(job, adapter)`.
 
-The helper exposes:
+Jobs include `pollAfterMs` and `expiresAt` so clients know when to poll and when old results may disappear.
 
-- `start(input)`
-- `status(jobId)`
-- `result(jobId)`
-- `cancel(jobId)`
-- `worker(workerId).runNext()`
-- `worker(workerId).runUntilIdle()`
-- `worker(workerId).waitForWork(signal)`
-- `toTask(job, adapter)`
+## Main Types
 
-Jobs carry built-in polling hints and TTL metadata through `pollAfterMs` and
-`expiresAt`, while `toTask()` projects the stable job model into an adapter for
-future MCP Tasks integration without coupling core policy to experimental APIs.
+| Area           | Types                                                                                                                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| App            | `McpApp`, `McpAppOptions`, `RequestContext`, `ServerRequestContext`                                                                                                                              |
+| Capabilities   | `ToolDefinition`, `ToolOptions`, `PromptDefinition`, `ResourceDefinition`, `StaticResourceDefinition`, `TemplateResourceDefinition`, `AnyResourceDefinition`, `ResourceMetadata`, `RegistryItem` |
+| Schemas        | `Schema`, `InferSchemaOutput`                                                                                                                                                                    |
+| Handlers       | `ToolHandlerArgs`, `ProgressReporter`                                                                                                                                                            |
+| Client helpers | `ClientRoots`, `ClientSampling`, `ClientElicitation`                                                                                                                                             |
+| Logging        | `Logger`                                                                                                                                                                                         |
 
-## `RequestContext` Methods And Fields
-
-`RequestContext.client` hides SDK capability checks and exposes:
-
-- `roots.list()`
-- `sampling.createMessage(params)`
-- `elicitation.create(params)`
-- `elicitation.complete(elicitationId)`
-
-`RequestContext.io` exposes tool-scoped I/O guards:
-
-- `files.resolvePath(candidate)`: verifies access stays inside configured
-  filesystem roots, including client-provided roots when enabled
-- `files.roots()`: returns the effective file roots for the current tool
-- `http.assertAllowed(url)`: enforces outbound HTTPS/host allowlists and blocks
-  private-network SSRF targets unless explicitly allowed
-- `results.paginate({ items, limit, cursor })`: clamps pagination to the
-  tool's configured page-size policy
-- `destructive.assertConfirmation(input)`: checks explicit confirmation fields
-  for destructive tools
-
-Other important `RequestContext` fields:
-
-- `requestId`
-- `correlationId`
-- `signal`
-- `services`
-- `logger`
-- `auth`
-- `progress`
-- `sdk`
-
-See [API core overview](../api-core) for the conceptual API walkthrough.
+See [Core API](../api-core.md) for a shorter walkthrough.

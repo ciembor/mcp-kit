@@ -1,52 +1,34 @@
-# Release and Rollback
+# Release
 
-## Standard release path
+This page is for maintainers publishing `mcp-kit` packages.
 
-1. Work only from `main`. `mcp-kit release --publish` now refuses any other branch.
-2. Bump the root version and every published workspace package version together. Do not publish with the placeholder `0.0.0`.
-3. Update `CHANGELOG.md` for the target version.
-4. Run the prepare gate locally:
+## Prepare
+
+Work from `main`. Update the root version, every published workspace package version, and `CHANGELOG.md` together.
+
+Run the local release check before publishing:
 
 ```sh
 pnpm --filter @mcp-kit/cli build
 pnpm exec mcp-kit release
 ```
 
-This runs the full `quality --release` pipeline, including package build, `npm pack`, isolated installation, import/type/CLI smoke tests, and stdio/HTTP tarball smoke checks.
+The release check builds packages, runs the release quality pipeline, packs packages, installs them in isolation, and runs import, type, CLI, stdio, and HTTP smoke checks.
 
-5. Publish through the official CI path:
+## Publish
+
+Publish through GitHub Actions:
 
 ```txt
 GitHub Actions -> Release workflow -> Run workflow
 ```
 
-The workflow:
+The workflow runs `pnpm exec mcp-kit release --publish` and publishes with npm provenance through GitHub OIDC trusted publishing. Each published package on npm must trust the repository's `release.yml` workflow.
 
-- installs dependencies with pnpm
-- builds the CLI entrypoint
-- runs `pnpm exec mcp-kit release --publish`
-- publishes with npm provenance through GitHub OIDC trusted publishing
+Do not publish with the placeholder version `0.0.0`.
 
-6. Verify the published versions on npm and confirm the generated provenance attestation is present.
+## Roll Back
 
-## Trusted publisher setup
+If publishing failed before anything reached npm, fix the issue and rerun the workflow from `main`.
 
-Configure each published package on npmjs.com to trust the GitHub Actions workflow file `release.yml` in this repository. The workflow already requests `id-token: write`; no long-lived `NPM_TOKEN` should be required for normal publishing.
-
-## Rollback
-
-If the workflow fails before any package is published:
-
-- fix the failing step
-- rerun the workflow from `main`
-- keep the version only if nothing reached the registry
-
-If a broken version is already published:
-
-- prefer `npm deprecate <package>@<version> "reason and replacement version"` over unpublishing
-- revert or fix the bad change on `main`
-- bump to a new version
-- update `CHANGELOG.md`
-- publish the replacement through the same release workflow
-
-Only unpublish when the npm unpublish policy allows it. npm treats published versions as immutable: a `name@version` can never be reused, even after unpublish.
+If a broken version is already on npm, deprecate it, fix or revert the change, bump to a new version, update the changelog, and publish again. npm package versions are immutable, so do not plan on reusing a version.

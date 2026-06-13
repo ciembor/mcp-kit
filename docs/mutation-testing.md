@@ -1,22 +1,29 @@
-# Mutation Testing
+# Testing
 
-`mcp-kit quality --mutation` runs the full quality pipeline first and only then starts `stryker run`.
+Run normal tests first:
 
-Default policy:
+```sh
+npm test
+npm run quality:fast
+```
 
-- mutation remains opt-in
-- the default break threshold is `80%`
-- text and HTML mutation reports are enabled by default
+Use mutation testing after the normal suite is already useful. It is slower, but it finds tests that execute code without checking the behavior that matters.
 
-Recommended policy for mature projects:
+```sh
+npx mcp-kit quality --mutation
+```
 
-- raise the break threshold to `90%`
-- keep exclusions narrow and explain every exclusion next to the config entry
-- keep release mutation disabled unless the project explicitly sets `runInRelease: true`
+The default mutation break threshold is `80%`. Text and HTML reports are written by Stryker.
 
-The repository-level baseline lives in [stryker.config.json](../stryker.config.json).
+## When To Use Mutation Testing
 
-Projects that need extra exclusions should prefer `quality.config.*`:
+Mutation testing is worth running on code that carries real behavior: validation, authorization, state changes, money, persisted data, public API output, and error handling.
+
+It is usually not worth chasing every mutation in logs, generated code, tiny DTOs, or glue code that has no observable behavior.
+
+## Configuration
+
+Project-specific mutation settings belong in `quality.config.*`.
 
 ```ts
 import { defineQualityConfig } from '@mcp-kit/cli'
@@ -28,16 +35,16 @@ export default defineQualityConfig({
     exclude: [
       {
         pattern: 'src/generated/**',
-        reason: 'generated code is not an owned behavior surface'
+        reason: 'generated code is checked by the generator tests'
       }
     ]
   }
 })
 ```
 
-Each exclusion must include a reason.
+Every exclusion needs a reason. Keep exclusions narrow enough that a future reader can tell why the behavior is not owned by the project.
 
-To enforce mutation in release:
+For mature projects, raise the threshold only after the current report is understandable.
 
 ```ts
 import { defineQualityConfig } from '@mcp-kit/cli'
@@ -51,3 +58,5 @@ export default defineQualityConfig({
   }
 })
 ```
+
+The repository baseline is [stryker.config.json](../stryker.config.json).

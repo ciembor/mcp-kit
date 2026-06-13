@@ -7,6 +7,8 @@ coverage/
 *.tsbuildinfo
 .pnpm-store/
 .stryker-tmp/
+stryker-setup-*.js
 .turbo/
 docs/.vitepress/.temp/
 docs/.vitepress/dist/
+docs/.vitepress/cache/

@@ -1,23 +1,16 @@
-# ADR 0001: Stateless-first Streamable HTTP
+# ADR 0001: Stateless-First Streamable HTTP
 
-- Status: accepted
-- Date: 2026-06-09
+`@mcp-kit/node` defaults to stateless Streamable HTTP for production.
 
-## Context
+Stateful sessions are still supported, but they are an explicit choice and need a `SessionStore` outside the process. This avoids making sticky sessions or local memory part of the correctness model.
 
-Production MCP servers need horizontal scaling, predictable recovery, and no
-dependency on sticky sessions or process-local state.
+The result for users is straightforward:
 
-## Decision
+| Need                               | Use                                                        |
+| ---------------------------------- | ---------------------------------------------------------- |
+| Normal production HTTP             | `sessionMode: 'stateless'` or the default.                 |
+| Session continuity across requests | `sessionMode: 'stateful'` with an external `SessionStore`. |
+| Event replay after reconnect       | `eventStore` with durable storage.                         |
+| Local tests and demos              | In-memory stores from `@mcp-kit/node`.                     |
 
-Remote production servers use Streamable HTTP and are stateless by default.
-STDIO remains the local development transport. Stateful mode is explicit and
-stores session and job state behind external ports. Process memory is never
-the production source of truth.
-
-## Consequences
-
-- Workers can be replaced or scaled independently.
-- Multi-worker tests must route related requests to different workers.
-- Redis, PostgreSQL, and queue products are adapters, not core dependencies.
-- `Mcp-Session-Id` is correlation state, never authentication.
+The runtime still validates auth on every request. Reusing a session never replaces authorization.

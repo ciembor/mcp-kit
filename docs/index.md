@@ -3,48 +3,42 @@ layout: home
 
 hero:
   name: 'mcp-kit'
-  text: 'Framework and tooling for reliable MCP servers'
-  tagline: 'Transport-independent app assembly, production HTTP runtime, generator, quality gates, and test harnesses in one workspace.'
+  text: 'Build MCP servers in TypeScript'
+  tagline: 'Scaffold a server, define tools and resources, run it over stdio or Streamable HTTP, and test the public MCP behavior.'
   actions:
     - theme: brand
-      text: Start With The Tutorial
+      text: Start the tutorial
       link: /tutorial
     - theme: alt
-      text: Read The API Reference
+      text: Open the reference
       link: /reference/
 
 features:
-  - title: One architecture
-    details: Generated projects use one official feature-first shape with explicit registry wiring and stable package boundaries.
-  - title: Production-first runtime
-    details: Streamable HTTP defaults, proxy rules, resumability, OAuth resource-server support, and stateful session escape hatches live in the Node layer.
-  - title: Strong quality gates
-    details: Coverage, lint, architecture checks, smoke tests, release checks, and optional mutation testing are part of the product contract.
-  - title: Real testing surface
-    details: In-memory and stdio test clients plus contract assertions let you verify tools, prompts, resources, and transports without inventing your own harness.
+  - title: Project template
+    details: '`create-mcp-kit` creates a small server with a health feature, tests, and local quality commands.'
+  - title: Core app API
+    details: '`@mcp-kit/core` defines tools, resources, prompts, policies, request context, and long-running jobs without choosing a transport.'
+  - title: Node runtime
+    details: '`@mcp-kit/node` runs the app over stdio or Streamable HTTP, with production options for auth, proxies, sessions, and resumability.'
+  - title: Test helpers
+    details: '`@mcp-kit/testing` gives you in-memory and stdio clients so tests exercise the MCP contract instead of private functions.'
 ---
 
-## What This Site Covers
+## Start Here
 
-This VitePress site is the canonical documentation for the whole workspace:
+If you are new to the project, follow the [tutorial](/tutorial). It creates a server, shows where generated code lives, adds a tool, runs tests, and points to the deployment settings you need before exposing HTTP.
 
-- tutorials for creating and extending a server
-- operational guides for HTTP, security, release, and mutation testing
-- architecture notes and ADRs
-- reference pages for every public package export and the main runtime methods
+Use [HTTP Deployment](/http-deployment) when the server will run behind a gateway or reverse proxy. Use [Security](/security-guide) before adding auth, tenant checks, file access, downstream HTTP, or destructive tools.
 
-## Package Map
+The [Reference](/reference/) pages are for exact package exports and runtime options.
 
-- `@mcp-kit/core`: transport-independent app assembly, definitions, policy contracts, and runtime helpers
-- `@mcp-kit/node`: stdio and Streamable HTTP runtime, OAuth resource-server support, session and resumability adapters
-- `@mcp-kit/cli`: generation, doctor, quality, release, and project analysis commands
-- `@mcp-kit/testing`: test clients and contract assertions
-- `create-mcp-kit`: programmatic and `npm create` entrypoint for scaffolding projects
+## Packages
 
-## Suggested Reading Order
-
-1. [Tutorial](/tutorial)
-2. [HTTP Deployment](/http-deployment)
-3. [Security Guide](/security-guide)
-4. [Reference Home](/reference/)
-5. [Architecture Notes](/architecture/runtime-ecosystem)
+| Package                 | Use it for                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| `@mcp-kit/core`         | App assembly, capability definitions, request context, policies, and async jobs.   |
+| `@mcp-kit/node`         | Stdio, Streamable HTTP, OAuth resource-server helpers, sessions, and event replay. |
+| `@mcp-kit/node/fastify` | Mounting the HTTP runtime in an existing Fastify server.                           |
+| `@mcp-kit/cli`          | Project generation, `doctor`, quality checks, and release checks.                  |
+| `@mcp-kit/testing`      | Contract assertions and MCP test clients.                                          |
+| `create-mcp-kit`        | The `npm create mcp-kit` entrypoint.                                               |

@@ -1,100 +1,58 @@
-# `@mcp-kit/core` API Reference
+# Core API
 
-`@mcp-kit/core` defines the transport-independent public contract for building
-MCP servers with `mcp-kit`.
+`@mcp-kit/core` is the part of `mcp-kit` that your application code should know best. It defines the app, capabilities, request context, policy fields, and long-running jobs without choosing stdio, HTTP, Fastify, Redis, or any other deployment detail.
 
-## Public entrypoints
+For the full export list, use [`@mcp-kit/core` reference](./reference/core.md).
 
-### App assembly
+## App
 
-- `createMcpApp(options)`
-- `McpApp`
-- `McpAppOptions`
+```ts
+import { createMcpApp } from '@mcp-kit/core'
 
-Use `createMcpApp()` to assemble tools, resources, and prompts without binding
-to a concrete runtime. Transport wiring belongs in outer packages such as
-`@mcp-kit/node`.
+export const app = createMcpApp({
+  name: 'example',
+  version: '1.0.0',
+  services
+})
+```
 
-### Capability definitions
+`services` is the dependency container passed to handlers through `context.services`. Keep database clients, downstream APIs, and application ports there instead of importing them directly inside MCP definitions.
 
-- `defineTool(options)`
-- `defineResource(options)`
-- `definePrompt(options)`
-- `defineRegistry(items)`
+## Capabilities
 
-These functions define the stable contracts that application code owns.
+```ts
+import { defineRegistry, defineTool } from '@mcp-kit/core'
+import { z } from 'zod'
 
-### Request and policy types
+const pingTool = defineTool({
+  name: 'ping',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ ok: z.boolean() }),
+  handler: async () => ({
+    structuredContent: { ok: true },
+    content: [{ type: 'text', text: 'ok' }]
+  })
+})
 
-- `RequestContext`
-- `ToolDefinition`
-- `ToolOptions`
-- `ToolPolicy`
-- `CapabilityPolicy`
-- `PromptDefinition`
-- `ResourceDefinition`
-- `StaticResourceDefinition`
-- `TemplateResourceDefinition`
-- `AnyResourceDefinition`
-- `RegistryItem`
-- `Schema`
-- `InferSchemaOutput`
+export const tools = defineRegistry([pingTool])
+```
 
-`RequestContext` is the main application boundary. It exposes:
+Use `defineTool()`, `defineResource()`, and `definePrompt()` close to the feature that owns the behavior. Register them once at the app boundary.
 
-- stable request metadata such as `requestId` and `signal`
-- injected `services`
-- a transport-independent logger
-- authenticated subject and tenant context when available
-- client capability helpers for progress, roots, sampling, and elicitation
+## Request Context
 
-### Client capability helpers
+Handlers receive `context`. The most common fields are `services`, `auth`, `logger`, `signal`, `progress`, `client`, and `io`.
 
-`RequestContext.client` exposes the following public helpers:
+Use `context.client` for optional MCP client capabilities such as roots, sampling, and elicitation. Use `context.io` for guarded filesystem, outbound HTTP, pagination, and destructive-operation checks.
 
-- `client.roots`
-- `client.sampling`
-- `client.elicitation`
+## Policy
 
-These helpers intentionally hide SDK capability checks and convert unsupported
-operations into stable `McpKitError` behavior.
+Policies describe what the runtime can enforce before or around handler execution: scopes, consent, input checks, file roots, outbound hosts, output limits, destructive confirmations, timeouts, rate limits, concurrency, and audit.
 
-### Runtime utilities
+Domain rules still belong in the feature. A `ToolPolicy` can reject a missing scope; it should not replace your application's own permission model.
 
-- `silentLogger`
-- `timeoutAbortError()`
-- `trackProtocolVersion()`
-- `ToolMiddleware`
-- `ToolMiddlewareArgs`
+## Long-Running Jobs
 
-These are public because outer runtime packages and advanced callers may need
-to extend middleware or transport behavior without reimplementing the core
-pipeline.
+`createAsyncJobOperation()` gives tools a start/status/result/cancel shape for work that should continue outside a single request.
 
-### Errors and metadata
-
-- `McpKitError`
-- `packageInfo`
-
-`McpKitError` is the stable application error shape for safe messages and
-internal causes.
-
-### Completion helpers
-
-- `completable()`
-- `getCompleter()`
-- `isCompletable()`
-- `unwrapCompletable()`
-- `CompleteCallback`
-- `CompletableSchema`
-
-These are re-exported because completion is part of the public definition
-surface for prompts and resources.
-
-## Stability notes
-
-- Anything exported from `@mcp-kit/core` root is part of the public API.
-- Internal files under `src/app`, `src/definitions`, and `src/runtime` are not
-  public import targets.
-- New capability helpers should be added to `RequestContext.client` only when
-  they reduce caller complexity more than they increase public surface.
+It needs a `JobStore` for persisted state and worker leases, plus a `JobQueue` for waking workers. That keeps job state outside the Node process and lets another worker finish or return a result after a restart.
