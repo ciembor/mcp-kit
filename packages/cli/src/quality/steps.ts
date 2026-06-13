@@ -60,7 +60,7 @@ export function fullSteps(
   if (options.mode === 'release') {
     return [...steps, ...releaseSteps(config)]
   }
-  return [...steps, external('mutation', config.mutation)]
+  return steps
 }
 
 function external(

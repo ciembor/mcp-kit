@@ -143,7 +143,7 @@ describe('quality runner', () => {
     expect(commands).toEqual(['format-fix', 'lint-fix', 'smells'])
   })
 
-  it('runs mutation as the final full quality step when enabled', async () => {
+  it('does not run mutation in full quality mode', async () => {
     const root = await makeProject()
     const commands: string[] = []
     const report = await runQuality({
@@ -160,11 +160,8 @@ describe('quality runner', () => {
     })
 
     expect(report.status).toBe('passed')
-    expect(commands.at(-1)).toBe('mutation')
-    expect(report.steps.at(-1)).toMatchObject({
-      name: 'mutation',
-      status: 'passed'
-    })
+    expect(commands).not.toContain('mutation')
+    expect(report.steps.map((step) => step.name)).not.toContain('mutation')
   })
 
   it('runs release mode through the full quality pipeline', async () => {
@@ -490,7 +487,7 @@ describe('quality runner', () => {
     })
   })
 
-  it('skips mutation by default', async () => {
+  it('does not add a skipped mutation step in full mode', async () => {
     const root = await makeProject()
     const commands: string[] = []
     const report = await runQuality({
@@ -503,10 +500,7 @@ describe('quality runner', () => {
       }
     })
 
-    expect(report.steps.at(-1)).toMatchObject({
-      name: 'mutation',
-      status: 'skipped'
-    })
+    expect(report.steps.map((step) => step.name)).not.toContain('mutation')
     expect(commands).not.toContain('stryker run')
   })
 
