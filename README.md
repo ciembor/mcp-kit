@@ -1,4 +1,4 @@
-# THIS PROJECT IS UNDER DEVELOPMENT, DO NOT USE
+# THIS PROJECT IS UNDER DEVELOPMENT, DO NOT USE YET
 
 <div align="center">
   <img src="mcp-kit-banner.webp" alt="The missing TypeScript/JavaScript framework for reliable MCP servers." />
@@ -22,7 +22,7 @@ servers.
   </p>
 </div>
 
-# THIS PROJECT IS UNDER DEVELOPMENT, DO NOT USE
+# THIS PROJECT IS UNDER DEVELOPMENT, DO NOT USE YET
 
 ## Requirements
 
