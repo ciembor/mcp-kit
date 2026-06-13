@@ -1,3 +1,5 @@
+# THIS PROJECT IS UNDER DEVELOPMENT, DO NOT USE
+
 <div align="center">
   <img src="mcp-kit-banner.webp" alt="The missing TypeScript/JavaScript framework for reliable MCP servers." />
   <h1 align="center">MCP-KIT</h1>
@@ -19,6 +21,8 @@ servers.
     <a href="#mutation-testing">Mutation Testing</a>
   </p>
 </div>
+
+# THIS PROJECT IS UNDER DEVELOPMENT, DO NOT USE
 
 ## Requirements
 
