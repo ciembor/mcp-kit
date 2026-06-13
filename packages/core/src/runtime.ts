@@ -18,8 +18,11 @@ export {
   type RateLimitStore,
   type RuntimePolicyStoreOptions,
   type RuntimePolicyStores,
+  type ToolExecutionEvent,
+  type ToolExecutionOutcome,
   type ToolMiddleware,
   type ToolMiddlewareArgs,
-  type ToolMiddlewarePhases
+  type ToolMiddlewarePhases,
+  type ToolObservability
 } from './runtime/tool-runtime.js'
 export { trackProtocolVersion } from './runtime/transport-runtime.js'

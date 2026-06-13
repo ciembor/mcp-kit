@@ -14,7 +14,8 @@ import type {
   RuntimePolicyStoreOptions,
   RuntimePolicyStores,
   ToolMiddleware,
-  ToolMiddlewarePhases
+  ToolMiddlewarePhases,
+  ToolObservability
 } from '../runtime.js'
 
 export type McpAppOptions<Services> = {
@@ -26,6 +27,7 @@ export type McpAppOptions<Services> = {
   middleware?: readonly ToolMiddleware<Services>[]
   middlewarePhases?: ToolMiddlewarePhases<Services>
   policyStores?: RuntimePolicyStoreOptions
+  observability?: ToolObservability
 }
 
 type ResourceRegistrationCheck<Definitions extends readonly unknown[]> =
@@ -67,6 +69,7 @@ export type AppRuntime<Services> = {
   middleware: readonly ToolMiddleware<Services>[]
   middlewarePhases: ToolMiddlewarePhases<Services>
   policyStores: RuntimePolicyStores
+  observability: ToolObservability | undefined
   connected(): boolean
   logger(): Logger
 }

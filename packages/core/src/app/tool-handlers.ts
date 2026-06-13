@@ -26,7 +26,8 @@ import {
   toolExecutionError,
   type RuntimePolicyStores,
   type ToolMiddleware,
-  type ToolMiddlewarePhases
+  type ToolMiddlewarePhases,
+  type ToolObservability
 } from '../runtime.js'
 import { validateToolInputPolicies } from '../runtime/tool-io.js'
 import { unknownInputPaths } from '../runtime/input-validation.js'
@@ -38,6 +39,7 @@ export function installToolCallHandler<Services>(runtime: {
   middleware: readonly ToolMiddleware<Services>[]
   middlewarePhases: ToolMiddlewarePhases<Services>
   policyStores: RuntimePolicyStores
+  observability: ToolObservability | undefined
   logger(): Logger
 }): void {
   runtime.sdk.server.setRequestHandler(
@@ -53,6 +55,7 @@ async function executeTool<Services>(
     middleware: readonly ToolMiddleware<Services>[]
     middlewarePhases: ToolMiddlewarePhases<Services>
     policyStores: RuntimePolicyStores
+    observability: ToolObservability | undefined
     logger(): Logger
   },
   params: { name: string; arguments?: Record<string, unknown> | undefined },
@@ -84,7 +87,8 @@ async function executeTool<Services>(
     context,
     runtime.middleware,
     runtime.policyStores,
-    runtime.middlewarePhases
+    runtime.middlewarePhases,
+    runtime.observability
   )
   return validateToolOutput(runtime, tool, result, context)
 }

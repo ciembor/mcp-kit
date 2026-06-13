@@ -21,6 +21,27 @@ export type ToolMiddlewarePhases<Services> = {
   afterResult?: readonly ToolMiddleware<Services>[]
 }
 
+export type ToolExecutionOutcome =
+  | 'success'
+  | 'error'
+  | 'denied'
+  | 'rate_limited'
+  | 'timeout'
+  | 'concurrency_limited'
+
+export type ToolExecutionEvent = {
+  tool: string
+  outcome: ToolExecutionOutcome
+  durationMs: number
+  correlationId: string
+  subject?: string
+  tenantId?: string
+}
+
+export type ToolObservability = {
+  recordToolExecution(event: ToolExecutionEvent): void | Promise<void>
+}
+
 export function authorizeScopes(
   context: RequestContext<unknown>,
   requiredScopes: readonly string[],

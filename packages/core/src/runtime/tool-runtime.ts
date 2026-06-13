@@ -17,6 +17,7 @@ import {
   createConcurrencyMiddleware,
   createInMemoryRuntimePolicyStores,
   createDestructiveMiddleware,
+  createObservabilityMiddleware,
   createRateLimitMiddleware,
   createResultLimitMiddleware,
   createTimeoutMiddleware
@@ -33,16 +34,20 @@ export type {
   RuntimePolicyStores
 } from './tool-runtime-policy.js'
 export type {
+  ToolExecutionEvent,
+  ToolExecutionOutcome,
   ToolMiddleware,
   ToolMiddlewareArgs,
-  ToolMiddlewarePhases
+  ToolMiddlewarePhases,
+  ToolObservability
 } from './tool-runtime-shared.js'
 export { timeoutAbortError } from './tool-runtime-shared.js'
 import {
   authorizeConsent,
   authorizeScopes,
   type ToolMiddleware,
-  type ToolMiddlewarePhases
+  type ToolMiddlewarePhases,
+  type ToolObservability
 } from './tool-runtime-shared.js'
 import { bindToolIo } from './tool-io.js'
 import type { RuntimePolicyStores } from './tool-runtime-policy.js'
@@ -62,10 +67,12 @@ export async function runToolPipeline<Services>(
   context: RequestContext<Services>,
   middleware: readonly ToolMiddleware<Services>[],
   policyStores: RuntimePolicyStores = defaultRuntimePolicyStores,
-  middlewarePhases: ToolMiddlewarePhases<Services> = {}
+  middlewarePhases: ToolMiddlewarePhases<Services> = {},
+  observability?: ToolObservability
 ): Promise<CallToolResult> {
   const builtIn = [
     createErrorMappingMiddleware<Services>(),
+    createObservabilityMiddleware<Services>(observability),
     ...(middlewarePhases.onError ?? []),
     ...(middlewarePhases.beforePolicy ?? []),
     createAuditMiddleware<Services>(),

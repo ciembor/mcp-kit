@@ -35,6 +35,7 @@ export function createMcpApp<Services>(
     middleware: options.middleware ?? [],
     middlewarePhases: options.middlewarePhases ?? {},
     policyStores,
+    observability: options.observability,
     connected: () => connected,
     logger: () => logger
   })

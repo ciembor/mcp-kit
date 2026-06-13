@@ -24,7 +24,7 @@ app.prompts(defineRegistry([prompt]))
 | `defineRegistry(items)` | Register public tools, resources, or prompts explicitly. |
 | `packageInfo`           | Published package name and version.                      |
 
-`McpAppOptions` includes `name`, `version`, `services`, optional `logger`, optional `instructions`, optional tool `middleware`, optional `middlewarePhases`, and optional `policyStores`.
+`McpAppOptions` includes `name`, `version`, `services`, optional `logger`, optional `instructions`, optional tool `middleware`, optional `middlewarePhases`, optional `policyStores`, and optional `observability`.
 
 `McpApp` exposes `sdk`, `connected`, `tools()`, `resources()`, `prompts()`, `connect()`, `close()`, `setLogger()`, `notifyResourceListChanged()`, and `notifyResourceUpdated(uri)`.
 
@@ -134,6 +134,26 @@ Use `middlewarePhases` when placement matters:
 
 The older `middleware` option is still supported and behaves like `aroundHandler`.
 
+`observability` receives one event per tool call with `tool`, `outcome`, `durationMs`, `correlationId`, and optional subject or tenant. Use it to connect your metrics backend:
+
+```ts
+createMcpApp({
+  name: 'example',
+  version: '1.0.0',
+  services,
+  observability: {
+    recordToolExecution(event) {
+      metrics.counter(`mcp_tool_${event.outcome}`).add(1, {
+        tool: event.tool
+      })
+      metrics.histogram('mcp_tool_latency_ms').record(event.durationMs, {
+        tool: event.tool
+      })
+    }
+  }
+})
+```
+
 ## Completion Helpers
 
 `completable()`, `getCompleter()`, `isCompletable()`, and `unwrapCompletable()` are re-exported from the MCP SDK so resources and prompts can support completion without importing the SDK directly.
@@ -158,6 +178,7 @@ Jobs include `pollAfterMs` and `expiresAt` so clients know when to poll and when
 | Handlers       | `ToolHandlerArgs`, `ProgressReporter`                                                                                                                                                            |
 | Client helpers | `ClientRoots`, `ClientSampling`, `ClientElicitation`                                                                                                                                             |
 | Logging        | `Logger`                                                                                                                                                                                         |
+| Observability  | `ToolObservability`, `ToolExecutionEvent`, `ToolExecutionOutcome`                                                                                                                                |
 | Policy stores  | `RateLimitStore`, `ConcurrencyStore`, `RuntimePolicyStores`                                                                                                                                      |
 
 See [Core API](../api-core.md) for a shorter walkthrough.

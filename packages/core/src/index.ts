@@ -71,7 +71,10 @@ export {
   type RateLimitStore,
   type RuntimePolicyStoreOptions,
   type RuntimePolicyStores,
+  type ToolExecutionEvent,
+  type ToolExecutionOutcome,
   type ToolMiddleware,
   type ToolMiddlewareArgs,
-  type ToolMiddlewarePhases
+  type ToolMiddlewarePhases,
+  type ToolObservability
 } from './runtime.js'

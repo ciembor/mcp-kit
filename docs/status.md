@@ -8,7 +8,7 @@ Use this page to separate what exists from what is planned.
 
 The repository currently includes:
 
-- `@mcp-kit/core` for app assembly, tools, resources, prompts, policy checks, request context, guarded tool I/O, and async job workflows.
+- `@mcp-kit/core` for app assembly, tools, resources, prompts, policy checks, request context, guarded tool I/O, observability hooks, and async job workflows.
 - `@mcp-kit/node` for stdio, Streamable HTTP, Fastify mounting, bearer-token auth helpers, session storage ports, event replay ports, proxy handling, and HTTP safety defaults.
 - `@mcp-kit/testing` for contract-level tests against MCP clients.
 - `@mcp-kit/cli` and `create-mcp-kit` for project generation, adding capabilities, `doctor`, quality checks, and release checks.
@@ -31,7 +31,7 @@ Production-oriented APIs exist, but they need more real deployments before they 
 
 Native MCP Tasks integration is intentionally behind an adapter shape until the upstream API is stable.
 
-Observability is not yet a first-class API. Use the logger and correlation ids for now.
+Observability has a first-class tool execution hook. It is intentionally backend-neutral; applications still provide the OpenTelemetry, Prometheus, or custom adapter.
 
 Idempotency helpers for write tools are not implemented yet.
 

@@ -23,6 +23,7 @@ import {
   toolConfig,
   trackProtocolVersion,
   type RuntimePolicyStores,
+  type ToolExecutionEvent,
   type ToolMiddlewarePhases
 } from './runtime.js'
 import { unknownInputPaths } from './runtime/input-validation.js'
@@ -543,6 +544,141 @@ describe('runtime helpers', () => {
       content: [{ type: 'text', text: 'Permission denied.' }]
     })
     expect(calls).toEqual(['beforePolicy:before', 'onError:true'])
+  })
+
+  it('records tool observability events with outcome and latency', async () => {
+    const events: ToolExecutionEvent[] = []
+    const observability = {
+      recordToolExecution: (event: ToolExecutionEvent) => {
+        events.push(event)
+      }
+    }
+    const successTool = defineTool({
+      name: 'observed-success',
+      inputSchema: z.object({}),
+      policy: { effects: 'read' },
+      handler: () => ({ content: [] })
+    })
+    const deniedTool = defineTool({
+      name: 'observed-denied',
+      inputSchema: z.object({}),
+      policy: { effects: 'read', requiredScopes: ['users:read'] },
+      handler: () => ({ content: [] })
+    })
+    const rateLimitedTool = defineTool({
+      name: 'observed-rate-limit',
+      inputSchema: z.object({}),
+      policy: {
+        effects: 'read',
+        rateLimit: { windowMs: 1000, maxCalls: 1 }
+      },
+      handler: () => ({ content: [] })
+    })
+    const timeoutTool = defineTool({
+      name: 'observed-timeout',
+      inputSchema: z.object({}),
+      policy: { effects: 'read', timeoutMs: 1 },
+      handler: () => new Promise(() => {})
+    })
+    const stores: RuntimePolicyStores = {
+      rateLimit: {
+        checkRateLimit: () => ({ allowed: false, retryAfterMs: 1000 })
+      },
+      concurrency: {
+        acquireConcurrency: () => ({ release: () => undefined })
+      }
+    }
+
+    await expect(
+      runToolPipeline(
+        successTool,
+        {},
+        makeContext({
+          auth: {
+            source: 'oauth',
+            scopes: [],
+            subject: 'alice',
+            tenantId: 'tenant-a'
+          }
+        }),
+        [],
+        undefined,
+        {},
+        observability
+      )
+    ).resolves.toMatchObject({ content: [] })
+    await expect(
+      runToolPipeline(
+        deniedTool,
+        {},
+        makeContext(),
+        [],
+        undefined,
+        {},
+        observability
+      )
+    ).resolves.toMatchObject({ isError: true })
+    await expect(
+      runToolPipeline(
+        rateLimitedTool,
+        {},
+        makeContext(),
+        [],
+        stores,
+        {},
+        observability
+      )
+    ).resolves.toMatchObject({ isError: true })
+    await expect(
+      runToolPipeline(
+        timeoutTool,
+        {},
+        makeContext(),
+        [],
+        undefined,
+        {},
+        observability
+      )
+    ).resolves.toMatchObject({ isError: true })
+
+    expect(
+      events.map(({ tool, outcome, subject, tenantId, durationMs }) => ({
+        durationIsNumber: Number.isFinite(durationMs),
+        outcome,
+        subject,
+        tenantId,
+        tool
+      }))
+    ).toEqual([
+      {
+        durationIsNumber: true,
+        outcome: 'success',
+        subject: 'alice',
+        tenantId: 'tenant-a',
+        tool: 'observed-success'
+      },
+      {
+        durationIsNumber: true,
+        outcome: 'denied',
+        subject: undefined,
+        tenantId: undefined,
+        tool: 'observed-denied'
+      },
+      {
+        durationIsNumber: true,
+        outcome: 'rate_limited',
+        subject: undefined,
+        tenantId: undefined,
+        tool: 'observed-rate-limit'
+      },
+      {
+        durationIsNumber: true,
+        outcome: 'timeout',
+        subject: undefined,
+        tenantId: undefined,
+        tool: 'observed-timeout'
+      }
+    ])
   })
 
   it('binds filesystem, outbound HTTP, pagination, output and destructive I/O policies', async () => {

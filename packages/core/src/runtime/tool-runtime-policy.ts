@@ -9,6 +9,8 @@ import {
   authorizeConsent,
   authorizeScopes,
   timeoutAbortError,
+  type ToolObservability,
+  type ToolExecutionOutcome,
   type ToolMiddleware
 } from './tool-runtime-shared.js'
 import {
@@ -112,6 +114,30 @@ export function createAuditMiddleware<Services>(): ToolMiddleware<Services> {
         outcome: auditFailureOutcome(error),
         subject: context.auth?.subject,
         tenantId: context.auth?.tenantId,
+        tool: tool.name
+      })
+      throw error
+    }
+  }
+}
+
+export function createObservabilityMiddleware<Services>(
+  observability: ToolObservability | undefined
+): ToolMiddleware<Services> {
+  return async ({ tool, context }, next) => {
+    const startedAt = Date.now()
+    try {
+      const result = await next()
+      await recordToolExecution(observability, context, {
+        durationMs: Date.now() - startedAt,
+        outcome: result.isError === true ? 'error' : 'success',
+        tool: tool.name
+      })
+      return result
+    } catch (error) {
+      await recordToolExecution(observability, context, {
+        durationMs: Date.now() - startedAt,
+        outcome: errorOutcome(error),
         tool: tool.name
       })
       throw error
@@ -227,6 +253,56 @@ function auditFailureOutcome(error: unknown): 'denied' | 'error' {
   return error instanceof McpKitError && error.code === 'FORBIDDEN'
     ? 'denied'
     : 'error'
+}
+
+function errorOutcome(error: unknown): ToolExecutionOutcome {
+  if (!(error instanceof McpKitError)) return 'error'
+  switch (error.code) {
+    case 'FORBIDDEN':
+    case 'STEP_UP_REQUIRED':
+    case 'CONSENT_REQUIRED':
+      return 'denied'
+    case 'RATE_LIMIT':
+      return 'rate_limited'
+    case 'CONCURRENCY_LIMIT':
+      return 'concurrency_limited'
+    case 'TIMEOUT':
+      return 'timeout'
+    default:
+      return 'error'
+  }
+}
+
+async function recordToolExecution(
+  observability: ToolObservability | undefined,
+  context: RequestContext<unknown>,
+  event: {
+    durationMs: number
+    outcome: ToolExecutionOutcome
+    tool: string
+  }
+): Promise<void> {
+  if (observability === undefined) return
+  try {
+    await observability.recordToolExecution({
+      correlationId: context.correlationId,
+      durationMs: event.durationMs,
+      outcome: event.outcome,
+      ...(context.auth?.subject === undefined
+        ? {}
+        : { subject: context.auth.subject }),
+      ...(context.auth?.tenantId === undefined
+        ? {}
+        : { tenantId: context.auth.tenantId }),
+      tool: event.tool
+    })
+  } catch (error) {
+    context.logger.warn('Tool observability sink failed', {
+      correlationId: context.correlationId,
+      error: error instanceof Error ? error.message : String(error),
+      tool: event.tool
+    })
+  }
 }
 
 function requiresAudit(tool: ToolDefinition): boolean {
