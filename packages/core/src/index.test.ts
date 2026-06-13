@@ -1414,3 +1414,21 @@ describe('@mcp-kit/core', () => {
     expect(app.connected).toBe(false)
   })
 })
+
+function assertResourceRegistrationTypes(): void {
+  const tool = defineTool({
+    name: 'not-a-resource',
+    inputSchema: z.object({}),
+    handler: () => ({ content: [] })
+  })
+  const app = createMcpApp({
+    name: 'type-server',
+    version: '1.0.0',
+    services: {}
+  })
+
+  // @ts-expect-error tools cannot be registered as resources.
+  app.resources([tool])
+}
+
+void assertResourceRegistrationTypes

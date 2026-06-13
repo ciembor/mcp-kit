@@ -495,3 +495,25 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 - [x] CLI jest idempotentne, transakcyjne i bezpieczne dla niezarzadzanych plikow.
 - [x] Dokumentacja zawiera tutorial, API reference, security guide i migration guide.
 - [x] Release tarball smoke tests przechodza dla wszystkich publikowanych pakietow.
+
+## Audit follow-up: production hardening
+
+### P1
+
+- [x] Zaciesnic typ `McpApp.resources()` tak, zeby nie przyjmowal registry tooli ani promptow.
+- [ ] Naprawic kontrakt `trustedProxies`: dodac CIDR matching albo usunac CIDR z dokumentacji.
+- [ ] Zaostrzyc walidacje `Host`: host bez portu nie powinien domyslnie pasowac do dowolnego portu.
+- [ ] Przeniesc rate limit i concurrency z procesowych `WeakMap` do portow/store'ow z adapterem in-memory.
+
+### P2
+
+- [ ] Dodac fazy middleware albo jawny ordered pipeline dla policy, handlera, wyniku i bledow.
+- [ ] Nie zwracac surowego `error.message` z HTTP runtime dla nieoczekiwanych 500.
+- [ ] Dac `context.io.http.fetch()` egzekwujacy SSRF guard zamiast polegac tylko na `assertAllowed(url)`.
+- [ ] Rozdzielic dokumentacje statusu projektu od planow i eksperymentow.
+
+### P3
+
+- [ ] Dodac observability jako first-class API: metryki per tool, latency, denied, rate-limit i timeout counters.
+- [ ] Dodac idempotency dla write tools przez `idempotencyKey` i store deduplikacji.
+- [ ] Posprzatac `defineRegistry()`: comparator dla rownosci i nieuzywany indeks.

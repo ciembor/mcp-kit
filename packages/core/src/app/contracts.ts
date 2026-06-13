@@ -5,7 +5,6 @@ import type {
   AnyResourceDefinition,
   Logger,
   PromptDefinition,
-  RegistryItem,
   RequestContext,
   Schema,
   ServerRequestContext,
@@ -22,12 +21,18 @@ export type McpAppOptions<Services> = {
   middleware?: readonly ToolMiddleware<Services>[]
 }
 
+type ResourceRegistrationCheck<Definitions extends readonly unknown[]> =
+  Definitions extends readonly { kind: 'resource' }[]
+    ? []
+    : ['resources must be resource definitions']
+
 export type McpApp<Services> = {
   readonly sdk: McpServer
   readonly connected: boolean
   tools(tools: readonly ToolDefinition<Schema, Services>[]): void
-  resources<const Definitions extends readonly RegistryItem[]>(
-    resources: Definitions
+  resources<const Definitions extends readonly unknown[]>(
+    resources: Definitions,
+    ...check: ResourceRegistrationCheck<Definitions>
   ): void
   prompts(prompts: readonly PromptDefinition<Schema, Services>[]): void
   connect(transport: Transport): Promise<void>

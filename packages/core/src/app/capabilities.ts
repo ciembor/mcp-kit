@@ -3,7 +3,6 @@ import { getObjectShape } from '@modelcontextprotocol/sdk/server/zod-compat.js'
 import type {
   AnyResourceDefinition,
   PromptDefinition,
-  RegistryItem,
   Schema,
   ServerRequestContext,
   ToolDefinition
@@ -25,7 +24,13 @@ export function capabilityMethods<Services>(
 ): Pick<McpApp<Services>, 'tools' | 'resources' | 'prompts'> {
   return {
     tools: (definitions) => registerTools(runtime, definitions),
-    resources: (definitions) => registerAppResources(runtime, definitions),
+    resources: (definitions, ...check) => {
+      void check
+      registerAppResources(
+        runtime,
+        definitions as readonly AnyResourceDefinition<Services>[]
+      )
+    },
     prompts: (definitions) => registerPrompts(runtime, definitions)
   }
 }
@@ -47,15 +52,13 @@ function registerTools<Services>(
 
 function registerAppResources<Services>(
   runtime: AppRuntime<Services>,
-  definitions: readonly RegistryItem[]
+  definitions: readonly AnyResourceDefinition<Services>[]
 ): void {
   assertNotConnected(runtime.connected())
-  const resources =
-    definitions as unknown as readonly AnyResourceDefinition<Services>[]
-  runtime.resources.push(...resources)
+  runtime.resources.push(...definitions)
   const createContext = (extra: ServerRequestContext) =>
     runtime.createRequestContext(extra)
-  registerResources(runtime.sdk, resources, createContext)
+  registerResources(runtime.sdk, definitions, createContext)
   installResourceHandlers(
     runtime.sdk,
     runtime.resources,
