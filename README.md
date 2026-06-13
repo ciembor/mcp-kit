@@ -52,6 +52,7 @@ corepack enable
 ## Documentation
 
 - VitePress site source: [docs/](./docs/)
+- Current project status: [docs/status.md](./docs/status.md)
 - Core API reference: [docs/api-core.md](./docs/api-core.md)
 - Compatibility matrix: [docs/compatibility.md](./docs/compatibility.md)
 - Tutorial: [docs/tutorial.md](./docs/tutorial.md)

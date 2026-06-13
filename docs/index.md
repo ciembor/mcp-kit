@@ -26,7 +26,7 @@ features:
 
 ## Start Here
 
-If you are new to the project, follow the [tutorial](/tutorial). It creates a server, shows where generated code lives, adds a tool, runs tests, and points to the deployment settings you need before exposing HTTP.
+If you are new to the project, read the [status page](/status) first, then follow the [tutorial](/tutorial). The tutorial creates a server, shows where generated code lives, adds a tool, runs tests, and points to the deployment settings you need before exposing HTTP.
 
 Use [HTTP Deployment](/http-deployment) when the server will run behind a gateway or reverse proxy. Use [Security](/security-guide) before adding auth, tenant checks, file access, downstream HTTP, or destructive tools.
 

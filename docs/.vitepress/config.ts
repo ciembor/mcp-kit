@@ -21,6 +21,7 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/index' },
           { text: 'Tutorial', link: '/tutorial' },
+          { text: 'Status', link: '/status' },
           { text: 'Compatibility', link: '/compatibility' }
         ]
       },
