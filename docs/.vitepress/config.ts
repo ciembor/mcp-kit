@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
+  base: '/mcp-kit/',
   title: 'mcp-kit',
   description:
     'TypeScript and Node.js framework plus tooling for reliable MCP servers.',

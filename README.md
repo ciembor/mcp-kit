@@ -51,7 +51,7 @@ corepack enable
 
 ## Documentation
 
-- VitePress site source: [docs/](/Users/maciej/Projects/mcp-kit/docs)
+- VitePress site source: [docs/](./docs/)
 - Core API reference: [docs/api-core.md](./docs/api-core.md)
 - Compatibility matrix: [docs/compatibility.md](./docs/compatibility.md)
 - Tutorial: [docs/tutorial.md](./docs/tutorial.md)
