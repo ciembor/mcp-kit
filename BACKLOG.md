@@ -501,7 +501,7 @@ Cel: rozszerzac framework dopiero po ustabilizowaniu podstawowego runtime i tool
 ### P1
 
 - [x] Zaciesnic typ `McpApp.resources()` tak, zeby nie przyjmowal registry tooli ani promptow.
-- [ ] Naprawic kontrakt `trustedProxies`: dodac CIDR matching albo usunac CIDR z dokumentacji.
+- [x] Naprawic kontrakt `trustedProxies`: dodac CIDR matching albo usunac CIDR z dokumentacji.
 - [ ] Zaostrzyc walidacje `Host`: host bez portu nie powinien domyslnie pasowac do dowolnego portu.
 - [ ] Przeniesc rate limit i concurrency z procesowych `WeakMap` do portow/store'ow z adapterem in-memory.
 

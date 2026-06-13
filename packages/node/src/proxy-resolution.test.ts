@@ -39,6 +39,38 @@ describe('proxy resolution', () => {
     expect(isTrustedProxy(request, ['::ffff:127.0.0.1'])).toBe(true)
   })
 
+  it('matches trusted proxy CIDR ranges', () => {
+    const request = createRequest({
+      url: '/mcp',
+      remoteAddress: '10.0.0.42',
+      headers: {
+        forwarded: 'proto=https;host=public.example'
+      }
+    })
+
+    expect(isTrustedProxy(request, ['10.0.0.0/24'])).toBe(true)
+    expect(requestUrlFromNodeRequest(request, ['10.0.0.0/24'])).toBe(
+      'https://public.example/mcp'
+    )
+    expect(isTrustedProxy(request, ['10.0.1.0/24'])).toBe(false)
+  })
+
+  it('matches trusted IPv6 CIDR ranges', () => {
+    const request = createRequest({
+      url: '/mcp',
+      remoteAddress: '2001:db8::42',
+      headers: {
+        forwarded: 'proto=https;host=ipv6.example'
+      }
+    })
+
+    expect(isTrustedProxy(request, ['2001:db8::/64'])).toBe(true)
+    expect(requestUrlFromNodeRequest(request, ['2001:db8::/64'])).toBe(
+      'https://ipv6.example/mcp'
+    )
+    expect(isTrustedProxy(request, ['2001:db9::/64'])).toBe(false)
+  })
+
   it('ignores empty forwarded headers from trusted proxies', () => {
     const request = createRequest({
       url: '/mcp',

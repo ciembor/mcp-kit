@@ -562,6 +562,30 @@ describe('@mcp-kit/node streamable http', () => {
     })
   })
 
+  it('trusts forwarded headers from configured CIDR proxy ranges', async () => {
+    const apps = createAppFactory()
+    const runtime = await runStreamableHttp(apps.createApp, {
+      port: 0,
+      trustedProxies: ['127.0.0.0/8']
+    })
+    runtimes.push(runtime)
+
+    const response = await sendNodeRequest(runtime.url, {
+      method: 'POST',
+      headers: {
+        host: `127.0.0.1:${runtime.options.port}`,
+        forwarded: 'for=127.0.0.1;proto=https;host=public.example',
+        'content-type': 'application/json'
+      },
+      body: '{"hello":"world"}'
+    })
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(response.body)).toMatchObject({
+      url: 'https://public.example/mcp'
+    })
+  })
+
   it('propagates trusted proxy correlation ids and echoes them in responses', async () => {
     let seenCorrelationId: string | null = null
     handleRequestImpl = (request) => {
