@@ -19,6 +19,7 @@ export {
   type RuntimePolicyStoreOptions,
   type RuntimePolicyStores,
   type ToolMiddleware,
-  type ToolMiddlewareArgs
+  type ToolMiddlewareArgs,
+  type ToolMiddlewarePhases
 } from './runtime/tool-runtime.js'
 export { trackProtocolVersion } from './runtime/transport-runtime.js'

@@ -22,7 +22,8 @@ import {
   timeoutAbortError,
   toolConfig,
   trackProtocolVersion,
-  type RuntimePolicyStores
+  type RuntimePolicyStores,
+  type ToolMiddlewarePhases
 } from './runtime.js'
 import { unknownInputPaths } from './runtime/input-validation.js'
 import {
@@ -454,6 +455,94 @@ describe('runtime helpers', () => {
       'acquire:stored-policy-tool:3',
       'release:stored-policy-tool'
     ])
+  })
+
+  it('runs named middleware phases around policy and handler work', async () => {
+    const calls: string[] = []
+    const tool = defineTool({
+      name: 'phased-tool',
+      inputSchema: z.object({}),
+      policy: { effects: 'read', requiredScopes: ['users:read'] },
+      handler: () => {
+        calls.push('handler')
+        return { content: [{ type: 'text' as const, text: 'ok' }] }
+      }
+    })
+    const phases: ToolMiddlewarePhases<object> = {
+      beforePolicy: [
+        async (_args, next) => {
+          calls.push('beforePolicy:before')
+          const result = await next()
+          calls.push('beforePolicy:after')
+          return result
+        }
+      ],
+      aroundHandler: [
+        async (_args, next) => {
+          calls.push('aroundHandler:before')
+          const result = await next()
+          calls.push('aroundHandler:after')
+          return result
+        }
+      ],
+      afterResult: [
+        async (_args, next) => {
+          calls.push('afterResult:before')
+          const result = await next()
+          calls.push('afterResult:after')
+          return {
+            ...result,
+            content: [{ type: 'text' as const, text: 'after' }]
+          }
+        }
+      ],
+      onError: [
+        async (_args, next) => {
+          try {
+            return await next()
+          } catch (error) {
+            calls.push(`onError:${error instanceof McpKitError}`)
+            throw error
+          }
+        }
+      ]
+    }
+
+    await expect(
+      runToolPipeline(
+        tool,
+        {},
+        makeContext({
+          auth: {
+            source: 'oauth',
+            scopes: ['users:read']
+          }
+        }),
+        [],
+        undefined,
+        phases
+      )
+    ).resolves.toMatchObject({
+      content: [{ type: 'text', text: 'after' }]
+    })
+    expect(calls).toEqual([
+      'beforePolicy:before',
+      'afterResult:before',
+      'aroundHandler:before',
+      'handler',
+      'aroundHandler:after',
+      'afterResult:after',
+      'beforePolicy:after'
+    ])
+
+    calls.length = 0
+    await expect(
+      runToolPipeline(tool, {}, makeContext(), [], undefined, phases)
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [{ type: 'text', text: 'Permission denied.' }]
+    })
+    expect(calls).toEqual(['beforePolicy:before', 'onError:true'])
   })
 
   it('binds filesystem, outbound HTTP, pagination, output and destructive I/O policies', async () => {

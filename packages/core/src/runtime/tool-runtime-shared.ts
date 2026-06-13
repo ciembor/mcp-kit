@@ -14,6 +14,13 @@ export type ToolMiddleware<Services> = (
   next: () => Promise<CallToolResult>
 ) => Promise<CallToolResult>
 
+export type ToolMiddlewarePhases<Services> = {
+  onError?: readonly ToolMiddleware<Services>[]
+  beforePolicy?: readonly ToolMiddleware<Services>[]
+  aroundHandler?: readonly ToolMiddleware<Services>[]
+  afterResult?: readonly ToolMiddleware<Services>[]
+}
+
 export function authorizeScopes(
   context: RequestContext<unknown>,
   requiredScopes: readonly string[],

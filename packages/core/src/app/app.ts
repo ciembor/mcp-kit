@@ -33,6 +33,7 @@ export function createMcpApp<Services>(
     subscriptions,
     createRequestContext,
     middleware: options.middleware ?? [],
+    middlewarePhases: options.middlewarePhases ?? {},
     policyStores,
     connected: () => connected,
     logger: () => logger

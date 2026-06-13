@@ -72,5 +72,6 @@ export {
   type RuntimePolicyStoreOptions,
   type RuntimePolicyStores,
   type ToolMiddleware,
-  type ToolMiddlewareArgs
+  type ToolMiddlewareArgs,
+  type ToolMiddlewarePhases
 } from './runtime.js'

@@ -25,7 +25,8 @@ import {
   runToolPipeline,
   toolExecutionError,
   type RuntimePolicyStores,
-  type ToolMiddleware
+  type ToolMiddleware,
+  type ToolMiddlewarePhases
 } from '../runtime.js'
 import { validateToolInputPolicies } from '../runtime/tool-io.js'
 import { unknownInputPaths } from '../runtime/input-validation.js'
@@ -35,6 +36,7 @@ export function installToolCallHandler<Services>(runtime: {
   tools: ReadonlyMap<string, ToolDefinition<Schema, Services>>
   createRequestContext(extra: ServerRequestContext): RequestContext<Services>
   middleware: readonly ToolMiddleware<Services>[]
+  middlewarePhases: ToolMiddlewarePhases<Services>
   policyStores: RuntimePolicyStores
   logger(): Logger
 }): void {
@@ -49,6 +51,7 @@ async function executeTool<Services>(
     tools: ReadonlyMap<string, ToolDefinition<Schema, Services>>
     createRequestContext(extra: ServerRequestContext): RequestContext<Services>
     middleware: readonly ToolMiddleware<Services>[]
+    middlewarePhases: ToolMiddlewarePhases<Services>
     policyStores: RuntimePolicyStores
     logger(): Logger
   },
@@ -80,7 +83,8 @@ async function executeTool<Services>(
     parsed.data,
     context,
     runtime.middleware,
-    runtime.policyStores
+    runtime.policyStores,
+    runtime.middlewarePhases
   )
   return validateToolOutput(runtime, tool, result, context)
 }

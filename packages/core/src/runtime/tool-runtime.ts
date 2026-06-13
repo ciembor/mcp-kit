@@ -34,13 +34,15 @@ export type {
 } from './tool-runtime-policy.js'
 export type {
   ToolMiddleware,
-  ToolMiddlewareArgs
+  ToolMiddlewareArgs,
+  ToolMiddlewarePhases
 } from './tool-runtime-shared.js'
 export { timeoutAbortError } from './tool-runtime-shared.js'
 import {
   authorizeConsent,
   authorizeScopes,
-  type ToolMiddleware
+  type ToolMiddleware,
+  type ToolMiddlewarePhases
 } from './tool-runtime-shared.js'
 import { bindToolIo } from './tool-io.js'
 import type { RuntimePolicyStores } from './tool-runtime-policy.js'
@@ -59,10 +61,13 @@ export async function runToolPipeline<Services>(
   input: unknown,
   context: RequestContext<Services>,
   middleware: readonly ToolMiddleware<Services>[],
-  policyStores: RuntimePolicyStores = defaultRuntimePolicyStores
+  policyStores: RuntimePolicyStores = defaultRuntimePolicyStores,
+  middlewarePhases: ToolMiddlewarePhases<Services> = {}
 ): Promise<CallToolResult> {
   const builtIn = [
     createErrorMappingMiddleware<Services>(),
+    ...(middlewarePhases.onError ?? []),
+    ...(middlewarePhases.beforePolicy ?? []),
     createAuditMiddleware<Services>(),
     createAuthorizationMiddleware<Services>(),
     createRateLimitMiddleware<Services>(policyStores.rateLimit),
@@ -70,7 +75,9 @@ export async function runToolPipeline<Services>(
     createTimeoutMiddleware<Services>(),
     createToolIoMiddleware<Services>(),
     createDestructiveMiddleware<Services>(),
-    createResultLimitMiddleware<Services>()
+    ...(middlewarePhases.afterResult ?? []),
+    createResultLimitMiddleware<Services>(),
+    ...(middlewarePhases.aroundHandler ?? [])
   ]
   const pipeline = [...builtIn, ...middleware]
   let index = -1

@@ -24,7 +24,7 @@ app.prompts(defineRegistry([prompt]))
 | `defineRegistry(items)` | Register public tools, resources, or prompts explicitly. |
 | `packageInfo`           | Published package name and version.                      |
 
-`McpAppOptions` includes `name`, `version`, `services`, optional `logger`, optional `instructions`, optional tool `middleware`, and optional `policyStores`.
+`McpAppOptions` includes `name`, `version`, `services`, optional `logger`, optional `instructions`, optional tool `middleware`, optional `middlewarePhases`, and optional `policyStores`.
 
 `McpApp` exposes `sdk`, `connected`, `tools()`, `resources()`, `prompts()`, `connect()`, `close()`, `setLogger()`, `notifyResourceListChanged()`, and `notifyResourceUpdated(uri)`.
 
@@ -120,6 +120,17 @@ createMcpApp({
 | `ToolMiddleware`, `ToolMiddlewareArgs`       | Extend cross-cutting tool behavior.                                 |
 
 Middleware wraps tool execution. It does not wrap prompt or resource handlers.
+
+Use `middlewarePhases` when placement matters:
+
+| Phase           | Runs around                                         |
+| --------------- | --------------------------------------------------- |
+| `onError`       | Built-in policy and handler errors before mapping.  |
+| `beforePolicy`  | The full tool request, including built-in policy.   |
+| `aroundHandler` | The tool handler after built-in policy has passed.  |
+| `afterResult`   | The validated handler result before it is returned. |
+
+The older `middleware` option is still supported and behaves like `aroundHandler`.
 
 ## Completion Helpers
 

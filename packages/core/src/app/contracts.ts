@@ -13,7 +13,8 @@ import type {
 import type {
   RuntimePolicyStoreOptions,
   RuntimePolicyStores,
-  ToolMiddleware
+  ToolMiddleware,
+  ToolMiddlewarePhases
 } from '../runtime.js'
 
 export type McpAppOptions<Services> = {
@@ -23,6 +24,7 @@ export type McpAppOptions<Services> = {
   logger?: Logger
   instructions?: string
   middleware?: readonly ToolMiddleware<Services>[]
+  middlewarePhases?: ToolMiddlewarePhases<Services>
   policyStores?: RuntimePolicyStoreOptions
 }
 
@@ -63,6 +65,7 @@ export type AppRuntime<Services> = {
   subscriptions: Set<string>
   createRequestContext(extra: ServerRequestContext): RequestContext<Services>
   middleware: readonly ToolMiddleware<Services>[]
+  middlewarePhases: ToolMiddlewarePhases<Services>
   policyStores: RuntimePolicyStores
   connected(): boolean
   logger(): Logger
