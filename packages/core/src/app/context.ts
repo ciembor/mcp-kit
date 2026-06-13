@@ -24,6 +24,7 @@ import {
   elicitationSupport,
   unsupportedCapability
 } from './context-elicitation.js'
+import { unavailableToolIo } from '../runtime/tool-io.js'
 
 export function contextFactory<Services>(
   runtime: () => {
@@ -58,6 +59,7 @@ export function requestContext<Services>(
     signal,
     services: runtime.services,
     logger: runtime.logger,
+    io: unavailableToolIo(),
     ...(extra.authInfo === undefined
       ? {}
       : { auth: authContext(extra.authInfo) }),

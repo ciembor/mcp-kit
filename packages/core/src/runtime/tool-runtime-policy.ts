@@ -6,6 +6,10 @@ import {
   timeoutAbortError,
   type ToolMiddleware
 } from './tool-runtime-shared.js'
+import {
+  assertDestructiveConfirmation,
+  validateToolResultLimits
+} from './tool-io.js'
 
 const activeToolCalls = new WeakMap<object, number>()
 type RateLimitBucket = { count: number; resetAt: number }
@@ -153,6 +157,25 @@ export function createTimeoutMiddleware<Services>(): ToolMiddleware<Services> {
   }
 }
 
+export function createDestructiveMiddleware<
+  Services
+>(): ToolMiddleware<Services> {
+  return async ({ tool, input }, next) => {
+    assertDestructiveConfirmation(tool, input)
+    return next()
+  }
+}
+
+export function createResultLimitMiddleware<
+  Services
+>(): ToolMiddleware<Services> {
+  return async ({ tool }, next) => {
+    const result = await next()
+    validateToolResultLimits(tool, result)
+    return result
+  }
+}
+
 function auditFailureOutcome(error: unknown): 'denied' | 'error' {
   return error instanceof McpKitError && error.code === 'FORBIDDEN'
     ? 'denied'
@@ -162,6 +185,7 @@ function auditFailureOutcome(error: unknown): 'denied' | 'error' {
 function requiresAudit(tool: ToolDefinition): boolean {
   return (
     tool.policy?.audit === true ||
+    tool.policy?.destructive !== undefined ||
     tool.policy?.requiredScopes !== undefined ||
     tool.policy?.stepUpScopes !== undefined ||
     tool.policy?.requiredConsentScopes !== undefined ||

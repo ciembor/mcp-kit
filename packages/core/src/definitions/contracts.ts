@@ -46,6 +46,10 @@ export type ToolPolicy = {
   requiredScopes?: readonly string[]
   stepUpScopes?: readonly string[]
   requiredConsentScopes?: readonly string[]
+  filesystem?: ToolFilesystemPolicy
+  outboundHttp?: ToolOutboundHttpPolicy
+  output?: ToolOutputPolicy
+  destructive?: ToolDestructivePolicy
   authorize?(context: RequestContext<unknown>): Promise<void> | void
   rateLimit?: {
     windowMs: number
@@ -129,12 +133,71 @@ export type ClientElicitation = {
   complete(elicitationId: string): Promise<void>
 }
 
+export type ToolFilesystemPolicy = {
+  roots?: readonly (string | URL)[]
+  clientRoots?: boolean | 'require'
+}
+
+export type ToolOutboundHttpPolicy = {
+  allowHosts: readonly string[]
+  allowHttp?: boolean
+  allowPrivateNetworks?: boolean
+}
+
+export type ToolOutputPolicy = {
+  maxContentItems?: number
+  maxTextChars?: number
+  maxStructuredBytes?: number
+  maxBlobBytes?: number
+  defaultPageSize?: number
+  maxPageSize?: number
+}
+
+export type ToolDestructivePolicy = {
+  requireConfirmation?:
+    | boolean
+    | {
+        field: string
+        value?: string | number | boolean
+      }
+}
+
+export type PaginatedResult<T> = {
+  items: readonly T[]
+  limit: number
+  nextCursor?: string
+  total: number
+}
+
+export type ToolIo = {
+  files: {
+    resolvePath(candidate: string | URL): Promise<string>
+    roots(): Promise<readonly URL[]>
+  }
+  http: {
+    assertAllowed(url: string | URL): URL
+  }
+  results: {
+    paginate<T>(options: {
+      items: readonly T[]
+      limit?: number
+      cursor?: string
+      encodeCursor?(offset: number): string
+      decodeCursor?(cursor: string): number
+    }): PaginatedResult<T>
+  }
+  destructive: {
+    assertConfirmation(input: unknown): void
+  }
+}
+
 export type RequestContext<Services> = {
   requestId: string
   correlationId: string
   signal: AbortSignal
   services: Services
   logger: Logger
+  io: ToolIo
   auth?: AuthContext
   client: {
     info?: Implementation

@@ -157,6 +157,10 @@ Supported fields:
 - `requiredScopes?`: minimum scopes required to proceed
 - `stepUpScopes?`: stronger scopes that should fail with a step-up style denial
 - `requiredConsentScopes?`: scopes that must be present in consent metadata
+- `filesystem?`: file-root policy for `context.io.files`
+- `outboundHttp?`: outbound host allowlist and SSRF guard for `context.io.http`
+- `output?`: result-size and pagination policy for `context.io.results`
+- `destructive?`: explicit confirmation policy for destructive writes
 - `authorize?(context)`: custom authorization hook
 - `rateLimit?`: per-tool subject and tenant aware rate limiting
 - `timeoutMs?`: execution timeout
@@ -206,6 +210,18 @@ Middleware runs around tool execution, not around prompt or resource handlers.
 - `sampling.createMessage(params)`
 - `elicitation.create(params)`
 - `elicitation.complete(elicitationId)`
+
+`RequestContext.io` exposes tool-scoped I/O guards:
+
+- `files.resolvePath(candidate)`: verifies access stays inside configured
+  filesystem roots, including client-provided roots when enabled
+- `files.roots()`: returns the effective file roots for the current tool
+- `http.assertAllowed(url)`: enforces outbound HTTPS/host allowlists and blocks
+  private-network SSRF targets unless explicitly allowed
+- `results.paginate({ items, limit, cursor })`: clamps pagination to the
+  tool's configured page-size policy
+- `destructive.assertConfirmation(input)`: checks explicit confirmation fields
+  for destructive tools
 
 Other important `RequestContext` fields:
 

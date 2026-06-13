@@ -65,4 +65,37 @@ function validateToolPolicy(definition: {
       `Tool "${definition.name}" has ${definition.policy!.effects} effects but readOnlyHint is ${String(definition.annotations!.readOnlyHint)}`
     )
   }
+
+  if (
+    definition.annotations?.destructiveHint === true &&
+    definition.policy?.destructive === undefined
+  ) {
+    throw new Error(
+      `Tool "${definition.name}" declares destructiveHint but is missing policy.destructive`
+    )
+  }
+
+  if (definition.policy?.destructive !== undefined) {
+    if (definition.policy.effects !== 'write') {
+      throw new Error(
+        `Tool "${definition.name}" destructive policy requires write effects`
+      )
+    }
+    if (definition.annotations?.destructiveHint !== true) {
+      throw new Error(
+        `Tool "${definition.name}" destructive policy requires destructiveHint: true`
+      )
+    }
+  }
+
+  const output = definition.policy?.output
+  if (
+    output?.defaultPageSize !== undefined &&
+    output.maxPageSize !== undefined &&
+    output.defaultPageSize > output.maxPageSize
+  ) {
+    throw new Error(
+      `Tool "${definition.name}" output.defaultPageSize must not exceed output.maxPageSize`
+    )
+  }
 }

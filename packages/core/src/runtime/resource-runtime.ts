@@ -9,6 +9,7 @@ import type {
   ServerRequestContext
 } from '../definitions.js'
 import { silentLogger } from './tool-runtime.js'
+import { unavailableToolIo } from './tool-io.js'
 
 export function resourceMetadata(
   resource: AnyResourceDefinition
@@ -40,6 +41,7 @@ export function sdkResourceListCallback<Services>(
         signal: extra.signal,
         services: undefined as Services,
         logger: silentLogger,
+        io: unavailableToolIo(),
         client: {
           capabilities: {},
           protocolVersion: LATEST_PROTOCOL_VERSION,

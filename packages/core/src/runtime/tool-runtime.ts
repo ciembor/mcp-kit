@@ -15,7 +15,9 @@ import {
   createAuditMiddleware,
   createAuthorizationMiddleware,
   createConcurrencyMiddleware,
+  createDestructiveMiddleware,
   createRateLimitMiddleware,
+  createResultLimitMiddleware,
   createTimeoutMiddleware
 } from './tool-runtime-policy.js'
 export type {
@@ -28,6 +30,7 @@ import {
   authorizeScopes,
   type ToolMiddleware
 } from './tool-runtime-shared.js'
+import { bindToolIo } from './tool-io.js'
 
 export const silentLogger: Logger = {
   debug() {},
@@ -48,7 +51,10 @@ export async function runToolPipeline<Services>(
     createAuthorizationMiddleware<Services>(),
     createRateLimitMiddleware<Services>(),
     createConcurrencyMiddleware<Services>(),
-    createTimeoutMiddleware<Services>()
+    createTimeoutMiddleware<Services>(),
+    createToolIoMiddleware<Services>(),
+    createDestructiveMiddleware<Services>(),
+    createResultLimitMiddleware<Services>()
   ]
   const pipeline = [...builtIn, ...middleware]
   let index = -1
@@ -66,6 +72,18 @@ export async function runToolPipeline<Services>(
   }
 
   return dispatch(0)
+}
+
+function createToolIoMiddleware<Services>(): ToolMiddleware<Services> {
+  return async ({ tool, context }, next) => {
+    const originalIo = context.io
+    context.io = bindToolIo(tool, context)
+    try {
+      return await next()
+    } finally {
+      context.io = originalIo
+    }
+  }
 }
 
 export function toolExecutionError(message: string): CallToolResult {

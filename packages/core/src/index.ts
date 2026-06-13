@@ -20,6 +20,7 @@ export {
   type ClientElicitation,
   type InferSchemaOutput,
   type Logger,
+  type PaginatedResult,
   type ProgressReporter,
   type PromptDefinition,
   type CompleteCallback,
@@ -32,8 +33,13 @@ export {
   type StaticResourceDefinition,
   type TemplateResourceDefinition,
   type ToolDefinition,
+  type ToolDestructivePolicy,
+  type ToolFilesystemPolicy,
   type ToolHandlerArgs,
+  type ToolIo,
   type ToolOptions,
+  type ToolOutboundHttpPolicy,
+  type ToolOutputPolicy,
   type ToolPolicy,
   unwrapCompletable
 } from './definitions.js'

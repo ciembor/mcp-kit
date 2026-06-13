@@ -351,11 +351,11 @@ Cel: uruchamiac zdalne serwery MCP z bezpiecznymi ustawieniami domyslnymi.
 
 ### Ochrona I/O
 
-- [ ] Dodac policy filesystem roots.
+- [x] Dodac policy filesystem roots.
 - [x] Dodac ochrone path traversal i symlink escape.
-- [ ] Dodac outbound HTTP allowlist i ochrone SSRF.
-- [ ] Dodac limity rozmiaru wynikow i paginacje.
-- [ ] Dodac policy dla destrukcyjnych operacji.
+- [x] Dodac outbound HTTP allowlist i ochrone SSRF.
+- [x] Dodac limity rozmiaru wynikow i paginacje.
+- [x] Dodac policy dla destrukcyjnych operacji.
 
 ### Twarda walidacja tools
 

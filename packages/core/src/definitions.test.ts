@@ -52,6 +52,36 @@ describe('definition contracts', () => {
         handler: () => ({ content: [] })
       })
     ).toThrow('write effects but readOnlyHint is true')
+    expect(() =>
+      defineTool({
+        name: 'destroy',
+        inputSchema: z.object({}),
+        annotations: { readOnlyHint: false, destructiveHint: true },
+        policy: { effects: 'write' },
+        handler: () => ({ content: [] })
+      })
+    ).toThrow('declares destructiveHint but is missing policy.destructive')
+    expect(() =>
+      defineTool({
+        name: 'destroy-read',
+        inputSchema: z.object({}),
+        annotations: { readOnlyHint: true, destructiveHint: true },
+        policy: { effects: 'read', destructive: {} },
+        handler: () => ({ content: [] })
+      })
+    ).toThrow('destructive policy requires write effects')
+    expect(() =>
+      defineTool({
+        name: 'paged',
+        inputSchema: z.object({}),
+        annotations: { readOnlyHint: true },
+        policy: {
+          effects: 'read',
+          output: { defaultPageSize: 20, maxPageSize: 10 }
+        },
+        handler: () => ({ content: [] })
+      })
+    ).toThrow('output.defaultPageSize must not exceed output.maxPageSize')
   })
 
   it('validates public definition contracts', () => {

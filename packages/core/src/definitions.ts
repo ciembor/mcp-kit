@@ -1,4 +1,5 @@
 export {
+  type PaginatedResult,
   packageInfo,
   type AnyResourceDefinition,
   type AuthContext,
@@ -23,7 +24,12 @@ export {
   type TemplateResourceDefinition,
   type ToolDefinition,
   type ToolHandlerArgs,
+  type ToolIo,
+  type ToolDestructivePolicy,
+  type ToolFilesystemPolicy,
   type ToolOptions,
+  type ToolOutboundHttpPolicy,
+  type ToolOutputPolicy,
   type ToolPolicy
 } from './definitions/contracts.js'
 export {

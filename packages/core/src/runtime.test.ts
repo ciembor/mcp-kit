@@ -21,6 +21,7 @@ import {
   trackProtocolVersion
 } from './runtime.js'
 import { unknownInputPaths } from './runtime/input-validation.js'
+import { unavailableToolIo } from './runtime/tool-io.js'
 
 describe('runtime helpers', () => {
   it('builds timeout and cancellation errors', () => {
@@ -381,6 +382,168 @@ describe('runtime helpers', () => {
     })
   })
 
+  it('binds filesystem, outbound HTTP, pagination, output and destructive I/O policies', async () => {
+    const clientRoots = {
+      supported: true,
+      listChanged: false,
+      list: () =>
+        Promise.resolve([{ uri: 'file:///private/tmp', name: 'workspace' }])
+    }
+    const tool = defineTool({
+      name: 'guarded-io',
+      inputSchema: z.object({
+        limit: z.number().int().positive().optional(),
+        cursor: z.string().optional(),
+        confirmDelete: z.literal('DELETE')
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        openWorldHint: false
+      },
+      policy: {
+        effects: 'write',
+        filesystem: { clientRoots: 'require' },
+        outboundHttp: { allowHosts: ['api.example.com'] },
+        output: {
+          defaultPageSize: 2,
+          maxPageSize: 3,
+          maxContentItems: 2,
+          maxTextChars: 128,
+          maxStructuredBytes: 1024
+        },
+        destructive: {
+          requireConfirmation: { field: 'confirmDelete', value: 'DELETE' }
+        }
+      },
+      handler: async ({ input, context }) => {
+        const resolved = await context.io.files.resolvePath(
+          'file:///private/tmp/projects/a.txt'
+        )
+        const outbound = context.io.http.assertAllowed(
+          'https://api.example.com/v1/items'
+        )
+        const page = context.io.results.paginate({
+          items: ['a', 'b', 'c', 'd'],
+          ...(input.limit === undefined ? {} : { limit: input.limit }),
+          ...(input.cursor === undefined ? {} : { cursor: input.cursor })
+        })
+        context.io.destructive.assertConfirmation(input)
+        return {
+          content: [{ type: 'text', text: `${resolved}|${outbound.host}` }],
+          structuredContent: page
+        }
+      }
+    })
+
+    await expect(
+      runToolPipeline(
+        tool,
+        { confirmDelete: 'DELETE' },
+        makeContext({
+          client: {
+            ...makeContext().client,
+            roots: clientRoots
+          }
+        }),
+        []
+      )
+    ).resolves.toMatchObject({
+      structuredContent: {
+        items: ['a', 'b'],
+        limit: 2,
+        nextCursor: '2',
+        total: 4
+      }
+    })
+
+    await expect(
+      runToolPipeline(
+        tool,
+        { confirmDelete: 'DELETE' },
+        makeContext({
+          client: {
+            ...makeContext().client,
+            roots: clientRoots
+          }
+        }),
+        [
+          async (_args, next) => {
+            const result = await next()
+            return {
+              ...result,
+              content: [
+                {
+                  type: 'text',
+                  text: 'too-long-for-the-configured-result-limit-too-long-for-the-configured-result-limit-too-long-for-the-configured-result-limit-too-long-for-the-configured-result-limit-too-long-for-the-configured-result-limit'
+                }
+              ]
+            }
+          }
+        ]
+      )
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [{ type: 'text', text: 'The operation returned too much data.' }]
+    })
+
+    await expect(
+      runToolPipeline(
+        tool,
+        { confirmDelete: 'NOPE' },
+        makeContext({
+          client: {
+            ...makeContext().client,
+            roots: clientRoots
+          }
+        }),
+        []
+      )
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [
+        { type: 'text', text: 'This operation requires explicit confirmation.' }
+      ]
+    })
+  })
+
+  it('blocks private and non-allowlisted outbound destinations and invalid pagination limits', async () => {
+    const tool = defineTool({
+      name: 'http-list-guard',
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      policy: {
+        effects: 'read',
+        outboundHttp: { allowHosts: ['api.example.com'] },
+        output: { maxPageSize: 2 }
+      },
+      handler: ({ context }) => {
+        expect(
+          safeMessage(() =>
+            context.io.http.assertAllowed('https://127.0.0.1/internal')
+          )
+        ).toBe('Requests to private network targets are not allowed.')
+        expect(
+          safeMessage(() =>
+            context.io.http.assertAllowed('https://evil.example/path')
+          )
+        ).toBe('The outbound destination is not allowlisted.')
+        expect(
+          safeMessage(() =>
+            context.io.results.paginate({ items: ['a', 'b'], limit: 3 })
+          )
+        ).toBe('Pagination limit exceeds the configured maximum of 2.')
+        return { content: [] }
+      }
+    })
+
+    await expect(runToolPipeline(tool, {}, makeContext(), [])).resolves.toEqual(
+      {
+        content: []
+      }
+    )
+  })
+
   it('maps authInfo into auth context and checks capability scopes', async () => {
     const context = requestContext(
       {
@@ -662,6 +825,7 @@ function makeContext(
     signal: new AbortController().signal,
     services: {},
     logger: silentLogger,
+    io: unavailableToolIo(),
     client: {
       capabilities: {},
       protocolVersion: LATEST_PROTOCOL_VERSION,
@@ -690,4 +854,14 @@ function makeContext(
     sdk: {} as never,
     ...overrides
   }
+}
+
+function safeMessage(action: () => unknown): string {
+  try {
+    action()
+  } catch (error) {
+    if (error instanceof McpKitError) return error.safeMessage
+    throw error
+  }
+  throw new Error('Expected McpKitError')
 }
