@@ -145,7 +145,7 @@ defineTool({
 
 The default key field is `idempotencyKey`. Use `idempotency: { keyField: 'requestId' }` if your API already has a different field. Production deployments should provide an `IdempotencyStore` outside the process.
 
-Detailed production guarantees for `JobStore`, `JobQueue`, `RateLimitStore`, `ConcurrencyStore`, `AuditStore`, and `IdempotencyStore` live in [Store Guarantees](./store-guarantees.md). `SessionStore` is documented there as a single-process contract, not a production cross-instance store, so `@mcp-kit/core` does not ship a shared Redis session adapter.
+Detailed production guarantees for `JobStore`, `JobQueue`, `RateLimitStore`, `ConcurrencyStore`, `AuditStore`, and `IdempotencyStore` live in [Store Guarantees](./store-guarantees.md). `SessionStore` is documented there as a single-process contract, not a production cross-instance store, so `@mcp-kit/core` does not ship a shared Redis session adapter. The rehydration spike and rationale are captured in [ADR 0002](../adr/0002-stateful-session-rehydration-spike.md).
 
 The Postgres adapters accept a minimal `PostgresLikeClient` with `query(sql, params)`, so you can wire `pg`, `postgres.js`, Neon, or a pool wrapper without coupling `@mcp-kit/core` to one driver.
 
