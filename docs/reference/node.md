@@ -62,11 +62,14 @@ Pass an app factory as `createApp`. The HTTP runtime decides when it needs a fre
 | `sessionMode`, `sessionStore`                        | Single-process stateful session support.                   |
 | `eventStore`, `retryIntervalMs`                      | Stream replay and reconnect hints.                         |
 | `auth`                                               | Bearer-token verification and protected resource metadata. |
+| `observability`                                      | HTTP request metrics, request spans, and active-session metrics. |
 | `trustedProxies`                                     | Proxy addresses allowed to set forwarded headers.          |
 | `allowedHosts`, `allowedOrigins`, `cors`             | Host and browser-origin restrictions.                      |
 | `maxBodyBytes`, `requestTimeoutMs`, `maxConcurrency` | Request limits.                                            |
 
 Use external `StreamableHttpEventStore` implementations in production when replay state must survive a restart. `createRedisEventStore()` is the reference adapter for that case. Keep `sessionMode: 'stateful'` for one-process runtimes only.
+
+Pass the same `observability` object to `runStreamableHttp()` if you want `mcp_http_requests_total`, request spans, and `mcp_active_sessions`. `@mcp-kit/node` does not invent a second telemetry API; it reuses the `AppObservability` contract from `@mcp-kit/core`.
 
 The required guarantees for `SessionStore` and `StreamableHttpEventStore` are documented in [Store Guarantees](./store-guarantees.md).
 

@@ -127,7 +127,10 @@ function buildNormalizedOptions(
     cors: normalized.cors,
     maxBodyBytes: options.maxBodyBytes ?? 1024 * 1024,
     requestTimeoutMs: options.requestTimeoutMs ?? 30_000,
-    maxConcurrency: options.maxConcurrency ?? 16
+    maxConcurrency: options.maxConcurrency ?? 16,
+    ...(options.observability === undefined
+      ? {}
+      : { observability: options.observability })
   }
 }
 

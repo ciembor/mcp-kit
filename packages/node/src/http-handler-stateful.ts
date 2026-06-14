@@ -56,12 +56,18 @@ export async function newStatefulSessionExchange<Services>(args: {
   parsedBody: unknown
   auth: AuthContext | undefined
   sessionStore: NonNullable<NormalizedStreamableHttpOptions['sessionStore']>
+  onSessionOpened?: (sessionId: string) => Promise<void>
+  onSessionClosed?: (sessionId: string) => Promise<void>
 }): Promise<StreamableHttpExchange> {
-  const closeSession = createSessionCloser(args.sessionStore)
+  const closeSession = createSessionCloser(
+    args.sessionStore,
+    args.onSessionClosed
+  )
   const nextSession = await createStatefulSession(
     args.createValidatedApp,
     args.options,
-    closeSession
+    closeSession,
+    args.onSessionClosed
   )
   try {
     const response = await nextSession.handleRequest(
@@ -69,7 +75,11 @@ export async function newStatefulSessionExchange<Services>(args: {
       args.parsedBody,
       args.auth
     )
-    await persistStatefulSession(nextSession, args.sessionStore)
+    await persistStatefulSession(
+      nextSession,
+      args.sessionStore,
+      args.onSessionOpened
+    )
     return createResponseExchange(response, args.request, args.options.cors)
   } catch (error) {
     await closeSession(nextSession.id)
@@ -130,12 +140,14 @@ export function createTransportOptions(
 }
 
 function createSessionCloser(
-  sessionStore: NonNullable<NormalizedStreamableHttpOptions['sessionStore']>
+  sessionStore: NonNullable<NormalizedStreamableHttpOptions['sessionStore']>,
+  onSessionClosed?: (sessionId: string) => Promise<void>
 ) {
   return async (sessionId: string): Promise<void> => {
     const session = await sessionStore.get(sessionId)
     if (session === undefined) return
     await sessionStore.delete(sessionId)
+    await onSessionClosed?.(sessionId)
     await session.close()
   }
 }
@@ -143,7 +155,8 @@ function createSessionCloser(
 async function createStatefulSession<Services>(
   createApp: McpAppFactory<Services>,
   options: NormalizedStreamableHttpOptions,
-  closeSession: (sessionId: string) => Promise<void>
+  closeSession: (sessionId: string) => Promise<void>,
+  onSessionClosed?: (sessionId: string) => Promise<void>
 ): Promise<ManagedTransportSession<Services>> {
   const sessionStore = options.sessionStore
   if (sessionStore === undefined) {
@@ -171,6 +184,7 @@ async function createStatefulSession<Services>(
     async close() {
       if (transport.sessionId !== undefined) {
         await sessionStore.delete(transport.sessionId)
+        await onSessionClosed?.(transport.sessionId)
       }
       await closeManagedResources(app, transport)
     },
@@ -196,13 +210,15 @@ async function createStatefulSession<Services>(
 
 async function persistStatefulSession(
   session: ManagedTransportSession<unknown>,
-  sessionStore: NonNullable<NormalizedStreamableHttpOptions['sessionStore']>
+  sessionStore: NonNullable<NormalizedStreamableHttpOptions['sessionStore']>,
+  onSessionOpened?: (sessionId: string) => Promise<void>
 ): Promise<void> {
   if (session.transport.sessionId === undefined) {
     await session.close()
     return
   }
   await sessionStore.set(session.transport.sessionId, session)
+  await onSessionOpened?.(session.transport.sessionId)
 }
 
 function toAuthInfo(auth: AuthContext) {

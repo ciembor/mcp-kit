@@ -1,4 +1,4 @@
-import type { AuthContext, McpApp } from '@mcp-kit/core'
+import type { AppObservability, AuthContext, McpApp } from '@mcp-kit/core'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type {
   InProcessSessionStore,
@@ -35,6 +35,7 @@ export type StreamableHttpOptions = {
   maxBodyBytes?: number
   requestTimeoutMs?: number
   maxConcurrency?: number
+  observability?: AppObservability
 }
 
 export type NormalizedStreamableHttpOptions = {
@@ -56,6 +57,7 @@ export type NormalizedStreamableHttpOptions = {
   maxBodyBytes: number
   requestTimeoutMs: number
   maxConcurrency: number
+  observability?: AppObservability
 }
 
 export type StreamableHttpRequest = {

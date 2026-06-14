@@ -22,7 +22,7 @@ export const app = createMcpApp({
 
 `policyStores` is optional in local development. In production, provide shared stores for rate limits, concurrency, and idempotency when more than one process can handle requests. `@mcp-kit/core` ships reference Redis adapters for those policy stores plus `createRedisJobQueue()` for shared worker wakeups, and Postgres adapters for `JobStore`, `AuditStore`, and `IdempotencyStore`.
 
-`observability` receives one event per tool call with the tool name, outcome, latency, correlation id, and optional subject or tenant. Map that event to OpenTelemetry, Prometheus, or your own metrics backend.
+`observability` exposes `tracer`, `meter`, `logger`, `redact`, and the legacy `recordToolExecution()` hook. Use it to map MCP execution to OpenTelemetry, Prometheus, or your own telemetry adapters. The default metric names and outcome mapping are documented in [Observability](./reference/observability.md).
 
 ## Capabilities
 

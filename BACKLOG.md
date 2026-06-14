@@ -534,12 +534,12 @@ Cel: domknac roznice miedzy frameworkiem wygodnym lokalnie a frameworkiem, ktore
 
 ### 2. Observability first-class
 
-- [ ] Rozszerzyc `observability` z pojedynczego hooka na publiczne API: `tracer`, `meter`, `logger`, `redact`.
-- [ ] Zdefiniowac domyslne metryki: `mcp_tool_calls_total`, `mcp_tool_errors_total`, `mcp_tool_duration_ms`, `mcp_tool_denied_total`, `mcp_tool_timeout_total`, `mcp_http_requests_total`, `mcp_active_sessions`.
-- [ ] Dodac OpenTelemetry spans per request, tool, resource i prompt bez uzalezniania core od konkretnego eksportera.
-- [ ] Dodac redakcje atrybutow observability przed logami, metrykami i spanami.
-- [ ] Dodac testy, ze denied, rate limit, timeout, concurrency limit i unexpected error trafiaja do metryk z poprawnym outcome.
-- [ ] Udokumentowac mapping outcome, atrybuty metryk, cardinality rules i przyklady integracji OTel/Prometheus.
+- [x] Rozszerzyc `observability` z pojedynczego hooka na publiczne API: `tracer`, `meter`, `logger`, `redact`.
+- [x] Zdefiniowac domyslne metryki: `mcp_tool_calls_total`, `mcp_tool_errors_total`, `mcp_tool_duration_ms`, `mcp_tool_denied_total`, `mcp_tool_timeout_total`, `mcp_http_requests_total`, `mcp_active_sessions`.
+- [x] Dodac OpenTelemetry spans per request, tool, resource i prompt bez uzalezniania core od konkretnego eksportera.
+- [x] Dodac redakcje atrybutow observability przed logami, metrykami i spanami.
+- [x] Dodac testy, ze denied, rate limit, timeout, concurrency limit i unexpected error trafiaja do metryk z poprawnym outcome.
+- [x] Udokumentowac mapping outcome, atrybuty metryk, cardinality rules i przyklady integracji OTel/Prometheus.
 
 ### 3. Bezpieczny HTTP client dla `context.io.http.fetch`
 

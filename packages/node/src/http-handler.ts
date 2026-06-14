@@ -10,6 +10,7 @@ import type {
   StreamableHttpRequest
 } from './http-contracts.js'
 import { authenticateRequest } from './http-auth.js'
+import { createHttpObservability } from './http-observability.js'
 import {
   closeManagedResources,
   createConfiguredApp,
@@ -34,6 +35,7 @@ export function createStreamableHttpHandler<Services>(
   const normalized = normalizeStreamableHttpOptions(options)
   let productionStoresValidated = false
   let activeRequests = 0
+  const observability = createHttpObservability(normalized.observability)
 
   const createValidatedApp = () => {
     if (!productionStoresValidated) {
@@ -44,35 +46,51 @@ export function createStreamableHttpHandler<Services>(
   }
 
   return async ({ request, parsedBody }: StreamableHttpRequest) => {
+    const requestObservation = observability.startRequest(request, normalized)
     const rejected = rejectRequest(request, normalized)
-    if (rejected !== undefined) return rejected
+    if (rejected !== undefined) {
+      await requestObservation.end({ response: rejected.response })
+      return rejected
+    }
 
     if (request.method === 'OPTIONS') {
-      return preflightExchange(request, normalized.cors)
+      const exchange = preflightExchange(request, normalized.cors)
+      await requestObservation.end({ response: exchange.response })
+      return exchange
     }
 
     if (activeRequests >= normalized.maxConcurrency) {
-      return staticExchange(
+      const exchange = staticExchange(
         jsonError(503, 'Too many concurrent MCP HTTP requests.')
       )
+      await requestObservation.end({ response: exchange.response })
+      return exchange
     }
 
     activeRequests += 1
     try {
       if (normalized.sessionMode === 'stateful') {
-        return await handleStatefulRequest(
+        const exchange = await handleStatefulRequest(
           createValidatedApp,
           normalized,
           request,
-          parsedBody
+          parsedBody,
+          observability
         )
+        await requestObservation.end({ response: exchange.response })
+        return exchange
       }
-      return await handleStatelessRequest(
+      const exchange = await handleStatelessRequest(
         createValidatedApp,
         normalized,
         request,
         parsedBody
       )
+      await requestObservation.end({ response: exchange.response })
+      return exchange
+    } catch (error) {
+      await requestObservation.end({ error })
+      throw error
     } finally {
       activeRequests -= 1
     }
@@ -115,7 +133,8 @@ async function handleStatefulRequest<Services>(
   createApp: McpAppFactory<Services>,
   options: NormalizedStreamableHttpOptions,
   request: Request,
-  parsedBody: unknown
+  parsedBody: unknown,
+  observability: ReturnType<typeof createHttpObservability>
 ): Promise<StreamableHttpExchange> {
   const sessionStore = options.sessionStore
   if (sessionStore === undefined) {
@@ -148,7 +167,9 @@ async function handleStatefulRequest<Services>(
     request,
     parsedBody,
     auth: auth.auth,
-    sessionStore
+    sessionStore,
+    onSessionOpened: (sessionId: string) => observability.sessionOpened(sessionId),
+    onSessionClosed: (sessionId: string) => observability.sessionClosed(sessionId)
   })
 }
 

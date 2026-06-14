@@ -172,7 +172,7 @@ Use `middlewarePhases` when placement matters:
 
 The older `middleware` option is still supported and behaves like `aroundHandler`.
 
-`observability` receives one event per tool call with `tool`, `outcome`, `durationMs`, `correlationId`, and optional subject or tenant. Use it to connect your metrics backend:
+`observability` is a public API with `tracer`, `meter`, `logger`, `redact`, and the legacy `recordToolExecution()` hook. Use it to connect your tracing, metrics, and structured logging backend without coupling `@mcp-kit/core` to a specific exporter:
 
 ```ts
 createMcpApp({
@@ -180,17 +180,17 @@ createMcpApp({
   version: '1.0.0',
   services,
   observability: {
-    recordToolExecution(event) {
-      metrics.counter(`mcp_tool_${event.outcome}`).add(1, {
-        tool: event.tool
-      })
-      metrics.histogram('mcp_tool_latency_ms').record(event.durationMs, {
-        tool: event.tool
-      })
-    }
+    tracer,
+    meter,
+    logger,
+    redact
   }
 })
 ```
+
+`defaultObservabilityMetrics` exports the built-in metric names: `mcp_tool_calls_total`, `mcp_tool_errors_total`, `mcp_tool_duration_ms`, `mcp_tool_denied_total`, `mcp_tool_timeout_total`, `mcp_http_requests_total`, and `mcp_active_sessions`.
+
+See [Observability](./observability.md) for outcome mapping, attribute names, cardinality rules, and OpenTelemetry or Prometheus integration patterns.
 
 ## Completion Helpers
 
@@ -218,7 +218,7 @@ Jobs include `pollAfterMs` and `expiresAt` so clients know when to poll and when
 | Handlers       | `ToolHandlerArgs`, `ProgressReporter`                                                                                                                                                            |
 | Client helpers | `ClientRoots`, `ClientSampling`, `ClientElicitation`                                                                                                                                             |
 | Logging        | `Logger`                                                                                                                                                                                         |
-| Observability  | `ToolObservability`, `ToolExecutionEvent`, `ToolExecutionOutcome`                                                                                                                                |
+| Observability  | `AppObservability`, `ToolObservability`, `ToolExecutionEvent`, `ToolExecutionOutcome`, `defaultObservabilityMetrics`                                                                             |
 | Policy stores  | `RateLimitStore`, `ConcurrencyStore`, `IdempotencyStore`, `RuntimePolicyStores`                                                                                                                  |
 
 See [Core API](../api-core.md) for a shorter walkthrough.
