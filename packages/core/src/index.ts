@@ -64,6 +64,8 @@ export {
   silentLogger,
   timeoutAbortError,
   trackProtocolVersion,
+  type AuditEvent,
+  type AuditStore,
   type ConcurrencyCheck,
   type ConcurrencyPermit,
   type ConcurrencyStore,
@@ -80,3 +82,10 @@ export {
   type ToolMiddlewarePhases,
   type ToolObservability
 } from './runtime.js'
+export {
+  defineStoreAdapterMetadata,
+  isDevelopmentOnlyStoreAdapter,
+  storeAdapterMetadata,
+  type StoreAdapterMetadata,
+  type StoreAdapterSupport
+} from './store-adapter-metadata.js'

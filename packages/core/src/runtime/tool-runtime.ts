@@ -25,6 +25,8 @@ import {
 } from './tool-runtime-policy.js'
 export { createInMemoryRuntimePolicyStores } from './tool-runtime-policy.js'
 export type {
+  AuditEvent,
+  AuditStore,
   ConcurrencyCheck,
   ConcurrencyPermit,
   ConcurrencyStore,

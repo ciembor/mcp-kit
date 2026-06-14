@@ -425,6 +425,9 @@ describe('runtime helpers', () => {
       idempotency: {
         getIdempotentResult: () => undefined,
         storeIdempotentResult: () => undefined
+      },
+      audit: {
+        writeAuditEvent: () => undefined
       }
     }
     const tool = defineTool({
@@ -594,6 +597,9 @@ describe('runtime helpers', () => {
       idempotency: {
         getIdempotentResult: () => undefined,
         storeIdempotentResult: () => undefined
+      },
+      audit: {
+        writeAuditEvent: () => undefined
       }
     }
 

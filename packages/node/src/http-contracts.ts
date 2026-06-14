@@ -1,6 +1,10 @@
 import type { AuthContext, McpApp } from '@mcp-kit/core'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
-import type { EventStore } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
+import type {
+  ManagedSession,
+  SessionStore,
+  StreamableHttpEventStore
+} from './http-store-contracts.js'
 
 export type DeploymentMode = 'development' | 'production'
 export type SessionMode = 'stateless' | 'stateful'
@@ -75,26 +79,11 @@ export type StreamableHttpRuntime = {
 }
 
 export type McpAppFactory<Services> = () => McpApp<Services>
-
-export type StreamableHttpEventStore = EventStore
-
-export type ManagedSession = {
-  readonly id: string
-  readonly auth: AuthContext | undefined
-  handleRequest(
-    request: Request,
-    parsedBody?: unknown,
-    auth?: AuthContext
-  ): Promise<Response>
-  close(): Promise<void>
-}
-
-export type SessionStore = {
-  get(sessionId: string): Promise<ManagedSession | undefined>
-  set(sessionId: string, session: ManagedSession): Promise<void>
-  delete(sessionId: string): Promise<void>
-  list(): Promise<readonly ManagedSession[]>
-}
+export type {
+  ManagedSession,
+  SessionStore,
+  StreamableHttpEventStore
+} from './http-store-contracts.js'
 
 export type StreamableHttpAuthOptions = {
   verifyBearerToken(

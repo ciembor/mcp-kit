@@ -19,64 +19,42 @@ import {
   assertDestructiveConfirmation,
   validateToolResultLimits
 } from './tool-io.js'
+import type {
+  AuditEvent,
+  AuditStore,
+  ConcurrencyCheck,
+  ConcurrencyPermit,
+  ConcurrencyStore,
+  IdempotencyStore,
+  RateLimitCheck,
+  RateLimitDecision,
+  RateLimitStore,
+  RuntimePolicyStoreOptions,
+  RuntimePolicyStores
+} from './runtime-store-contracts.js'
 
 type RateLimitBucket = { count: number; resetAt: number }
 
-export type RateLimitCheck = {
-  key: string
-  windowMs: number
-  maxCalls: number
-  nowMs: number
-}
-
-export type RateLimitDecision =
-  | { allowed: true }
-  | { allowed: false; retryAfterMs: number }
-
-export type RateLimitStore = {
-  checkRateLimit(
-    check: RateLimitCheck
-  ): RateLimitDecision | Promise<RateLimitDecision>
-}
-
-export type ConcurrencyCheck = {
-  key: string
-  limit: number
-}
-
-export type ConcurrencyPermit = {
-  release(): void | Promise<void>
-}
-
-export type ConcurrencyStore = {
-  acquireConcurrency(
-    check: ConcurrencyCheck
-  ): ConcurrencyPermit | undefined | Promise<ConcurrencyPermit | undefined>
-}
-
-export type IdempotencyStore = {
-  getIdempotentResult(
-    key: string
-  ): CallToolResult | undefined | Promise<CallToolResult | undefined>
-  storeIdempotentResult(
-    key: string,
-    result: CallToolResult
-  ): void | Promise<void>
-}
-
-export type RuntimePolicyStores = {
-  rateLimit: RateLimitStore
-  concurrency: ConcurrencyStore
-  idempotency: IdempotencyStore
-}
-
-export type RuntimePolicyStoreOptions = Partial<RuntimePolicyStores>
+export type {
+  AuditEvent,
+  AuditStore,
+  ConcurrencyCheck,
+  ConcurrencyPermit,
+  ConcurrencyStore,
+  IdempotencyStore,
+  RateLimitCheck,
+  RateLimitDecision,
+  RateLimitStore,
+  RuntimePolicyStoreOptions,
+  RuntimePolicyStores
+} from './runtime-store-contracts.js'
 
 export function createInMemoryRuntimePolicyStores(): RuntimePolicyStores {
   return {
     rateLimit: new InMemoryRateLimitStore(),
     concurrency: new InMemoryConcurrencyStore(),
-    idempotency: new InMemoryIdempotencyStore()
+    idempotency: new InMemoryIdempotencyStore(),
+    audit: new InMemoryAuditStore()
   }
 }
 
@@ -86,19 +64,22 @@ export function resolveRuntimePolicyStores(
   if (
     stores?.rateLimit !== undefined &&
     stores.concurrency !== undefined &&
-    stores.idempotency !== undefined
+    stores.idempotency !== undefined &&
+    stores.audit !== undefined
   ) {
     return {
       rateLimit: stores.rateLimit,
       concurrency: stores.concurrency,
-      idempotency: stores.idempotency
+      idempotency: stores.idempotency,
+      audit: stores.audit
     }
   }
   const fallback = createInMemoryRuntimePolicyStores()
   return {
     rateLimit: stores?.rateLimit ?? fallback.rateLimit,
     concurrency: stores?.concurrency ?? fallback.concurrency,
-    idempotency: stores?.idempotency ?? fallback.idempotency
+    idempotency: stores?.idempotency ?? fallback.idempotency,
+    audit: stores?.audit ?? fallback.audit
   }
 }
 
@@ -474,6 +455,10 @@ class InMemoryRateLimitStore implements RateLimitStore {
     current.count += 1
     return { allowed: true }
   }
+}
+
+class InMemoryAuditStore implements AuditStore {
+  writeAuditEvent(_event: AuditEvent): void {}
 }
 
 function writeAuditEvent(
