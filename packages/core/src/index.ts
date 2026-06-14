@@ -1,6 +1,8 @@
 export { createMcpApp, type McpApp, type McpAppOptions } from './app/app.js'
 export {
   createAsyncJobOperation,
+  createInMemoryJobQueue,
+  createInMemoryJobStore,
   type AsyncJobExecution,
   type AsyncJobWorker,
   type JobFailure,
@@ -60,6 +62,10 @@ export {
   unwrapCompletable
 } from './definitions.js'
 export {
+  createInMemoryAuditStore,
+  createInMemoryConcurrencyStore,
+  createInMemoryIdempotencyStore,
+  createInMemoryRateLimitStore,
   createInMemoryRuntimePolicyStores,
   silentLogger,
   timeoutAbortError,

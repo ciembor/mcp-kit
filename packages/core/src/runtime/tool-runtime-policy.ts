@@ -1,5 +1,3 @@
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-
 import type {
   Logger,
   RequestContext,
@@ -32,8 +30,12 @@ import type {
   RuntimePolicyStoreOptions,
   RuntimePolicyStores
 } from './runtime-store-contracts.js'
-
-type RateLimitBucket = { count: number; resetAt: number }
+import {
+  createInMemoryAuditStore,
+  createInMemoryConcurrencyStore,
+  createInMemoryIdempotencyStore,
+  createInMemoryRateLimitStore
+} from './in-memory-policy-stores.js'
 
 export type {
   AuditEvent,
@@ -51,10 +53,10 @@ export type {
 
 export function createInMemoryRuntimePolicyStores(): RuntimePolicyStores {
   return {
-    rateLimit: new InMemoryRateLimitStore(),
-    concurrency: new InMemoryConcurrencyStore(),
-    idempotency: new InMemoryIdempotencyStore(),
-    audit: new InMemoryAuditStore()
+    rateLimit: createInMemoryRateLimitStore(),
+    concurrency: createInMemoryConcurrencyStore(),
+    idempotency: createInMemoryIdempotencyStore(),
+    audit: createInMemoryAuditStore()
   }
 }
 
@@ -392,73 +394,6 @@ function missingIdempotencyKey(
     message: `Tool ${toolName} requires idempotency key input field "${keyField}"`,
     safeMessage: `Input "${keyField}" must be a non-empty idempotency key.`
   })
-}
-
-class InMemoryConcurrencyStore implements ConcurrencyStore {
-  readonly #active = new Map<string, number>()
-
-  acquireConcurrency({
-    key,
-    limit
-  }: ConcurrencyCheck): ConcurrencyPermit | undefined {
-    const active = this.#active.get(key) ?? 0
-    if (active >= limit) return undefined
-
-    this.#active.set(key, active + 1)
-    return {
-      release: () => {
-        const next = (this.#active.get(key) ?? 1) - 1
-        if (next <= 0) {
-          this.#active.delete(key)
-          return
-        }
-        this.#active.set(key, next)
-      }
-    }
-  }
-}
-
-class InMemoryIdempotencyStore implements IdempotencyStore {
-  readonly #results = new Map<string, CallToolResult>()
-
-  getIdempotentResult(key: string): CallToolResult | undefined {
-    return this.#results.get(key)
-  }
-
-  storeIdempotentResult(key: string, result: CallToolResult): void {
-    this.#results.set(key, result)
-  }
-}
-
-class InMemoryRateLimitStore implements RateLimitStore {
-  readonly #buckets = new Map<string, RateLimitBucket>()
-
-  checkRateLimit({
-    key,
-    windowMs,
-    maxCalls,
-    nowMs
-  }: RateLimitCheck): RateLimitDecision {
-    const current = this.#buckets.get(key)
-    if (current === undefined || current.resetAt <= nowMs) {
-      this.#buckets.set(key, {
-        count: 1,
-        resetAt: nowMs + windowMs
-      })
-      return { allowed: true }
-    }
-
-    if (current.count >= maxCalls) {
-      return { allowed: false, retryAfterMs: current.resetAt - nowMs }
-    }
-
-    current.count += 1
-    return { allowed: true }
-  }
-}
-
-class InMemoryAuditStore implements AuditStore {
-  writeAuditEvent(_event: AuditEvent): void {}
 }
 
 function writeAuditEvent(

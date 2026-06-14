@@ -3,6 +3,12 @@ export {
   sdkResourceListCallback
 } from './runtime/resource-runtime.js'
 export {
+  createInMemoryAuditStore,
+  createInMemoryConcurrencyStore,
+  createInMemoryIdempotencyStore,
+  createInMemoryRateLimitStore
+} from './runtime/in-memory-policy-stores.js'
+export {
   createInMemoryRuntimePolicyStores,
   requireCapabilityAccess,
   silentLogger,

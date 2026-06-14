@@ -14,6 +14,10 @@ import type {
   JobStatus,
   JobStore
 } from './jobs-contracts.js'
+export {
+  createInMemoryJobQueue,
+  createInMemoryJobStore
+} from './jobs-in-memory.js'
 
 export type {
   JobFailure,
