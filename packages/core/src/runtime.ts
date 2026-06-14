@@ -9,6 +9,16 @@ export {
   createInMemoryRateLimitStore
 } from './runtime/in-memory-policy-stores.js'
 export {
+  createPostgresAuditStore,
+  createPostgresIdempotencyStore,
+  postgresPolicySchema,
+  postgresPolicyStatements
+} from './runtime/postgres-policy-stores.js'
+export type {
+  PostgresLikeClient,
+  PostgresQueryResult
+} from './runtime/postgres-store-client.js'
+export {
   createRedisConcurrencyStore,
   createRedisIdempotencyStore,
   createRedisRateLimitStore,

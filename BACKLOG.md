@@ -528,7 +528,7 @@ Cel: domknac roznice miedzy frameworkiem wygodnym lokalnie a frameworkiem, ktore
 - [x] Rozdzielic kontrakty store od adapterow in-memory tak, zeby in-memory bylo jawnie opisane jako dev/test.
 - [x] Dodac runtime/doctor warning albo blad dla production HTTP, gdy aktywny jest in-memory store dla sesji, eventow, jobow, rate limitow, concurrency, audytu albo idempotency.
 - [x] Dodac referencyjne adaptery Redis dla event replay, job queue, rate limit, concurrency i idempotency.
-- [ ] Dodac referencyjne adaptery Postgres dla job store, audit store i idempotency store.
+- [x] Dodac referencyjne adaptery Postgres dla job store, audit store i idempotency store.
 - [x] Dodac testy wieloprocesowe albo wieloinstancyjne pokazujace, ze limity, idempotency, event replay i joby dzialaja poza jednym procesem.
 - [x] Udokumentowac minimalne gwarancje kazdego store: atomicznosc, TTL, cleanup, retry, lease, ordering i wymagania indeksow.
 

@@ -109,6 +109,11 @@ Reference Redis adapters are available for shared policy enforcement and worker 
 | `createRedisIdempotencyStore()`| Deduplicate write retries across replicas and restarts.    |
 | `createRedisJobQueue()`        | Wake workers from a shared queue outside one process.      |
 | `redisPolicyScripts`           | Reuse the shipped Redis script identifiers in test doubles.|
+| `createPostgresJobStore()`     | Persist async jobs, leases, and results in Postgres.       |
+| `createPostgresAuditStore()`   | Persist tool audit rows in Postgres.                       |
+| `createPostgresIdempotencyStore()` | Persist idempotency reservations and replayable results. |
+| `postgresJobSchema`            | Emit reference DDL for the Postgres job table and indexes. |
+| `postgresPolicySchema`         | Emit reference DDL for audit and idempotency tables.       |
 
 ```ts
 createMcpApp({
@@ -141,6 +146,8 @@ defineTool({
 The default key field is `idempotencyKey`. Use `idempotency: { keyField: 'requestId' }` if your API already has a different field. Production deployments should provide an `IdempotencyStore` outside the process.
 
 Detailed production guarantees for `JobStore`, `JobQueue`, `RateLimitStore`, `ConcurrencyStore`, `AuditStore`, and `IdempotencyStore` live in [Store Guarantees](./store-guarantees.md). `SessionStore` is documented there as a single-process contract, not a production cross-instance store, so `@mcp-kit/core` does not ship a shared Redis session adapter.
+
+The Postgres adapters accept a minimal `PostgresLikeClient` with `query(sql, params)`, so you can wire `pg`, `postgres.js`, Neon, or a pool wrapper without coupling `@mcp-kit/core` to one driver.
 
 ## Errors And Utilities
 

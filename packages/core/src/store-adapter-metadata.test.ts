@@ -10,8 +10,12 @@ import {
   createInMemoryIdempotencyStore,
   createInMemoryJobQueue,
   createInMemoryJobStore,
-  createInMemoryRateLimitStore
+  createInMemoryRateLimitStore,
+  createPostgresAuditStore,
+  createPostgresIdempotencyStore,
+  createPostgresJobStore
 } from './index.js'
+import { FakePostgresClient } from './testing/fake-postgres-client.js'
 
 describe('store adapter metadata', () => {
   it('marks core in-memory adapters as development-and-test only', () => {
@@ -29,6 +33,20 @@ describe('store adapter metadata', () => {
       expect(storeAdapterMetadata(adapter)?.support).toBe(
         'development-and-test'
       )
+    }
+  })
+
+  it('marks postgres adapters as production-ready', () => {
+    const client = new FakePostgresClient()
+    const adapters = [
+      createPostgresAuditStore(client),
+      createPostgresIdempotencyStore(client),
+      createPostgresJobStore(client)
+    ]
+
+    for (const adapter of adapters) {
+      expect(isDevelopmentOnlyStoreAdapter(adapter)).toBe(false)
+      expect(storeAdapterMetadata(adapter)?.support).toBe('production')
     }
   })
 })
