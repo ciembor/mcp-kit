@@ -1,6 +1,11 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
-import type { RequestContext, Schema, ToolDefinition } from '../definitions.js'
+import type {
+  Logger,
+  RequestContext,
+  Schema,
+  ToolDefinition
+} from '../definitions.js'
 import { McpKitError } from '../definitions.js'
 
 export type ToolMiddlewareArgs<Services> = {
@@ -38,9 +43,84 @@ export type ToolExecutionEvent = {
   tenantId?: string
 }
 
-export type ToolObservability = {
-  recordToolExecution(event: ToolExecutionEvent): void | Promise<void>
+export type ObservabilityAttributeValue = string | number | boolean
+
+export type ObservabilityAttributes = Readonly<
+  Record<string, ObservabilityAttributeValue | undefined>
+>
+
+export type ObservabilityRedactionTarget = 'log' | 'metric' | 'span'
+
+export type ObservabilityRedactor = (args: {
+  target: ObservabilityRedactionTarget
+  name: string
+  attributes: ObservabilityAttributes
+}) => ObservabilityAttributes | void
+
+export type ObservabilityCounter = {
+  add(
+    value: number,
+    attributes?: ObservabilityAttributes
+  ): void | Promise<void>
 }
+
+export type ObservabilityHistogram = {
+  record(
+    value: number,
+    attributes?: ObservabilityAttributes
+  ): void | Promise<void>
+}
+
+export type ObservabilityUpDownCounter = {
+  add(
+    value: number,
+    attributes?: ObservabilityAttributes
+  ): void | Promise<void>
+}
+
+export type ObservabilityMeter = {
+  counter(name: string): ObservabilityCounter
+  histogram(name: string): ObservabilityHistogram
+  upDownCounter(name: string): ObservabilityUpDownCounter
+}
+
+export type ObservabilitySpan = {
+  setAttributes(attributes: ObservabilityAttributes): void | Promise<void>
+  end(options?: {
+    status?: 'ok' | 'error'
+    attributes?: ObservabilityAttributes
+  }): void | Promise<void>
+}
+
+export type ObservabilityTracer = {
+  startSpan(
+    name: string,
+    options?: {
+      kind?: 'internal' | 'server'
+      attributes?: ObservabilityAttributes
+    }
+  ): ObservabilitySpan
+}
+
+export type AppObservability = {
+  tracer?: ObservabilityTracer
+  meter?: ObservabilityMeter
+  logger?: Logger
+  redact?: ObservabilityRedactor
+  recordToolExecution?(event: ToolExecutionEvent): void | Promise<void>
+}
+
+export type ToolObservability = AppObservability
+
+export const defaultObservabilityMetrics = {
+  activeSessions: 'mcp_active_sessions',
+  httpRequestsTotal: 'mcp_http_requests_total',
+  toolCallsTotal: 'mcp_tool_calls_total',
+  toolDeniedTotal: 'mcp_tool_denied_total',
+  toolDurationMs: 'mcp_tool_duration_ms',
+  toolErrorsTotal: 'mcp_tool_errors_total',
+  toolTimeoutTotal: 'mcp_tool_timeout_total'
+} as const
 
 export function authorizeScopes(
   context: RequestContext<unknown>,
@@ -118,4 +198,28 @@ export function timeoutAbortError(
       ? 'The operation timed out.'
       : 'The operation was cancelled.'
   })
+}
+
+export function observabilityAttributes(
+  attributes: ObservabilityAttributes
+): Record<string, ObservabilityAttributeValue> {
+  const normalized: Record<string, ObservabilityAttributeValue> = {}
+  for (const [key, value] of Object.entries(attributes)) {
+    if (value !== undefined) normalized[key] = value
+  }
+  return normalized
+}
+
+export function redactObservabilityAttributes(
+  observability: Partial<AppObservability> | undefined,
+  target: ObservabilityRedactionTarget,
+  name: string,
+  attributes: ObservabilityAttributes
+): Record<string, ObservabilityAttributeValue> {
+  const next = observability?.redact?.({
+    target,
+    name,
+    attributes
+  })
+  return observabilityAttributes(next ?? attributes)
 }

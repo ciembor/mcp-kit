@@ -8,7 +8,12 @@ import { McpKitError } from '../definitions.js'
 import {
   authorizeConsent,
   authorizeScopes,
+  defaultObservabilityMetrics,
+  redactObservabilityAttributes,
   timeoutAbortError,
+  type AppObservability,
+  type ObservabilityAttributes,
+  type ObservabilitySpan,
   type ToolObservability,
   type ToolExecutionOutcome,
   type ToolMiddleware
@@ -149,16 +154,22 @@ export function createObservabilityMiddleware<Services>(
 ): ToolMiddleware<Services> {
   return async ({ tool, context }, next) => {
     const startedAt = Date.now()
+    const span = startSpan(observability, 'mcp.tool', {
+      kind: 'internal',
+      attributes: toolExecutionAttributes(context, {
+        tool: tool.name
+      })
+    })
     try {
       const result = await next()
-      await recordToolExecution(observability, context, {
+      await recordToolExecution(observability, context, span, {
         durationMs: Date.now() - startedAt,
         outcome: result.isError === true ? 'error' : 'success',
         tool: tool.name
       })
       return result
     } catch (error) {
-      await recordToolExecution(observability, context, {
+      await recordToolExecution(observability, context, span, {
         durationMs: Date.now() - startedAt,
         outcome: errorOutcome(error),
         tool: tool.name
@@ -355,6 +366,7 @@ function errorOutcome(error: unknown): ToolExecutionOutcome {
 async function recordToolExecution(
   observability: ToolObservability | undefined,
   context: RequestContext<unknown>,
+  span: ObservabilitySpan | undefined,
   event: {
     durationMs: number
     outcome: ToolExecutionOutcome
@@ -362,8 +374,13 @@ async function recordToolExecution(
   }
 ): Promise<void> {
   if (observability === undefined) return
+  const attributes = toolExecutionAttributes(context, {
+    durationMs: event.durationMs,
+    outcome: event.outcome,
+    tool: event.tool
+  })
   try {
-    await observability.recordToolExecution({
+    await observability.recordToolExecution?.({
       correlationId: context.correlationId,
       durationMs: event.durationMs,
       outcome: event.outcome,
@@ -375,6 +392,12 @@ async function recordToolExecution(
         : { tenantId: context.auth.tenantId }),
       tool: event.tool
     })
+    await observeToolMetrics(observability, attributes)
+    await logToolObservation(observability, attributes)
+    await span?.end({
+      status: event.outcome === 'success' ? 'ok' : 'error',
+      attributes
+    })
   } catch (error) {
     context.logger.warn('Tool observability sink failed', {
       correlationId: context.correlationId,
@@ -382,6 +405,128 @@ async function recordToolExecution(
       tool: event.tool
     })
   }
+}
+
+function toolExecutionAttributes(
+  context: RequestContext<unknown>,
+  event: {
+    tool: string
+    outcome?: ToolExecutionOutcome
+    durationMs?: number
+  }
+): ObservabilityAttributes {
+  return {
+    'mcp.capability.kind': 'tool',
+    'mcp.tool.name': event.tool,
+    'mcp.request.correlation_id': context.correlationId,
+    ...(event.outcome === undefined ? {} : { 'mcp.outcome': event.outcome }),
+    ...(event.durationMs === undefined
+      ? {}
+      : { 'mcp.duration_ms': event.durationMs }),
+    ...(context.auth?.subject === undefined
+      ? {}
+      : { 'mcp.auth.subject': context.auth.subject }),
+    ...(context.auth?.tenantId === undefined
+      ? {}
+      : { 'mcp.auth.tenant_id': context.auth.tenantId }),
+    ...(context.auth?.clientId === undefined
+      ? {}
+      : { 'mcp.auth.client_id': context.auth.clientId })
+  }
+}
+
+function startSpan(
+  observability: Partial<AppObservability> | undefined,
+  name: string,
+  args: {
+    kind: 'internal' | 'server'
+    attributes: ObservabilityAttributes
+  }
+): ObservabilitySpan | undefined {
+  const tracer = observability?.tracer
+  if (tracer === undefined) return undefined
+  return tracer.startSpan(name, {
+    kind: args.kind,
+    attributes: redactObservabilityAttributes(
+      observability,
+      'span',
+      name,
+      args.attributes
+    )
+  })
+}
+
+async function observeToolMetrics(
+  observability: Partial<AppObservability>,
+  attributes: ObservabilityAttributes
+): Promise<void> {
+  const meter = observability.meter
+  if (meter === undefined) return
+  const counterAttributes = redactObservabilityAttributes(
+    observability,
+    'metric',
+    defaultObservabilityMetrics.toolCallsTotal,
+    attributes
+  )
+  await meter
+    .counter(defaultObservabilityMetrics.toolCallsTotal)
+    .add(1, counterAttributes)
+  await meter
+    .histogram(defaultObservabilityMetrics.toolDurationMs)
+    .record(
+      Number(attributes['mcp.duration_ms'] ?? 0),
+      redactObservabilityAttributes(
+        observability,
+        'metric',
+        defaultObservabilityMetrics.toolDurationMs,
+        attributes
+      )
+    )
+  const outcome = attributes['mcp.outcome']
+  if (outcome === 'error') {
+    await meter
+      .counter(defaultObservabilityMetrics.toolErrorsTotal)
+      .add(1, counterAttributes)
+  }
+  if (outcome === 'denied') {
+    await meter
+      .counter(defaultObservabilityMetrics.toolDeniedTotal)
+      .add(1, counterAttributes)
+  }
+  if (outcome === 'timeout') {
+    await meter
+      .counter(defaultObservabilityMetrics.toolTimeoutTotal)
+      .add(1, counterAttributes)
+  }
+}
+
+async function logToolObservation(
+  observability: Partial<AppObservability>,
+  attributes: ObservabilityAttributes
+): Promise<void> {
+  const logger = observability.logger
+  if (logger === undefined) return
+  const data = redactObservabilityAttributes(
+    observability,
+    'log',
+    'mcp.tool',
+    attributes
+  )
+  const outcome = attributes['mcp.outcome']
+  if (outcome === 'error') {
+    logger.error('Tool execution observed', data)
+    return
+  }
+  if (
+    outcome === 'denied' ||
+    outcome === 'rate_limited' ||
+    outcome === 'timeout' ||
+    outcome === 'concurrency_limited'
+  ) {
+    logger.warn('Tool execution observed', data)
+    return
+  }
+  logger.info('Tool execution observed', data)
 }
 
 function requiresAudit(tool: ToolDefinition): boolean {

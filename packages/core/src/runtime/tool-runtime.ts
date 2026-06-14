@@ -39,6 +39,16 @@ export type {
   RuntimePolicyStores
 } from './tool-runtime-policy.js'
 export type {
+  AppObservability,
+  ObservabilityAttributes,
+  ObservabilityCounter,
+  ObservabilityHistogram,
+  ObservabilityMeter,
+  ObservabilityRedactionTarget,
+  ObservabilityRedactor,
+  ObservabilitySpan,
+  ObservabilityTracer,
+  ObservabilityUpDownCounter,
   ToolExecutionEvent,
   ToolExecutionOutcome,
   ToolMiddleware,
@@ -46,7 +56,11 @@ export type {
   ToolMiddlewarePhases,
   ToolObservability
 } from './tool-runtime-shared.js'
-export { timeoutAbortError } from './tool-runtime-shared.js'
+export {
+  defaultObservabilityMetrics,
+  redactObservabilityAttributes,
+  timeoutAbortError
+} from './tool-runtime-shared.js'
 import {
   authorizeConsent,
   authorizeScopes,

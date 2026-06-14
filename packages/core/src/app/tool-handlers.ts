@@ -21,9 +21,12 @@ import {
   type ToolDefinition
 } from '../definitions.js'
 import {
+  redactObservabilityAttributes,
   requireCapabilityAccess,
   runToolPipeline,
   toolExecutionError,
+  type AppObservability,
+  type ObservabilityAttributes,
   type RuntimePolicyStores,
   type ToolMiddleware,
   type ToolMiddlewarePhases,
@@ -140,9 +143,10 @@ export function installPromptGetHandler<Services>(
   sdk: McpServer,
   prompts: ReadonlyMap<string, PromptDefinition<Schema, Services>>,
   createContext: (extra: ServerRequestContext) => RequestContext<Services>,
-  logger: () => Logger
+  logger: () => Logger,
+  observability: ToolObservability | undefined
 ): void {
-  const runtime = { prompts, createContext, logger }
+  const runtime = { prompts, createContext, logger, observability }
   sdk.server.setRequestHandler(GetPromptRequestSchema, (request, extra) =>
     executePrompt(runtime, request.params, extra)
   )
@@ -153,6 +157,7 @@ async function executePrompt<ArgsSchema extends Schema, Services>(
     prompts: ReadonlyMap<string, PromptDefinition<ArgsSchema, Services>>
     createContext(extra: ServerRequestContext): RequestContext<Services>
     logger(): Logger
+    observability: ToolObservability | undefined
   },
   params: { name: string; arguments?: Record<string, unknown> | undefined },
   extra: ServerRequestContext
@@ -160,14 +165,46 @@ async function executePrompt<ArgsSchema extends Schema, Services>(
   const prompt = requirePrompt(runtime.prompts, params.name)
   const parsed = await parsePromptArguments(prompt, params.arguments ?? {})
   const context = runtime.createContext(extra)
+  const attributes: ObservabilityAttributes = {
+    'mcp.capability.kind': 'prompt',
+    'mcp.prompt.name': prompt.name,
+    'mcp.request.correlation_id': context.correlationId
+  }
+  const span = runtime.observability?.tracer?.startSpan('mcp.prompt', {
+    kind: 'internal',
+    attributes: redactObservabilityAttributes(
+      runtime.observability,
+      'span',
+      'mcp.prompt',
+      attributes
+    )
+  })
   await requireCapabilityAccess(prompt.policy, context)
 
   try {
-    return await prompt.render({ input: parsed, context })
+    const result = await prompt.render({ input: parsed, context })
+    await logObservedCapability(runtime.observability, 'Prompt execution observed', attributes)
+    await span?.end({ status: 'ok', attributes })
+    return result
   } catch (error) {
     runtime.logger().error('Prompt rendering failed', {
       correlationId: context.correlationId,
       prompt: prompt.name
+    })
+    await logObservedCapability(
+      runtime.observability,
+      'Prompt execution observed',
+      {
+        ...attributes,
+        'mcp.outcome': 'error'
+      }
+    )
+    await span?.end({
+      status: 'error',
+      attributes: {
+        ...attributes,
+        'mcp.outcome': 'error'
+      }
     })
     throw new McpError(
       ErrorCode.InternalError,
@@ -203,5 +240,18 @@ async function parsePromptArguments<ArgsSchema extends Schema, Services>(
   throw new McpError(
     ErrorCode.InvalidParams,
     `Invalid arguments for prompt ${prompt.name}: unknown fields ${unknownPaths.join(', ')}`
+  )
+}
+
+async function logObservedCapability(
+  observability: Partial<AppObservability> | undefined,
+  message: string,
+  attributes: ObservabilityAttributes
+): Promise<void> {
+  const logger = observability?.logger
+  if (logger === undefined) return
+  logger.info(
+    message,
+    redactObservabilityAttributes(observability, 'log', message, attributes)
   )
 }

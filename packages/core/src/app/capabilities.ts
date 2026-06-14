@@ -63,7 +63,8 @@ function registerAppResources<Services>(
     runtime.sdk,
     runtime.resources,
     runtime.subscriptions,
-    createContext
+    createContext,
+    runtime.observability
   )
 }
 
@@ -91,6 +92,7 @@ function registerPrompts<Services>(
     runtime.sdk,
     runtime.prompts,
     (extra) => runtime.createRequestContext(extra),
-    () => runtime.logger()
+    () => runtime.logger(),
+    runtime.observability
   )
 }

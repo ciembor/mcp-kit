@@ -14,6 +14,7 @@ import {
   type RequestContext
 } from './index.js'
 import {
+  defaultObservabilityMetrics,
   resourceMetadata,
   requireCapabilityAccess,
   runToolPipeline,
@@ -22,6 +23,7 @@ import {
   timeoutAbortError,
   toolConfig,
   trackProtocolVersion,
+  type ObservabilityAttributes,
   type RuntimePolicyStores,
   type ToolExecutionEvent,
   type ToolMiddlewarePhases
@@ -557,12 +559,97 @@ describe('runtime helpers', () => {
     expect(calls).toEqual(['beforePolicy:before', 'onError:true'])
   })
 
-  it('records tool observability events with outcome and latency', async () => {
+  it('records tool observability events, default metrics, logs and spans with redaction', async () => {
     const events: ToolExecutionEvent[] = []
+    const metricRecords: Array<{
+      name: string
+      value: number
+      attributes: ObservabilityAttributes
+    }> = []
+    const spanRecords: Array<{
+      name: string
+      attributes: Record<string, string | number | boolean>
+      ended?: {
+        status?: 'ok' | 'error'
+        attributes?: ObservabilityAttributes
+      }
+    }> = []
+    const logs: Array<{
+      level: 'info' | 'warn' | 'error'
+      message: string
+      data: Record<string, unknown> | undefined
+    }> = []
     const observability = {
       recordToolExecution: (event: ToolExecutionEvent) => {
         events.push(event)
-      }
+      },
+      meter: {
+        counter: (name: string) => ({
+          add: (value: number, attributes?: ObservabilityAttributes) => {
+            metricRecords.push({ name, value, attributes: attributes ?? {} })
+          }
+        }),
+        histogram: (name: string) => ({
+          record: (value: number, attributes?: ObservabilityAttributes) => {
+            metricRecords.push({ name, value, attributes: attributes ?? {} })
+          }
+        }),
+        upDownCounter: () => ({
+          add: () => undefined
+        })
+      },
+      tracer: {
+        startSpan: (
+          name: string,
+          options?: { attributes?: ObservabilityAttributes }
+        ) => {
+          const record: {
+            name: string
+            attributes: Record<string, string | number | boolean>
+            ended?: {
+              status?: 'ok' | 'error'
+              attributes?: ObservabilityAttributes
+            }
+          } = {
+            name,
+            attributes: normalizeObservabilityAttributes(
+              options?.attributes ?? {}
+            )
+          }
+          spanRecords.push(record)
+          return {
+            setAttributes() {},
+            end(
+              ended?: {
+                status?: 'ok' | 'error'
+                attributes?: ObservabilityAttributes
+              }
+            ) {
+              if (ended !== undefined) {
+                record.ended = ended
+              }
+            }
+          }
+        }
+      },
+      logger: {
+        debug() {},
+        info(message: string, data?: Record<string, unknown>) {
+          logs.push({ level: 'info', message, data })
+        },
+        warn(message: string, data?: Record<string, unknown>) {
+          logs.push({ level: 'warn', message, data })
+        },
+        error(message: string, data?: Record<string, unknown>) {
+          logs.push({ level: 'error', message, data })
+        }
+      },
+      redact: ({ attributes }: { attributes: ObservabilityAttributes }) => ({
+        ...attributes,
+        ...(attributes['mcp.auth.subject'] === undefined
+          ? {}
+          : { 'mcp.auth.subject': 'REDACTED' })
+      })
     }
     const successTool = defineTool({
       name: 'observed-success',
@@ -591,12 +678,29 @@ describe('runtime helpers', () => {
       policy: { effects: 'read', timeoutMs: 1 },
       handler: () => new Promise(() => {})
     })
+    const concurrencyTool = defineTool({
+      name: 'observed-concurrency',
+      inputSchema: z.object({}),
+      policy: { effects: 'read', concurrency: 1 },
+      handler: () => ({ content: [] })
+    })
+    const unexpectedErrorTool = defineTool({
+      name: 'observed-unexpected',
+      inputSchema: z.object({}),
+      policy: { effects: 'read' },
+      handler: () => {
+        throw new Error('boom')
+      }
+    })
     const stores: RuntimePolicyStores = {
       rateLimit: {
         checkRateLimit: () => ({ allowed: false, retryAfterMs: 1000 })
       },
       concurrency: {
-        acquireConcurrency: () => ({ token: 'permit-1', release: () => undefined })
+        acquireConcurrency: ({ key }) =>
+          key === 'observed-concurrency'
+            ? undefined
+            : { token: 'permit-1', release: () => undefined }
       },
       idempotency: {
         beginIdempotentRequest: () => ({ kind: 'acquired', token: 'id-1' }),
@@ -659,6 +763,28 @@ describe('runtime helpers', () => {
         observability
       )
     ).resolves.toMatchObject({ isError: true })
+    await expect(
+      runToolPipeline(
+        concurrencyTool,
+        {},
+        makeContext(),
+        [],
+        stores,
+        {},
+        observability
+      )
+    ).resolves.toMatchObject({ isError: true })
+    await expect(
+      runToolPipeline(
+        unexpectedErrorTool,
+        {},
+        makeContext(),
+        [],
+        undefined,
+        {},
+        observability
+      )
+    ).resolves.toMatchObject({ isError: true })
 
     expect(
       events.map(({ tool, outcome, subject, tenantId, durationMs }) => ({
@@ -696,8 +822,104 @@ describe('runtime helpers', () => {
         subject: undefined,
         tenantId: undefined,
         tool: 'observed-timeout'
+      },
+      {
+        durationIsNumber: true,
+        outcome: 'concurrency_limited',
+        subject: undefined,
+        tenantId: undefined,
+        tool: 'observed-concurrency'
+      },
+      {
+        durationIsNumber: true,
+        outcome: 'error',
+        subject: undefined,
+        tenantId: undefined,
+        tool: 'observed-unexpected'
       }
     ])
+
+    expect(
+      metricRecords
+        .filter((record) => record.name === defaultObservabilityMetrics.toolCallsTotal)
+        .map((record) => ({
+          outcome: record.attributes['mcp.outcome'],
+          subject: record.attributes['mcp.auth.subject'],
+          tool: record.attributes['mcp.tool.name']
+        }))
+    ).toEqual([
+      {
+        outcome: 'success',
+        subject: 'REDACTED',
+        tool: 'observed-success'
+      },
+      {
+        outcome: 'denied',
+        subject: undefined,
+        tool: 'observed-denied'
+      },
+      {
+        outcome: 'rate_limited',
+        subject: undefined,
+        tool: 'observed-rate-limit'
+      },
+      {
+        outcome: 'timeout',
+        subject: undefined,
+        tool: 'observed-timeout'
+      },
+      {
+        outcome: 'concurrency_limited',
+        subject: undefined,
+        tool: 'observed-concurrency'
+      },
+      {
+        outcome: 'error',
+        subject: undefined,
+        tool: 'observed-unexpected'
+      }
+    ])
+    expect(
+      metricRecords.filter(
+        (record) => record.name === defaultObservabilityMetrics.toolErrorsTotal
+      )
+    ).toHaveLength(1)
+    expect(
+      metricRecords.filter(
+        (record) => record.name === defaultObservabilityMetrics.toolDeniedTotal
+      )
+    ).toHaveLength(1)
+    expect(
+      metricRecords.filter(
+        (record) => record.name === defaultObservabilityMetrics.toolTimeoutTotal
+      )
+    ).toHaveLength(1)
+    expect(
+      metricRecords.filter(
+        (record) => record.name === defaultObservabilityMetrics.toolDurationMs
+      )
+    ).toHaveLength(6)
+    expect(spanRecords).toHaveLength(6)
+    expect(spanRecords[0]).toMatchObject({
+      name: 'mcp.tool',
+      attributes: {
+        'mcp.auth.subject': 'REDACTED',
+        'mcp.capability.kind': 'tool',
+        'mcp.tool.name': 'observed-success'
+      },
+      ended: {
+        status: 'ok'
+      }
+    })
+    expect(logs[0]).toMatchObject({
+      level: 'info',
+      message: 'Tool execution observed',
+      data: {
+        'mcp.auth.subject': 'REDACTED',
+        'mcp.outcome': 'success',
+        'mcp.tool.name': 'observed-success'
+      }
+    })
   })
 
   it('deduplicates write tools with idempotency keys', async () => {
@@ -1357,6 +1579,16 @@ function safeMessage(action: () => unknown): string {
     throw error
   }
   throw new Error('Expected McpKitError')
+}
+
+function normalizeObservabilityAttributes(
+  attributes: ObservabilityAttributes
+): Record<string, string | number | boolean> {
+  const normalized: Record<string, string | number | boolean> = {}
+  for (const [key, value] of Object.entries(attributes)) {
+    if (value !== undefined) normalized[key] = value
+  }
+  return normalized
 }
 
 async function safeMessageAsync(

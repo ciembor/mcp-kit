@@ -163,6 +163,121 @@ describe('@mcp-kit/core', () => {
     await client.close()
   })
 
+  it('emits observability spans for prompt and resource requests', async () => {
+    const spans: Array<{
+      name: string
+      attributes: Record<string, string | number | boolean | undefined>
+      ended?: {
+        status?: 'ok' | 'error'
+        attributes?: Record<string, string | number | boolean | undefined>
+      }
+    }> = []
+    const app = createMcpApp({
+      name: 'observed-capabilities',
+      version: '1.0.0',
+      services: {},
+      observability: {
+        tracer: {
+          startSpan(name, options) {
+            const record: {
+              name: string
+              attributes: Record<string, string | number | boolean | undefined>
+              ended?: {
+                status?: 'ok' | 'error'
+                attributes?: Record<
+                  string,
+                  string | number | boolean | undefined
+                >
+              }
+            } = {
+              name,
+              attributes: { ...(options?.attributes ?? {}) }
+            }
+            spans.push(record)
+            return {
+              setAttributes(attributes) {
+                Object.assign(record.attributes, attributes)
+              },
+              end(ended) {
+                if (ended !== undefined) {
+                  record.ended = ended
+                }
+              }
+            }
+          }
+        }
+      }
+    })
+    app.resources([
+      defineResource({
+        name: 'cities',
+        uriTemplate: 'city://{id}',
+        list: () => ({
+          resources: [{ name: 'Warsaw', uri: 'city://warsaw' }]
+        }),
+        read: ({ params }) => ({
+          contents: [{ uri: `city://${params.id}`, text: params.id }]
+        })
+      })
+    ])
+    app.prompts([
+      definePrompt({
+        name: 'welcome',
+        argsSchema: z.object({ name: z.string() }),
+        render: ({ input }) => ({
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Hello ${input.name}`
+              }
+            }
+          ]
+        })
+      })
+    ])
+
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
+    const client = new Client(
+      { name: 'observability-test', version: '1.0.0' },
+      { capabilities: {} }
+    )
+
+    await Promise.all([
+      app.connect(serverTransport),
+      client.connect(clientTransport)
+    ])
+
+    await client.listResources()
+    await client.readResource({ uri: 'city://warsaw' })
+    await client.getPrompt({ name: 'welcome', arguments: { name: 'Ada' } })
+
+    expect(spans.map((span) => span.name)).toEqual([
+      'mcp.resource.list',
+      'mcp.resource.read',
+      'mcp.prompt'
+    ])
+    expect(spans).toMatchObject([
+      { ended: { status: 'ok' } },
+      {
+        ended: {
+          status: 'ok',
+          attributes: {
+            'mcp.resource.name': 'cities'
+          }
+        },
+        attributes: {
+          'mcp.resource.uri': 'city://warsaw'
+        }
+      },
+      { ended: { status: 'ok' } }
+    ])
+
+    await client.close()
+  })
+
   it('maps unexpected input-policy validation errors to a generic invalid params message', async () => {
     const app = createMcpApp({
       name: 'input-policy-server',

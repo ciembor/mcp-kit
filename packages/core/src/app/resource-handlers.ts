@@ -19,9 +19,13 @@ import type {
   ServerRequestContext
 } from '../definitions.js'
 import {
+  redactObservabilityAttributes,
   requireCapabilityAccess,
   resourceMetadata,
-  sdkResourceListCallback
+  sdkResourceListCallback,
+  type AppObservability,
+  type ObservabilityAttributes,
+  type ToolObservability
 } from '../runtime.js'
 
 export function registerResources<Services>(
@@ -84,14 +88,20 @@ export function installResourceHandlers<Services>(
   sdk: McpServer,
   resources: readonly AnyResourceDefinition<Services>[],
   subscriptions: Set<string>,
-  createContext: (extra: ServerRequestContext) => RequestContext<Services>
+  createContext: (extra: ServerRequestContext) => RequestContext<Services>,
+  observability: ToolObservability | undefined
 ): void {
   sdk.server.setRequestHandler(ListResourcesRequestSchema, (request, extra) =>
-    listResources(resources, request.params?.cursor, createContext(extra))
+    listResources(
+      resources,
+      request.params?.cursor,
+      createContext(extra),
+      observability
+    )
   )
 
   sdk.server.setRequestHandler(ReadResourceRequestSchema, (request, extra) =>
-    readResource(resources, request.params.uri, createContext(extra))
+    readResource(resources, request.params.uri, createContext(extra), observability)
   )
 
   installSubscriptionHandlers(sdk, resources, subscriptions)
@@ -100,18 +110,50 @@ export function installResourceHandlers<Services>(
 async function listResources<Services>(
   resources: readonly AnyResourceDefinition<Services>[],
   cursor: string | undefined,
-  context: RequestContext<Services>
+  context: RequestContext<Services>,
+  observability: ToolObservability | undefined
 ): Promise<{ resources: Resource[]; nextCursor?: string }> {
+  const attributes: ObservabilityAttributes = {
+    'mcp.capability.kind': 'resource',
+    'mcp.operation.name': 'list_resources',
+    'mcp.request.correlation_id': context.correlationId
+  }
+  const span = observability?.tracer?.startSpan('mcp.resource.list', {
+    kind: 'internal',
+    attributes: redactObservabilityAttributes(
+      observability,
+      'span',
+      'mcp.resource.list',
+      attributes
+    )
+  })
   const listed: Resource[] = []
   let nextCursor: string | undefined
-  for (const resource of resources) {
-    const result = await listResource(resource, cursor, context)
-    listed.push(...result.resources)
-    nextCursor ??= result.nextCursor
-  }
-  return {
-    resources: listed,
-    ...(nextCursor === undefined ? {} : { nextCursor })
+  try {
+    for (const resource of resources) {
+      const result = await listResource(resource, cursor, context)
+      listed.push(...result.resources)
+      nextCursor ??= result.nextCursor
+    }
+    await logObservedResource(observability, 'Resource list observed', attributes)
+    await span?.end({ status: 'ok', attributes })
+    return {
+      resources: listed,
+      ...(nextCursor === undefined ? {} : { nextCursor })
+    }
+  } catch (error) {
+    await logObservedResource(observability, 'Resource list observed', {
+      ...attributes,
+      'mcp.outcome': 'error'
+    })
+    await span?.end({
+      status: 'error',
+      attributes: {
+        ...attributes,
+        'mcp.outcome': 'error'
+      }
+    })
+    throw error
   }
 }
 
@@ -153,20 +195,82 @@ async function listResource<Services>(
 async function readResource<Services>(
   resources: readonly AnyResourceDefinition<Services>[],
   requestedUri: string,
-  context: RequestContext<Services>
+  context: RequestContext<Services>,
+  observability: ToolObservability | undefined
 ) {
-  const uri = new URL(requestedUri)
-  for (const resource of resources) {
-    if (resource.uri === requestedUri) {
-      await requireCapabilityAccess(resource.policy, context)
-      return resource.read({ uri, context })
-    }
-    const params = templateParams(resource, requestedUri)
-    if (params !== undefined) {
-      await requireCapabilityAccess(resource.policy, context)
-      return resource.read({ uri, params, context })
-    }
+  const attributes: ObservabilityAttributes = {
+    'mcp.capability.kind': 'resource',
+    'mcp.operation.name': 'read_resource',
+    'mcp.request.correlation_id': context.correlationId,
+    'mcp.resource.uri': requestedUri
   }
+  const span = observability?.tracer?.startSpan('mcp.resource.read', {
+    kind: 'internal',
+    attributes: redactObservabilityAttributes(
+      observability,
+      'span',
+      'mcp.resource.read',
+      attributes
+    )
+  })
+  const uri = new URL(requestedUri)
+  try {
+    for (const resource of resources) {
+      if (resource.uri === requestedUri) {
+        await requireCapabilityAccess(resource.policy, context)
+        const result = await resource.read({ uri, context })
+        await logObservedResource(observability, 'Resource read observed', {
+          ...attributes,
+          'mcp.resource.name': resource.name
+        })
+        await span?.end({
+          status: 'ok',
+          attributes: {
+            ...attributes,
+            'mcp.resource.name': resource.name
+          }
+        })
+        return result
+      }
+      const params = templateParams(resource, requestedUri)
+      if (params !== undefined) {
+        await requireCapabilityAccess(resource.policy, context)
+        const result = await resource.read({ uri, params, context })
+        await logObservedResource(observability, 'Resource read observed', {
+          ...attributes,
+          'mcp.resource.name': resource.name
+        })
+        await span?.end({
+          status: 'ok',
+          attributes: {
+            ...attributes,
+            'mcp.resource.name': resource.name
+          }
+        })
+        return result
+      }
+    }
+  } catch (error) {
+    await logObservedResource(observability, 'Resource read observed', {
+      ...attributes,
+      'mcp.outcome': 'error'
+    })
+    await span?.end({
+      status: 'error',
+      attributes: {
+        ...attributes,
+        'mcp.outcome': 'error'
+      }
+    })
+    throw error
+  }
+  await span?.end({
+    status: 'error',
+    attributes: {
+      ...attributes,
+      'mcp.outcome': 'error'
+    }
+  })
   throw new McpError(
     ErrorCode.InvalidParams,
     `Resource ${requestedUri} not found`
@@ -204,4 +308,17 @@ function installSubscriptionHandlers<Services>(
     subscriptions.delete(request.params.uri)
     return {}
   })
+}
+
+async function logObservedResource(
+  observability: Partial<AppObservability> | undefined,
+  message: string,
+  attributes: ObservabilityAttributes
+): Promise<void> {
+  const logger = observability?.logger
+  if (logger === undefined) return
+  logger.info(
+    message,
+    redactObservabilityAttributes(observability, 'log', message, attributes)
+  )
 }
