@@ -75,6 +75,7 @@ export {
   type ConcurrencyCheck,
   type ConcurrencyPermit,
   type ConcurrencyStore,
+  type IdempotencyBeginResult,
   type IdempotencyStore,
   type RateLimitCheck,
   type RateLimitDecision,

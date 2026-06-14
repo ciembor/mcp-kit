@@ -414,8 +414,11 @@ describe('runtime helpers', () => {
       },
       concurrency: {
         acquireConcurrency: (check) => {
-          calls.push(`acquire:${check.key}:${check.limit}`)
+          calls.push(
+            `acquire:${check.key}:${check.limit}:${check.leaseMs > 0}:${check.owner.length > 0}`
+          )
           return {
+            token: 'permit-1',
             release: () => {
               calls.push(`release:${check.key}`)
             }
@@ -423,8 +426,9 @@ describe('runtime helpers', () => {
         }
       },
       idempotency: {
-        getIdempotentResult: () => undefined,
-        storeIdempotentResult: () => undefined
+        beginIdempotentRequest: () => ({ kind: 'acquired', token: 'id-1' }),
+        completeIdempotentRequest: () => undefined,
+        abandonIdempotentRequest: () => undefined
       },
       audit: {
         writeAuditEvent: () => undefined
@@ -460,7 +464,7 @@ describe('runtime helpers', () => {
 
     expect(calls).toEqual([
       'rate:stored-policy-tool:alice:tenant-a:1000:2:true',
-      'acquire:stored-policy-tool:3',
+      'acquire:stored-policy-tool:3:true:true',
       'release:stored-policy-tool'
     ])
   })
@@ -592,11 +596,12 @@ describe('runtime helpers', () => {
         checkRateLimit: () => ({ allowed: false, retryAfterMs: 1000 })
       },
       concurrency: {
-        acquireConcurrency: () => ({ release: () => undefined })
+        acquireConcurrency: () => ({ token: 'permit-1', release: () => undefined })
       },
       idempotency: {
-        getIdempotentResult: () => undefined,
-        storeIdempotentResult: () => undefined
+        beginIdempotentRequest: () => ({ kind: 'acquired', token: 'id-1' }),
+        completeIdempotentRequest: () => undefined,
+        abandonIdempotentRequest: () => undefined
       },
       audit: {
         writeAuditEvent: () => undefined
@@ -742,6 +747,59 @@ describe('runtime helpers', () => {
       ]
     })
     expect(calls).toBe(2)
+  })
+
+  it('rejects concurrent requests with the same idempotency key without double execution', async () => {
+    let calls = 0
+    let releaseHandler = () => {}
+    const running = new Promise<void>((resolve) => {
+      releaseHandler = resolve
+    })
+    const tool = defineTool({
+      name: 'sync-ledger',
+      inputSchema: z.object({ idempotencyKey: z.string() }),
+      policy: {
+        effects: 'write',
+        idempotency: true
+      },
+      handler: async () => {
+        calls += 1
+        await running
+        return {
+          content: [{ type: 'text' as const, text: 'done' }]
+        }
+      }
+    })
+
+    const firstCall = runToolPipeline(
+      tool,
+      { idempotencyKey: 'same-request' },
+      makeContext(),
+      []
+    )
+    await Promise.resolve()
+    await expect(
+      runToolPipeline(
+        tool,
+        { idempotencyKey: 'same-request' },
+        makeContext(),
+        []
+      )
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: 'A request with the same idempotency key is already in progress.'
+        }
+      ]
+    })
+
+    releaseHandler()
+    await expect(firstCall).resolves.toMatchObject({
+      content: [{ type: 'text', text: 'done' }]
+    })
+    expect(calls).toBe(1)
   })
 
   it('binds filesystem, outbound HTTP, pagination, output and destructive I/O policies', async () => {

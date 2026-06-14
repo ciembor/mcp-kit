@@ -23,6 +23,7 @@ import type {
   ConcurrencyCheck,
   ConcurrencyPermit,
   ConcurrencyStore,
+  IdempotencyBeginResult,
   IdempotencyStore,
   RateLimitCheck,
   RateLimitDecision,
@@ -43,6 +44,7 @@ export type {
   ConcurrencyCheck,
   ConcurrencyPermit,
   ConcurrencyStore,
+  IdempotencyBeginResult,
   IdempotencyStore,
   RateLimitCheck,
   RateLimitDecision,
@@ -169,13 +171,17 @@ export function createObservabilityMiddleware<Services>(
 export function createConcurrencyMiddleware<Services>(
   store: ConcurrencyStore
 ): ToolMiddleware<Services> {
-  return async ({ tool }, next) => {
+  return async ({ tool, context }, next) => {
     const limit = tool.policy?.concurrency
     if (limit === undefined) return next()
+    const leaseMs = Math.max(tool.policy?.timeoutMs ?? 30_000, 30_000)
 
     const permit = await store.acquireConcurrency({
       key: concurrencyKey(tool.name),
-      limit
+      limit,
+      leaseMs,
+      nowMs: Date.now(),
+      owner: context.correlationId
     })
     if (permit === undefined) {
       throw new McpKitError({
@@ -226,14 +232,47 @@ export function createIdempotencyMiddleware<Services>(
     if (policy === undefined) return next()
 
     const key = idempotencyStoreKey(tool.name, context, input, policy)
-    const existing = await store.getIdempotentResult(key)
-    if (existing !== undefined) return existing
-
-    const result = await next()
-    if (result.isError !== true) {
-      await store.storeIdempotentResult(key, result)
+    const ttlMs = 86_400_000
+    const reservation = await store.beginIdempotentRequest({
+      key,
+      nowMs: Date.now(),
+      owner: context.correlationId,
+      ttlMs
+    })
+    if (reservation.kind === 'replay') return reservation.result
+    if (reservation.kind === 'in_progress') {
+      throw new McpKitError({
+        code: 'IDEMPOTENCY_CONFLICT',
+        message: `Tool ${tool.name} already has an in-flight request for idempotency key ${key}`,
+        safeMessage:
+          'A request with the same idempotency key is already in progress.'
+      })
     }
-    return result
+
+    try {
+      const result = await next()
+      if (result.isError !== true) {
+        await store.completeIdempotentRequest({
+          key,
+          token: reservation.token,
+          nowMs: Date.now(),
+          ttlMs,
+          result
+        })
+        return result
+      }
+      await store.abandonIdempotentRequest({
+        key,
+        token: reservation.token
+      })
+      return result
+    } catch (error) {
+      await store.abandonIdempotentRequest({
+        key,
+        token: reservation.token
+      })
+      throw error
+    }
   }
 }
 
@@ -384,6 +423,7 @@ function idempotencyStoreKey(
     toolName,
     context.auth?.subject ?? 'anonymous',
     context.auth?.tenantId ?? 'global',
+    context.auth?.clientId ?? 'default-client',
     key
   ].join(':')
 }

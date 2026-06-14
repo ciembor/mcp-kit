@@ -30,6 +30,7 @@ export type {
   ConcurrencyCheck,
   ConcurrencyPermit,
   ConcurrencyStore,
+  IdempotencyBeginResult,
   IdempotencyStore,
   RateLimitCheck,
   RateLimitDecision,

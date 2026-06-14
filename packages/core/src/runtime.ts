@@ -21,6 +21,7 @@ export {
   type ConcurrencyStore,
   type AuditEvent,
   type AuditStore,
+  type IdempotencyBeginResult,
   type IdempotencyStore,
   type RateLimitCheck,
   type RateLimitDecision,

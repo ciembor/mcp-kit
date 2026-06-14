@@ -7,6 +7,7 @@ import type {
   ConcurrencyCheck,
   ConcurrencyPermit,
   ConcurrencyStore,
+  IdempotencyBeginResult,
   IdempotencyStore,
   RateLimitCheck,
   RateLimitDecision,
@@ -14,6 +15,19 @@ import type {
 } from './runtime-store-contracts.js'
 
 type RateLimitBucket = { count: number; resetAt: number }
+type ActivePermit = { expiresAt: number; owner: string }
+type IdempotencyEntry =
+  | {
+      status: 'in_progress'
+      expiresAt: number
+      owner: string
+      token: string
+    }
+  | {
+      status: 'completed'
+      expiresAt: number
+      result: CallToolResult
+    }
 
 export function createInMemoryRateLimitStore(): RateLimitStore {
   class InMemoryRateLimitStore implements RateLimitStore {
@@ -51,24 +65,39 @@ export function createInMemoryRateLimitStore(): RateLimitStore {
 
 export function createInMemoryConcurrencyStore(): ConcurrencyStore {
   class InMemoryConcurrencyStore implements ConcurrencyStore {
-    readonly #active = new Map<string, number>()
+    readonly #active = new Map<string, Map<string, ActivePermit>>()
 
     acquireConcurrency({
       key,
-      limit
+      limit,
+      nowMs,
+      leaseMs,
+      owner
     }: ConcurrencyCheck): ConcurrencyPermit | undefined {
-      const active = this.#active.get(key) ?? 0
-      if (active >= limit) return undefined
+      const permits = this.#active.get(key) ?? new Map<string, ActivePermit>()
+      for (const [token, permit] of permits) {
+        if (permit.expiresAt <= nowMs) {
+          permits.delete(token)
+        }
+      }
+      if (permits.size >= limit) return undefined
 
-      this.#active.set(key, active + 1)
+      const token = globalThis.crypto.randomUUID()
+      permits.set(token, {
+        owner,
+        expiresAt: nowMs + leaseMs
+      })
+      this.#active.set(key, permits)
       return {
+        token,
         release: () => {
-          const next = (this.#active.get(key) ?? 1) - 1
-          if (next <= 0) {
+          const active = this.#active.get(key)
+          if (active === undefined) return
+          active.delete(token)
+          if (active.size === 0) {
             this.#active.delete(key)
             return
           }
-          this.#active.set(key, next)
         }
       }
     }
@@ -82,14 +111,78 @@ export function createInMemoryConcurrencyStore(): ConcurrencyStore {
 
 export function createInMemoryIdempotencyStore(): IdempotencyStore {
   class InMemoryIdempotencyStore implements IdempotencyStore {
-    readonly #results = new Map<string, CallToolResult>()
+    readonly #entries = new Map<string, IdempotencyEntry>()
 
-    getIdempotentResult(key: string): CallToolResult | undefined {
-      return this.#results.get(key)
+    beginIdempotentRequest({
+      key,
+      nowMs,
+      owner,
+      ttlMs
+    }: {
+      key: string
+      nowMs: number
+      owner: string
+      ttlMs: number
+    }): IdempotencyBeginResult {
+      const entry = this.#entries.get(key)
+      if (entry !== undefined && entry.expiresAt > nowMs) {
+        if (entry.status === 'completed') {
+          return {
+            kind: 'replay',
+            result: entry.result
+          }
+        }
+        return {
+          kind: 'in_progress',
+          retryAfterMs: entry.expiresAt - nowMs
+        }
+      }
+
+      const token = globalThis.crypto.randomUUID()
+      this.#entries.set(key, {
+        status: 'in_progress',
+        owner,
+        token,
+        expiresAt: nowMs + ttlMs
+      })
+      return {
+        kind: 'acquired',
+        token
+      }
     }
 
-    storeIdempotentResult(key: string, result: CallToolResult): void {
-      this.#results.set(key, result)
+    completeIdempotentRequest({
+      key,
+      token,
+      nowMs,
+      ttlMs,
+      result
+    }: {
+      key: string
+      token: string
+      nowMs: number
+      ttlMs: number
+      result: CallToolResult
+    }): void {
+      const entry = this.#entries.get(key)
+      if (entry?.status !== 'in_progress' || entry.token !== token) return
+      this.#entries.set(key, {
+        status: 'completed',
+        result,
+        expiresAt: nowMs + ttlMs
+      })
+    }
+
+    abandonIdempotentRequest({
+      key,
+      token
+    }: {
+      key: string
+      token: string
+    }): void {
+      const entry = this.#entries.get(key)
+      if (entry?.status !== 'in_progress' || entry.token !== token) return
+      this.#entries.delete(key)
     }
   }
 

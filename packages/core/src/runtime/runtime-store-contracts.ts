@@ -20,9 +20,13 @@ export type RateLimitStore = {
 export type ConcurrencyCheck = {
   key: string
   limit: number
+  leaseMs: number
+  nowMs: number
+  owner: string
 }
 
 export type ConcurrencyPermit = {
+  token: string
   release(): void | Promise<void>
 }
 
@@ -33,14 +37,40 @@ export type ConcurrencyStore = {
 }
 
 export type IdempotencyStore = {
-  getIdempotentResult(
+  beginIdempotentRequest(args: {
     key: string
-  ): CallToolResult | undefined | Promise<CallToolResult | undefined>
-  storeIdempotentResult(
-    key: string,
+    nowMs: number
+    owner: string
+    ttlMs: number
+  }):
+    | IdempotencyBeginResult
+    | Promise<IdempotencyBeginResult>
+  completeIdempotentRequest(args: {
+    key: string
+    token: string
+    nowMs: number
+    ttlMs: number
     result: CallToolResult
-  ): void | Promise<void>
+  }): void | Promise<void>
+  abandonIdempotentRequest(args: {
+    key: string
+    token: string
+  }): void | Promise<void>
 }
+
+export type IdempotencyBeginResult =
+  | {
+      kind: 'acquired'
+      token: string
+    }
+  | {
+      kind: 'replay'
+      result: CallToolResult
+    }
+  | {
+      kind: 'in_progress'
+      retryAfterMs?: number
+    }
 
 export type AuditEvent = {
   correlationId: string
