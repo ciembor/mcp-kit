@@ -137,6 +137,11 @@ function resolveSessionStore(
   mode: 'development' | 'production'
 ) {
   if (sessionMode !== 'stateful') return undefined
+  if (mode === 'production') {
+    throw new Error(
+      'Stateful Streamable HTTP is single-process only and is not supported in production.'
+    )
+  }
   return options.sessionStore ?? defaultSessionStore(mode)
 }
 
@@ -207,7 +212,7 @@ function defaultSessionStore(mode: 'development' | 'production') {
     return createInMemorySessionStore()
   }
   throw new Error(
-    'Stateful Streamable HTTP requires an explicit SessionStore outside development.'
+    'Stateful Streamable HTTP is single-process only and is not supported in production.'
   )
 }
 

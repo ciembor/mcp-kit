@@ -14,9 +14,11 @@ export type ManagedSession = {
   close(): Promise<void>
 }
 
-export type SessionStore = {
+export type InProcessSessionStore = {
   get(sessionId: string): Promise<ManagedSession | undefined>
   set(sessionId: string, session: ManagedSession): Promise<void>
   delete(sessionId: string): Promise<void>
   list(): Promise<readonly ManagedSession[]>
 }
+
+export type SessionStore = InProcessSessionStore

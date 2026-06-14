@@ -60,24 +60,11 @@ Fastify still owns `listen()` and process shutdown. During rolling shutdown, cal
 
 ## Sessions
 
-Stateless mode is the production default. Use stateful sessions only when the client flow needs them.
+Stateless mode is the production default.
 
-When `sessionMode` is `stateful`, production deployments need a `SessionStore` outside the Node process:
+`sessionMode: 'stateful'` is available for local development, demos, and single-process deployments where one Node process owns the transport lifecycle. It is not a production topology feature: the underlying MCP transport keeps live session state in memory, and the current `SessionStore` contract stores those live handles.
 
-```ts
-import type { SessionStore } from '@mcp-kit/node'
-
-export const sessionStore: SessionStore = {
-  get: (sessionId) => redisLoadSession(sessionId),
-  set: (sessionId, session) => redisSaveSession(sessionId, session),
-  delete: (sessionId) => redisDeleteSession(sessionId),
-  list: () => redisListSessions()
-}
-```
-
-Do not rely on sticky sessions for correctness. Any worker that receives the next request must be able to load the session, verify the current user, and continue safely.
-
-The current `SessionStore` contract still stores live `ManagedSession` handles, so it is production-safe only inside one process. See [Store Guarantees](./reference/store-guarantees.md) for the exact limitation and the guarantees expected from the other production stores.
+That means production HTTP should stay stateless even if the client flow would be more convenient with session continuity. If a future MCP transport exposes serializable session state, `mcp-kit` can grow a real production session port on top of it.
 
 ## Resumability
 
@@ -106,5 +93,5 @@ Browsers that reconnect with `Last-Event-ID` need CORS configured so that header
 | Bind address | Use `0.0.0.0` only with `mode: 'production'` and an explicit auth choice. |
 | Auth         | Verify every request. Session reuse is not authorization.                 |
 | Proxies      | Set `trustedProxies` to exact proxy IPs or CIDRs.                         |
-| Sessions     | Keep state outside process memory if using `stateful` mode.               |
+| Sessions     | Keep production HTTP stateless. Reserve `stateful` for single-process use. |
 | Shutdown     | Call `drain()`, then close the server.                                    |

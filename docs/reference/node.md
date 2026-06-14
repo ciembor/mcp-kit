@@ -1,6 +1,6 @@
 # `@mcp-kit/node`
 
-`@mcp-kit/node` runs an `@mcp-kit/core` app on Node.js. It supports stdio, Streamable HTTP, Fastify mounting, OAuth resource-server helpers, stateful sessions, and event replay.
+`@mcp-kit/node` runs an `@mcp-kit/core` app on Node.js. It supports stdio, Streamable HTTP, Fastify mounting, OAuth resource-server helpers, single-process stateful sessions, and event replay.
 
 ## Entrypoints
 
@@ -58,14 +58,14 @@ Pass an app factory as `createApp`. The HTTP runtime decides when it needs a fre
 | `mode`                                               | `development` or `production`.                             |
 | `host`, `port`, `path`                               | Bind address and MCP path.                                 |
 | `healthPath`, `readinessPath`                        | Probe paths.                                               |
-| `sessionMode`, `sessionStore`                        | Stateful session support.                                  |
+| `sessionMode`, `sessionStore`                        | Single-process stateful session support.                   |
 | `eventStore`, `retryIntervalMs`                      | Stream replay and reconnect hints.                         |
 | `auth`                                               | Bearer-token verification and protected resource metadata. |
 | `trustedProxies`                                     | Proxy addresses allowed to set forwarded headers.          |
 | `allowedHosts`, `allowedOrigins`, `cors`             | Host and browser-origin restrictions.                      |
 | `maxBodyBytes`, `requestTimeoutMs`, `maxConcurrency` | Request limits.                                            |
 
-Use external `SessionStore` and `StreamableHttpEventStore` implementations in production when state must survive a restart.
+Use external `StreamableHttpEventStore` implementations in production when replay state must survive a restart. Keep `sessionMode: 'stateful'` for one-process runtimes only.
 
 The required guarantees for `SessionStore` and `StreamableHttpEventStore` are documented in [Store Guarantees](./store-guarantees.md).
 

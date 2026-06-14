@@ -206,7 +206,7 @@ describe('@mcp-kit/node streamable http', () => {
     expect(transportInstances[0]?.close).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps production HTTP stateless unless a session store is configured explicitly', async () => {
+  it('normalizes production HTTP as stateless by default', async () => {
     const apps = createAppFactory()
     const runtime = await runStreamableHttp(apps.createApp, {
       mode: 'production',
@@ -216,17 +216,10 @@ describe('@mcp-kit/node streamable http', () => {
     })
     runtimes.push(runtime)
 
-    const response = await fetch(runtime.url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ hello: 'world' })
-    })
-
     expect(runtime.options.mode).toBe('production')
     expect(runtime.options.sessionMode).toBe('stateless')
     expect(runtime.options.sessionStore).toBeUndefined()
-    expect(response.status).toBe(200)
-    expect(response.headers.get('mcp-session-id')).toBeNull()
+    expect(apps.instances).toHaveLength(0)
   })
 
   it('rejects disallowed Host headers before touching the app', async () => {
@@ -767,7 +760,7 @@ describe('@mcp-kit/node streamable http', () => {
     expect(transportInstances[0]?.handleRequest).toHaveBeenCalledTimes(2)
   })
 
-  it('supports stateful sessions across workers without sticky routing', async () => {
+  it('supports stateful sessions across runtimes in one process', async () => {
     const primaryApps = createAppFactory()
     const secondaryApps = createAppFactory()
     const sessionStore = createInMemorySessionStore()
@@ -816,7 +809,7 @@ describe('@mcp-kit/node streamable http', () => {
     expect(transportInstances[0]?.handleRequest).toHaveBeenCalledTimes(2)
   })
 
-  it('handles alternating requests for one session across two workers', async () => {
+  it('handles alternating requests for one session across two runtimes in one process', async () => {
     const primaryApps = createAppFactory()
     const secondaryApps = createAppFactory()
     const sessionStore = createInMemorySessionStore()
@@ -914,16 +907,19 @@ describe('@mcp-kit/node streamable http', () => {
     expect(apps.instances[0]?.close).toHaveBeenCalledTimes(1)
   })
 
-  it('requires an explicit SessionStore for stateful production', async () => {
+  it('rejects stateful production even with an explicit session store', async () => {
     const apps = createAppFactory()
+    const sessionStore = createInMemorySessionStore()
 
     await expect(
       runStreamableHttp(apps.createApp, {
         port: 0,
         mode: 'production',
+        auth: false,
+        sessionStore,
         sessionMode: 'stateful'
       })
-    ).rejects.toThrow('explicit SessionStore')
+    ).rejects.toThrow('single-process only')
   })
 
   it('rejects missing bearer tokens when auth middleware is enabled', async () => {

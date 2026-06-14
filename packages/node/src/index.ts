@@ -9,6 +9,7 @@ export {
 } from './oauth-jwt.js'
 export type {
   DeploymentMode,
+  InProcessSessionStore,
   ManagedSession,
   McpAppFactory,
   SessionStore,

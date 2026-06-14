@@ -4,7 +4,7 @@ This page defines the minimum behavior required from production store adapters. 
 
 ## SessionStore
 
-`SessionStore` currently stores live `ManagedSession` instances, so it is only safe inside one process.
+`SessionStore` currently stores live `ManagedSession` instances, so it is only safe inside one process. Treat it as a local runtime registry, not as a production shared-state port.
 
 | Concern    | Minimum guarantee |
 | ---------- | ----------------- |
@@ -103,5 +103,5 @@ This page defines the minimum behavior required from production store adapters. 
 ## Notes
 
 - `JobStore`, `RateLimitStore`, `ConcurrencyStore`, `AuditStore`, and `IdempotencyStore` are production-facing contracts today.
-- `SessionStore` needs a deeper production-safe contract than the current live-session handle model if it is to work across processes.
+- `SessionStore` is intentionally single-process today. A future production-safe session port would need serializable transport state from the underlying MCP transport.
 - `JobQueue` ordering is intentionally weak; the durable source of truth is always `JobStore`.

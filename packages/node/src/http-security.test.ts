@@ -83,7 +83,7 @@ describe('normalizeStreamableHttpOptions', () => {
     }
 
     const normalized = normalizeStreamableHttpOptions({
-      mode: 'production',
+      mode: 'development',
       host: 'api.example',
       port: 8080,
       path: 'custom',
@@ -108,7 +108,7 @@ describe('normalizeStreamableHttpOptions', () => {
     })
 
     expect(normalized).toMatchObject({
-      mode: 'production',
+      mode: 'development',
       host: 'api.example',
       port: 8080,
       path: '/custom',
@@ -168,7 +168,7 @@ describe('normalizeStreamableHttpOptions', () => {
     })
   })
 
-  it('rejects unsafe binding, public auth and stateful production defaults', () => {
+  it('rejects unsafe binding, public auth and stateful production mode', () => {
     expect(() =>
       normalizeStreamableHttpOptions({
         host: '0.0.0.0',
@@ -195,9 +195,15 @@ describe('normalizeStreamableHttpOptions', () => {
         mode: 'production',
         host: 'api.example',
         auth: false,
+        sessionStore: {
+          get: vi.fn(() => Promise.resolve(undefined)),
+          set: vi.fn(() => Promise.resolve()),
+          delete: vi.fn(() => Promise.resolve()),
+          list: vi.fn(() => Promise.resolve([]))
+        },
         sessionMode: 'stateful'
       })
-    ).toThrow('explicit SessionStore outside development')
+    ).toThrow('single-process only')
   })
 
   it('accepts explicit public binding when mode, proxies and auth are all set', () => {

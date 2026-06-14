@@ -1,6 +1,7 @@
 import type { AuthContext, McpApp } from '@mcp-kit/core'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type {
+  InProcessSessionStore,
   ManagedSession,
   SessionStore,
   StreamableHttpEventStore
@@ -80,6 +81,7 @@ export type StreamableHttpRuntime = {
 
 export type McpAppFactory<Services> = () => McpApp<Services>
 export type {
+  InProcessSessionStore,
   ManagedSession,
   SessionStore,
   StreamableHttpEventStore
