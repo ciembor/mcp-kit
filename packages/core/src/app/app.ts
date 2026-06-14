@@ -1,6 +1,7 @@
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import { silentLogger } from '../runtime.js'
 import { resolveRuntimePolicyStores } from '../runtime/tool-runtime-policy.js'
+import type { Logger } from '../definitions.js'
 import { capabilityMethods } from './capabilities.js'
 import { contextFactory } from './context.js'
 import type { McpApp, McpAppOptions } from './contracts.js'
@@ -51,16 +52,23 @@ export function createMcpApp<Services>(
       protocolVersion = value
     }
   })
-  return {
+  const app = {
     sdk,
     get connected() {
       return connected
     },
     ...capabilities,
     ...lifecycle,
-    setLogger(nextLogger) {
+    setLogger(nextLogger: Logger) {
       assertNotConnected(connected)
       logger = nextLogger
     }
   }
+  Object.defineProperty(app, '__mcpKitRuntimeStores', {
+    value: policyStores,
+    configurable: false,
+    enumerable: false,
+    writable: false
+  })
+  return app
 }

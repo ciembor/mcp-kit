@@ -224,7 +224,7 @@ describe('stateful handler branches', () => {
     transportCtorMock.mockReturnValueOnce(transport)
 
     await newStatefulSessionExchange({
-      createApp: () => app as never,
+      createValidatedApp: () => app as never,
       options: {
         sessionStore,
         cors: false
@@ -311,7 +311,7 @@ describe('stateful handler branches', () => {
 
     await expect(
       newStatefulSessionExchange({
-        createApp: () => app as never,
+        createValidatedApp: () => app as never,
         options: {
           sessionStore,
           cors: false
@@ -339,7 +339,7 @@ describe('stateful handler branches', () => {
 
     await expect(
       newStatefulSessionExchange({
-        createApp: () => failingApp as never,
+        createValidatedApp: () => failingApp as never,
         options: {
           sessionStore,
           cors: false
@@ -357,7 +357,7 @@ describe('stateful handler branches', () => {
   it('throws without a session store and closes sessions without ids instead of persisting them', async () => {
     await expect(
       newStatefulSessionExchange({
-        createApp: vi.fn(),
+        createValidatedApp: vi.fn(),
         options: {
           sessionStore: undefined,
           cors: false
@@ -387,7 +387,7 @@ describe('stateful handler branches', () => {
     transportCtorMock.mockReturnValueOnce(transport)
 
     const exchange = await newStatefulSessionExchange({
-      createApp: () => app as never,
+      createValidatedApp: () => app as never,
       options: {
         sessionStore,
         cors: false
@@ -444,7 +444,7 @@ describe('stateful handler branches', () => {
 
     await expect(
       newStatefulSessionExchange({
-        createApp: () => app as never,
+        createValidatedApp: () => app as never,
         options: {
           sessionStore,
           cors: false

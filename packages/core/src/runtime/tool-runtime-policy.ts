@@ -97,28 +97,46 @@ export function createAuthorizationMiddleware<
   }
 }
 
-export function createAuditMiddleware<Services>(): ToolMiddleware<Services> {
+export function createAuditMiddleware<Services>(
+  store: AuditStore
+): ToolMiddleware<Services> {
   return async ({ tool, context }, next) => {
     if (!requiresAudit(tool)) return next()
 
     try {
       const result = await next()
-      writeAuditEvent(context.logger, {
-        correlationId: context.correlationId,
-        outcome: result.isError === true ? 'error' : 'success',
-        subject: context.auth?.subject,
-        tenantId: context.auth?.tenantId,
-        tool: tool.name
-      })
+      await writeAuditEvent(
+        store,
+        context.logger,
+        auditEvent({
+          correlationId: context.correlationId,
+          outcome: result.isError === true ? 'error' : 'success',
+          tool: tool.name,
+          ...(context.auth?.subject === undefined
+            ? {}
+            : { subject: context.auth.subject }),
+          ...(context.auth?.tenantId === undefined
+            ? {}
+            : { tenantId: context.auth.tenantId })
+        })
+      )
       return result
     } catch (error) {
-      writeAuditEvent(context.logger, {
-        correlationId: context.correlationId,
-        outcome: auditFailureOutcome(error),
-        subject: context.auth?.subject,
-        tenantId: context.auth?.tenantId,
-        tool: tool.name
-      })
+      await writeAuditEvent(
+        store,
+        context.logger,
+        auditEvent({
+          correlationId: context.correlationId,
+          outcome: auditFailureOutcome(error),
+          tool: tool.name,
+          ...(context.auth?.subject === undefined
+            ? {}
+            : { subject: context.auth.subject }),
+          ...(context.auth?.tenantId === undefined
+            ? {}
+            : { tenantId: context.auth.tenantId })
+        })
+      )
       throw error
     }
   }
@@ -396,16 +414,11 @@ function missingIdempotencyKey(
   })
 }
 
-function writeAuditEvent(
+async function writeAuditEvent(
+  store: AuditStore,
   logger: Logger,
-  event: {
-    correlationId: string
-    outcome: 'success' | 'error' | 'denied'
-    subject: string | undefined
-    tenantId: string | undefined
-    tool: string
-  }
-): void {
+  event: AuditEvent
+): Promise<void> {
   logger.info('Audit event', {
     correlationId: event.correlationId,
     outcome: event.outcome,
@@ -413,6 +426,23 @@ function writeAuditEvent(
     ...(event.tenantId === undefined ? {} : { tenantId: event.tenantId }),
     tool: event.tool
   })
+  await store.writeAuditEvent(event)
+}
+
+function auditEvent(event: {
+  correlationId: string
+  outcome: AuditEvent['outcome']
+  subject?: string
+  tenantId?: string
+  tool: string
+}): AuditEvent {
+  return {
+    correlationId: event.correlationId,
+    outcome: event.outcome,
+    ...(event.subject === undefined ? {} : { subject: event.subject }),
+    ...(event.tenantId === undefined ? {} : { tenantId: event.tenantId }),
+    tool: event.tool
+  }
 }
 
 function authorizeRequiredScopes<Services>(

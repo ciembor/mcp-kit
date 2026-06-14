@@ -27,6 +27,7 @@ const {
   existingSessionMock,
   existingSessionExchangeMock,
   newStatefulSessionExchangeMock,
+  assertProductionStoreSafetyMock,
   corsHeadersMock,
   normalizeStreamableHttpOptionsMock,
   validateHostHeaderMock,
@@ -49,6 +50,7 @@ const {
   existingSessionMock: vi.fn(),
   existingSessionExchangeMock: vi.fn(),
   newStatefulSessionExchangeMock: vi.fn(),
+  assertProductionStoreSafetyMock: vi.fn(),
   corsHeadersMock: vi.fn(),
   normalizeStreamableHttpOptionsMock: vi.fn(),
   validateHostHeaderMock: vi.fn(),
@@ -85,6 +87,10 @@ vi.mock('./http-handler-stateful.js', () => ({
   newStatefulSessionExchange: newStatefulSessionExchangeMock
 }))
 
+vi.mock('./http-production-store-safety.js', () => ({
+  assertProductionStoreSafety: assertProductionStoreSafetyMock
+}))
+
 vi.mock('./http-security.js', () => ({
   corsHeaders: corsHeadersMock,
   normalizeStreamableHttpOptions: normalizeStreamableHttpOptionsMock,
@@ -104,6 +110,7 @@ beforeEach(() => {
   existingSessionMock.mockReset()
   existingSessionExchangeMock.mockReset()
   newStatefulSessionExchangeMock.mockReset()
+  assertProductionStoreSafetyMock.mockReset()
   corsHeadersMock.mockReset()
   normalizeStreamableHttpOptionsMock.mockReset()
   validateHostHeaderMock.mockReset()
@@ -112,6 +119,7 @@ beforeEach(() => {
   authenticateRequestMock.mockResolvedValue({})
   closeManagedResourcesMock.mockResolvedValue(undefined)
   createTransportOptionsMock.mockReturnValue({ retryInterval: 500 })
+  assertProductionStoreSafetyMock.mockReturnValue(undefined)
   createResponseExchangeMock.mockImplementation(
     (response, _request, _cors, close) => ({
       response,
@@ -159,6 +167,7 @@ describe('createStreamableHttpHandler branches', () => {
       parsedBody: undefined
     })
 
+    expect(assertProductionStoreSafetyMock).toHaveBeenCalledTimes(1)
     expect(createTransportOptionsMock).toHaveBeenCalled()
     expect(transport.handleRequest).toHaveBeenCalledWith(
       expect.any(Request),
@@ -191,6 +200,34 @@ describe('createStreamableHttpHandler branches', () => {
       })
     ).rejects.toThrow(error)
     expect(closeManagedResourcesMock).toHaveBeenCalledWith(app, transport)
+  })
+
+  it('fails before creating a production app when store safety validation rejects it', async () => {
+    const error = new Error('unsafe stores')
+    assertProductionStoreSafetyMock.mockImplementation(() => {
+      throw error
+    })
+    normalizeStreamableHttpOptionsMock.mockReturnValueOnce({
+      path: '/mcp',
+      mode: 'production',
+      sessionMode: 'stateless',
+      maxConcurrency: 2,
+      cors: false,
+      allowedHosts: ['runtime.test'],
+      allowedOrigins: [],
+      auth: false,
+      sessionStore: undefined
+    })
+
+    const handler = createStreamableHttpHandler(vi.fn(), {})
+
+    await expect(
+      handler({
+        request: new Request('http://runtime.test/mcp', { method: 'POST' }),
+        parsedBody: {}
+      })
+    ).rejects.toThrow(error)
+    expect(createConfiguredAppMock).not.toHaveBeenCalled()
   })
 
   it('rejects path misses and OPTIONS without cors', async () => {

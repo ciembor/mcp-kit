@@ -19,6 +19,7 @@ import {
   existingSessionExchange,
   newStatefulSessionExchange
 } from './http-handler-stateful.js'
+import { assertProductionStoreSafety } from './http-production-store-safety.js'
 import {
   corsHeaders,
   normalizeStreamableHttpOptions,
@@ -31,7 +32,16 @@ export function createStreamableHttpHandler<Services>(
   options: StreamableHttpOptions = {}
 ): StreamableHttpHandler {
   const normalized = normalizeStreamableHttpOptions(options)
+  let productionStoresValidated = false
   let activeRequests = 0
+
+  const createValidatedApp = () => {
+    if (!productionStoresValidated) {
+      assertProductionStoreSafety(createApp, normalized)
+      productionStoresValidated = true
+    }
+    return createConfiguredApp(createApp)
+  }
 
   return async ({ request, parsedBody }: StreamableHttpRequest) => {
     const rejected = rejectRequest(request, normalized)
@@ -51,14 +61,14 @@ export function createStreamableHttpHandler<Services>(
     try {
       if (normalized.sessionMode === 'stateful') {
         return await handleStatefulRequest(
-          createApp,
+          createValidatedApp,
           normalized,
           request,
           parsedBody
         )
       }
       return await handleStatelessRequest(
-        createApp,
+        createValidatedApp,
         normalized,
         request,
         parsedBody
@@ -80,7 +90,7 @@ async function handleStatelessRequest<Services>(
     return staticExchange(auth.rejection)
   }
 
-  const app = createConfiguredApp(createApp)
+  const app = createApp()
   const transport = new WebStandardStreamableHTTPServerTransport(
     createTransportOptions(options)
   )
@@ -133,7 +143,7 @@ async function handleStatefulRequest<Services>(
   }
 
   return await newStatefulSessionExchange({
-    createApp,
+    createValidatedApp: createApp,
     options,
     request,
     parsedBody,

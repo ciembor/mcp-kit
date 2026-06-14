@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 import type { DoctorDiagnostic } from './cli-contracts.js'
@@ -168,16 +168,64 @@ async function httpDiagnostic(root: string): Promise<DoctorDiagnostic> {
   const content = (await exists(configPath))
     ? await readFile(configPath, 'utf8')
     : ''
-  const productionHttp =
+  const productionHttpConfigured =
     content.includes("transport: 'http'") &&
-    content.includes('inMemory') &&
-    process.env['NODE_ENV'] === 'production'
+    (content.includes("mode: 'production'") ||
+      process.env['NODE_ENV'] === 'production')
+  const inMemoryStoresDetected =
+    productionHttpConfigured &&
+    (content.includes('inMemory') ||
+      (await projectContainsInMemoryStoreAdapter(root)))
   return {
-    level: productionHttp ? 'error' : 'ok',
+    level: inMemoryStoresDetected ? 'error' : 'ok',
     code: 'http-security',
-    message: productionHttp
-      ? 'production HTTP uses an in-memory store'
+    message: inMemoryStoresDetected
+      ? 'production HTTP uses a development/test in-memory store'
       : 'no unsafe production HTTP configuration detected'
+  }
+}
+
+const inMemoryStoreFactories = [
+  'createInMemorySessionStore',
+  'createInMemoryEventStore',
+  'createInMemoryJobStore',
+  'createInMemoryJobQueue',
+  'createInMemoryRateLimitStore',
+  'createInMemoryConcurrencyStore',
+  'createInMemoryAuditStore',
+  'createInMemoryIdempotencyStore'
+]
+
+async function projectContainsInMemoryStoreAdapter(
+  root: string
+): Promise<boolean> {
+  for (const path of await projectTextFiles(root)) {
+    const content = await readFile(path, 'utf8')
+    if (
+      inMemoryStoreFactories.some((factory) => content.includes(`${factory}(`))
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+async function projectTextFiles(root: string): Promise<string[]> {
+  const entries: string[] = []
+  await walkProject(root, entries)
+  return entries
+}
+
+async function walkProject(current: string, entries: string[]): Promise<void> {
+  for (const entry of await readdir(current, { withFileTypes: true })) {
+    if (entry.name === '.git' || entry.name === 'node_modules') continue
+    const absolute = resolve(current, entry.name)
+    if (entry.isDirectory()) {
+      await walkProject(absolute, entries)
+      continue
+    }
+    if (!/\.(cjs|cts|js|json|jsx|mjs|mts|ts|tsx)$/.test(entry.name)) continue
+    entries.push(absolute)
   }
 }
 

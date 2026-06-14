@@ -50,7 +50,7 @@ export async function existingSessionExchange(args: {
 }
 
 export async function newStatefulSessionExchange<Services>(args: {
-  createApp: McpAppFactory<Services>
+  createValidatedApp: McpAppFactory<Services>
   options: NormalizedStreamableHttpOptions
   request: Request
   parsedBody: unknown
@@ -59,7 +59,7 @@ export async function newStatefulSessionExchange<Services>(args: {
 }): Promise<StreamableHttpExchange> {
   const closeSession = createSessionCloser(args.sessionStore)
   const nextSession = await createStatefulSession(
-    args.createApp,
+    args.createValidatedApp,
     args.options,
     closeSession
   )

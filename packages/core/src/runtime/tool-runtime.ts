@@ -79,7 +79,7 @@ export async function runToolPipeline<Services>(
     createObservabilityMiddleware<Services>(observability),
     ...(middlewarePhases.onError ?? []),
     ...(middlewarePhases.beforePolicy ?? []),
-    createAuditMiddleware<Services>(),
+    createAuditMiddleware<Services>(policyStores.audit),
     createAuthorizationMiddleware<Services>(),
     createRateLimitMiddleware<Services>(policyStores.rateLimit),
     createConcurrencyMiddleware<Services>(policyStores.concurrency),
