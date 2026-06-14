@@ -530,7 +530,7 @@ Cel: domknac roznice miedzy frameworkiem wygodnym lokalnie a frameworkiem, ktore
 - [ ] Dodac referencyjne adaptery Redis dla session, event, job queue, rate limit, concurrency i idempotency.
 - [ ] Dodac referencyjne adaptery Postgres dla job store, audit store i idempotency store.
 - [ ] Dodac testy wieloprocesowe albo wieloinstancyjne pokazujace, ze limity, idempotency, event replay i joby dzialaja poza jednym procesem.
-- [ ] Udokumentowac minimalne gwarancje kazdego store: atomicznosc, TTL, cleanup, retry, lease, ordering i wymagania indeksow.
+- [x] Udokumentowac minimalne gwarancje kazdego store: atomicznosc, TTL, cleanup, retry, lease, ordering i wymagania indeksow.
 
 ### 2. Observability first-class
 

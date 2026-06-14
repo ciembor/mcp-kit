@@ -130,6 +130,8 @@ defineTool({
 
 The default key field is `idempotencyKey`. Use `idempotency: { keyField: 'requestId' }` if your API already has a different field. Production deployments should provide an `IdempotencyStore` outside the process.
 
+Detailed production guarantees for `JobStore`, `JobQueue`, `RateLimitStore`, `ConcurrencyStore`, `AuditStore`, and `IdempotencyStore` live in [Store Guarantees](./store-guarantees.md).
+
 ## Errors And Utilities
 
 | Export                                       | Use                                                                 |
@@ -186,6 +188,8 @@ Related types are `CompleteCallback` and `CompletableSchema`.
 It uses a `JobStore` for persisted state and worker leases, and a `JobQueue` for waking workers. The returned operation exposes `start(input)`, `status(jobId)`, `result(jobId)`, `cancel(jobId)`, `worker(workerId).runNext()`, `worker(workerId).runUntilIdle()`, `worker(workerId).waitForWork(signal)`, and `toTask(job, adapter)`.
 
 Jobs include `pollAfterMs` and `expiresAt` so clients know when to poll and when old results may disappear.
+
+`JobStore` and `JobQueue` minimum production guarantees are documented in [Store Guarantees](./store-guarantees.md).
 
 ## Main Types
 

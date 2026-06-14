@@ -77,6 +77,8 @@ export const sessionStore: SessionStore = {
 
 Do not rely on sticky sessions for correctness. Any worker that receives the next request must be able to load the session, verify the current user, and continue safely.
 
+The current `SessionStore` contract still stores live `ManagedSession` handles, so it is production-safe only inside one process. See [Store Guarantees](./reference/store-guarantees.md) for the exact limitation and the guarantees expected from the other production stores.
+
 ## Resumability
 
 Use an `eventStore` when clients must reconnect and replay missed Streamable HTTP events.
@@ -91,6 +93,8 @@ await runStreamableHttp(createApp, {
 ```
 
 `createInMemoryEventStore()` is useful for tests and local development. In production, store replayable events outside the process or reconnects after a restart will not have anything to replay.
+
+See [Store Guarantees](./reference/store-guarantees.md) for the required replay ordering, retention, and indexing behavior.
 
 Browsers that reconnect with `Last-Event-ID` need CORS configured so that header is allowed.
 

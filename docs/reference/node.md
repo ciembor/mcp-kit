@@ -67,6 +67,8 @@ Pass an app factory as `createApp`. The HTTP runtime decides when it needs a fre
 
 Use external `SessionStore` and `StreamableHttpEventStore` implementations in production when state must survive a restart.
 
+The required guarantees for `SessionStore` and `StreamableHttpEventStore` are documented in [Store Guarantees](./store-guarantees.md).
+
 ## Auth
 
 `StreamableHttpAuthOptions` accepts `verifyBearerToken(token, request)`, optional `allowAnonymous`, optional `challenge`, and optional protected-resource `metadata`.
