@@ -100,6 +100,16 @@ Auth-related types include `AuthContext`, `AuthorizationDetails`, `Authorization
 
 `policyStores` lets production deployments back rate limits, concurrency, and idempotency with shared storage. If you do not pass it, the app uses in-memory stores, which are fine for tests and one local process but do not survive restarts or coordinate several replicas.
 
+Reference Redis adapters are available for shared policy enforcement and worker wakeups:
+
+| Export                         | Use                                                        |
+| ------------------------------ | ---------------------------------------------------------- |
+| `createRedisRateLimitStore()`  | Share rate limits across replicas.                         |
+| `createRedisConcurrencyStore()`| Share per-tool concurrency leases across replicas.         |
+| `createRedisIdempotencyStore()`| Deduplicate write retries across replicas and restarts.    |
+| `createRedisJobQueue()`        | Wake workers from a shared queue outside one process.      |
+| `redisPolicyScripts`           | Reuse the shipped Redis script identifiers in test doubles.|
+
 ```ts
 createMcpApp({
   name: 'example',
@@ -130,7 +140,7 @@ defineTool({
 
 The default key field is `idempotencyKey`. Use `idempotency: { keyField: 'requestId' }` if your API already has a different field. Production deployments should provide an `IdempotencyStore` outside the process.
 
-Detailed production guarantees for `JobStore`, `JobQueue`, `RateLimitStore`, `ConcurrencyStore`, `AuditStore`, and `IdempotencyStore` live in [Store Guarantees](./store-guarantees.md). `SessionStore` is documented there as a single-process contract, not a production cross-instance store.
+Detailed production guarantees for `JobStore`, `JobQueue`, `RateLimitStore`, `ConcurrencyStore`, `AuditStore`, and `IdempotencyStore` live in [Store Guarantees](./store-guarantees.md). `SessionStore` is documented there as a single-process contract, not a production cross-instance store, so `@mcp-kit/core` does not ship a shared Redis session adapter.
 
 ## Errors And Utilities
 

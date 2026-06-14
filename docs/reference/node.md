@@ -11,6 +11,7 @@
 | `createJwtBearerVerifier(options)`                   | Build a bearer-token verifier for HTTP auth.              |
 | `exchangeDownstreamAccessToken(port, auth, request)` | Exchange the current auth context for a downstream token. |
 | `createInMemoryEventStore()`                         | Event replay store for tests and local development.       |
+| `createRedisEventStore()`                            | Shared event replay store for multi-instance HTTP.        |
 | `createInMemorySessionStore()`                       | Session store for tests and local development.            |
 | `createStderrLogger()`                               | Default process-safe logger.                              |
 | `packageInfo`                                        | Published package name and version.                       |
@@ -65,7 +66,7 @@ Pass an app factory as `createApp`. The HTTP runtime decides when it needs a fre
 | `allowedHosts`, `allowedOrigins`, `cors`             | Host and browser-origin restrictions.                      |
 | `maxBodyBytes`, `requestTimeoutMs`, `maxConcurrency` | Request limits.                                            |
 
-Use external `StreamableHttpEventStore` implementations in production when replay state must survive a restart. Keep `sessionMode: 'stateful'` for one-process runtimes only.
+Use external `StreamableHttpEventStore` implementations in production when replay state must survive a restart. `createRedisEventStore()` is the reference adapter for that case. Keep `sessionMode: 'stateful'` for one-process runtimes only.
 
 The required guarantees for `SessionStore` and `StreamableHttpEventStore` are documented in [Store Guarantees](./store-guarantees.md).
 

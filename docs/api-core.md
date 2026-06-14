@@ -20,7 +20,7 @@ export const app = createMcpApp({
 
 `services` is the dependency container passed to handlers through `context.services`. Keep database clients, downstream APIs, and application ports there instead of importing them directly inside MCP definitions.
 
-`policyStores` is optional in local development. In production, provide shared stores for rate limits, concurrency, and idempotency when more than one process can handle requests.
+`policyStores` is optional in local development. In production, provide shared stores for rate limits, concurrency, and idempotency when more than one process can handle requests. `@mcp-kit/core` ships reference Redis adapters for those policy stores plus `createRedisJobQueue()` for shared worker wakeups.
 
 `observability` receives one event per tool call with the tool name, outcome, latency, correlation id, and optional subject or tenant. Map that event to OpenTelemetry, Prometheus, or your own metrics backend.
 

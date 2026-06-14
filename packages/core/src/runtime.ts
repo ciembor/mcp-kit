@@ -9,6 +9,13 @@ export {
   createInMemoryRateLimitStore
 } from './runtime/in-memory-policy-stores.js'
 export {
+  createRedisConcurrencyStore,
+  createRedisIdempotencyStore,
+  createRedisRateLimitStore,
+  redisPolicyScripts
+} from './runtime/redis-policy-stores.js'
+export type { RedisLikeClient, RedisListPopResult, RedisSetOptions } from './runtime/redis-store-client.js'
+export {
   createInMemoryRuntimePolicyStores,
   requireCapabilityAccess,
   silentLogger,

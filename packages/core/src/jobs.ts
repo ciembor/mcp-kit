@@ -18,6 +18,7 @@ export {
   createInMemoryJobQueue,
   createInMemoryJobStore
 } from './jobs-in-memory.js'
+export { createRedisJobQueue } from './jobs-redis.js'
 
 export type {
   JobFailure,
